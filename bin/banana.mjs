@@ -107,5 +107,23 @@ if (cmd === 'brief') {
   process.exit(result.code);
 }
 
+if (cmd === 'doctor') {
+  const { parseDoctorArgs, runDoctor } = await import('../lib/doctor.mjs');
+  /** @type {import('../lib/doctor.mjs').DoctorFlags} */
+  let flags;
+  try {
+    flags = parseDoctorArgs(process.argv.slice(3));
+  } catch (error) {
+    console.error(`banana doctor: ${error instanceof Error ? error.message : error}`);
+    process.exit(1);
+  }
+  const io = {
+    out: (/** @type {string} */ line = '') => console.log(line),
+    err: (/** @type {string} */ line = '') => console.error(line),
+  };
+  const result = await runDoctor(flags, { cwd: process.cwd(), home: homedir(), io });
+  process.exit(result.code);
+}
+
 console.error(`banana: '${cmd}' is not implemented yet`);
 process.exit(1);
