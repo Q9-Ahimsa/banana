@@ -61,5 +61,33 @@ if (cmd === 'init') {
   process.exit(result.code);
 }
 
+if (cmd === 'project') {
+  const { parseProjectArgs, runProject } = await import('../lib/project.mjs');
+  /** @type {import('../lib/project.mjs').ProjectFlags} */
+  let flags;
+  try {
+    flags = parseProjectArgs(process.argv.slice(3));
+  } catch (error) {
+    console.error(`banana project: ${error instanceof Error ? error.message : error}`);
+    process.exit(1);
+  }
+  /** @type {import('node:readline/promises').Interface | null} */
+  let rl = null;
+  const io = {
+    out: (/** @type {string} */ line = '') => console.log(line),
+    err: (/** @type {string} */ line = '') => console.error(line),
+    prompt: async (/** @type {string} */ question) => {
+      if (rl === null) {
+        const { createInterface } = await import('node:readline/promises');
+        rl = createInterface({ input: process.stdin, output: process.stdout });
+      }
+      return rl.question(question);
+    },
+  };
+  const result = await runProject(flags, { cwd: process.cwd(), io });
+  rl?.close();
+  process.exit(result.code);
+}
+
 console.error(`banana: '${cmd}' is not implemented yet`);
 process.exit(1);
