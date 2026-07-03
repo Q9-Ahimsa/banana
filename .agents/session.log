@@ -10,3 +10,12 @@ APPROACH: User decision, no-questions ("monke together stronk"). Dir moved to ~/
 FILES: .agents/goal/packet.md
 STATUS: complete
 NEXT: ahimsa — fire decision on the armed packet (recommend headless via loops)
+## [2026-07-03] claude banana.3 | build — T1 scaffold (prep for headless run)
+APPROACH: Orchestrator-executed during loops prep — the quality gate must run green before preflight, which an empty repo cannot do. Loop starts at T2.
+FILES: package.json, tsconfig.json, bin/banana.mjs, test/smoke.test.mjs, LICENSE, .gitignore, AGENTS.md, docs/DESIGN.md
+PROBLEM: `node --test test/` dir-arg failed on Windows (MODULE_NOT_FOUND); tsc --checkJs missing Node types.
+FIX: test script → `node --test` (default discovery); added @types/node dev dep. Runtime deps still zero.
+VALIDATED: npm run check && npm test — tsc clean, 3/3 tests pass
+COMMITTED: 2c8bf07 feat: scaffold banana CLI (tag: pre-ralph)
+STATUS: complete
+NEXT: claude — write prd.json, run loops preflight, launch headless

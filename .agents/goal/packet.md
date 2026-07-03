@@ -23,9 +23,9 @@ ASSUMED: Constants — ghost threshold 48h, rotation threshold 700 lines, fence 
 <!-- Dependency order. done-when rungs: command | artifact | diff | REVIEW (auto-inserts a review task).
      On completion: flip [x], fill evidence:, append session.log entry (banana.n | build). -->
 
-- [ ] T1 — Scaffold the repo: git init at C:/Users/VICTUS/projects/banana, package.json (name banana, type module, bin → bin/banana.mjs, scripts: check = `tsc --checkJs --noEmit`, test = `node --test test/`), bin entry with version/help flags, MIT LICENSE, .gitignore, initial conventional commit.
+- [x] T1 — Scaffold the repo: git init at C:/Users/VICTUS/projects/banana, package.json (name banana, type module, bin → bin/banana.mjs, scripts: check = `tsc --checkJs --noEmit`, test = `node --test`), bin entry with version/help flags, MIT LICENSE, .gitignore, initial conventional commit.
       done-when: `node bin/banana.mjs --version` prints the package.json version and exits 0
-      evidence:
+      evidence: `node bin/banana.mjs --version` → 0.1.0, exit 0; gates green (tsc clean, node --test 3/3 pass); commit 2c8bf07, tag pre-ralph. Deviation logged: test script is `node --test` (dir-arg form broke on Windows); +@types/node dev dep for checkJs.
 
 - [ ] T2 — Write canon v1.1 under canon/: CONTINUITY.md genericized and extended with the new architecture — closed allowlist entry ritual with the compiled brief as the sole default read, hot/cold surface tiering, headings-not-bodies rule for other agents' in-flight work, 48h ghost rule, snapshot session lifecycle (BEGIN/WORK/CLOSE), and a "Changes from v1" section listing every deviation — plus STANDARD.md and SESSION-LOG.md copied with machine-specific references removed.
       done-when: `node --test test/canon.test.mjs` exits 0 — asserts the six required section/rule strings are present in canon/CONTINUITY.md and that "Ahimsa", "VICTUS", "hermes.exe", and absolute C:/ paths have zero occurrences across canon/
