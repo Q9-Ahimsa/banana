@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -30,6 +31,34 @@ Commands:
 if (!COMMANDS.includes(cmd)) {
   console.error(`banana: unknown command '${cmd}' (expected ${COMMANDS.join('|')})`);
   process.exit(1);
+}
+
+if (cmd === 'init') {
+  const { parseInitArgs, runInit } = await import('../lib/init.mjs');
+  /** @type {import('../lib/init.mjs').InitFlags} */
+  let flags;
+  try {
+    flags = parseInitArgs(process.argv.slice(3));
+  } catch (error) {
+    console.error(`banana init: ${error instanceof Error ? error.message : error}`);
+    process.exit(1);
+  }
+  /** @type {import('node:readline/promises').Interface | null} */
+  let rl = null;
+  const io = {
+    out: (/** @type {string} */ line = '') => console.log(line),
+    err: (/** @type {string} */ line = '') => console.error(line),
+    prompt: async (/** @type {string} */ question) => {
+      if (rl === null) {
+        const { createInterface } = await import('node:readline/promises');
+        rl = createInterface({ input: process.stdin, output: process.stdout });
+      }
+      return rl.question(question);
+    },
+  };
+  const result = await runInit(flags, { home: homedir(), io });
+  rl?.close();
+  process.exit(result.code);
 }
 
 console.error(`banana: '${cmd}' is not implemented yet`);
