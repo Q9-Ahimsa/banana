@@ -1,0 +1,12 @@
+## [2026-07-03] claude continuity-kit.1 | discuss — arm compile: task packet for continuity-kit v1
+APPROACH: Compiled session design (npx installer + brief/snapshot architecture) into hardened packet; ran packet-lint to green.
+FILES: .agents/goal/packet.md
+VALIDATED: packet-lint.ps1 — RESULT: PASS (0 fail, 0 warn)
+STATUS: complete
+NEXT: ahimsa — review echo-back (15 tasks, 7 ASSUMED lines, 1 REVIEW demotion) and give fire decision
+## [2026-07-03] claude banana.2 | ops — project renamed continuity-kit → banana
+SUPERSEDES: continuity-kit.1 (stream slug only — compile facts stand; stream continues as banana.n)
+APPROACH: User decision, no-questions ("monke together stronk"). Dir moved to ~/projects/banana; packet updated throughout (repo, package, bin, fences, npx path); re-linted.
+FILES: .agents/goal/packet.md
+STATUS: complete
+NEXT: ahimsa — fire decision on the armed packet (recommend headless via loops)
