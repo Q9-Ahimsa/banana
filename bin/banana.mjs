@@ -89,5 +89,23 @@ if (cmd === 'project') {
   process.exit(result.code);
 }
 
+if (cmd === 'brief') {
+  const { parseBriefArgs, runBrief } = await import('../lib/brief.mjs');
+  /** @type {import('../lib/brief.mjs').BriefFlags} */
+  let flags;
+  try {
+    flags = parseBriefArgs(process.argv.slice(3));
+  } catch (error) {
+    console.error(`banana brief: ${error instanceof Error ? error.message : error}`);
+    process.exit(1);
+  }
+  const io = {
+    out: (/** @type {string} */ line = '') => console.log(line),
+    err: (/** @type {string} */ line = '') => console.error(line),
+  };
+  const result = await runBrief(flags, { cwd: process.cwd(), io });
+  process.exit(result.code);
+}
+
 console.error(`banana: '${cmd}' is not implemented yet`);
 process.exit(1);
