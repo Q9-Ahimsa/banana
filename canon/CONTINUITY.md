@@ -41,8 +41,9 @@ Fine-grained work journal at each project root, shared by all agents.
   checkpoint with `FILES:`/`VALIDATED:`/`PROBLEM:`/`FIX:`, close with final
   `STATUS:` + `NEXT: {owner} — {action}`.
 - Resume: your own feature's entries are allowlist item 4 — the brief carries
-  them in full. Direct fallback: `grep "{feature}\." .agents/session.log |
-  tail`, reading that entry's `STATUS:`/`NEXT:`. Never read the whole file.
+  them (newest first, capped at 10). Minimal direct fallback: `grep
+  "{feature}\." .agents/session.log | tail`, reading the latest entry's
+  `STATUS:`/`NEXT:`. Never read the whole file.
 - Append-only. Corrections = new entry with `SUPERSEDES: {feature}.{n}`.
 - Full spec: `SESSION-LOG.md`, shipped alongside this file; a paste-ready
   directive for any agent config ships as a wiring template with this kit.
@@ -66,15 +67,18 @@ set — nothing else by default:
 2. project `STATE.md`, verbatim (hot; one page by contract);
 3. headings of the last 3–5 entries in `LOGBOOK.md` and `.agents/session.log`
    (awareness of recent and parallel work — headings only, per the rule below);
-4. the declared feature's own `session.log` entries, bodies included;
-5. `NEXT:` lines owned by this session's agent tag or unowned;
+4. the declared feature's own `session.log` entries, bodies included, newest
+   first, capped at the last 10;
+5. `NEXT:` lines owned by this session's agent tag or unowned, drawn only from
+   the surfaces items 2–4 already expose;
 6. ghost flags (per the 48h ghost rule).
 
 The kit's `brief` command compiles items 2–6 into one disposable per-intent
 artifact, each section carrying a `ref:` pointer to its source. Without the
-kit, read the items directly in `STANDARD.md`'s crash-recovery order
-(`STATE.md` → recent headings → follow pointers): the ritual and that order
-are the same read set — the brief is that order, compiled and feature-scoped.
+kit, read the six items directly, in the order listed — this implements
+`STANDARD.md`'s crash-recovery sequence at project grain (projection first,
+recent chronology second), with its "follow pointers as needed" step bounded
+to the `ref:` pointers items 2–4 expose.
 Briefs are per-session compilations of logged facts, discarded at close; they
 are never persisted and never contain guidance, so the speculative-auto-context
 failure mode in `STANDARD.md`'s table (which targets persistent state files)
@@ -117,11 +121,16 @@ Counter-failure: shared files changing under a session mid-task.
    about project state, the files win (memory may be stale the moment someone
    else writes an entry).
 2. **Append-only everywhere** except STATE pages (which are rebuilt whole).
-3. **NEXT is always owned** — every handoff names who acts: a human tag
-   (e.g. `human`), an agent tag, or `joint`.
+3. **NEXT is always owned at write time** — every handoff names who acts: a
+   human tag (e.g. `human`), an agent tag, or `joint`. An unowned `NEXT:`
+   found in the record is a defect, not a category: briefs and the doctor
+   surface it for adoption, and the next session touching that stream claims
+   or reassigns it via a superseding entry.
 4. **Never edit a closed entry — anyone's, your own included.** Corrections
    are new entries with `SUPERSEDES:`; disagreement with another agent is
-   likewise a new entry.
+   likewise a new entry. Counter-failure: self-editing history to erase a
+   wrong call destroys the calibration data and audit trail that supersession
+   exists to preserve.
 5. **Awareness is global, initiative is scoped.** Read all shared state you are
    shown, but act only on what the user asked for in *this* session plus items
    whose `NEXT:` names you or is unowned. Another agent's or session's
@@ -139,14 +148,17 @@ writes.
 ## Changes from v1
 
 v1.1 adds the **pollution-control architecture**. Nothing from v1 is removed.
+v1.1 also clarifies that an unowned `NEXT:` in the record is a defect state
+surfaced for adoption — the write rule is unchanged: NEXT is always owned at
+write time.
 
 1. **Hot/cold surface tiering** — projections are hot (auto-loaded, one page);
    chronology and entry bodies are cold (grep-on-demand only).
 2. **Closed allowlist entry ritual** — the session-start read set is
    enumerated in this document (six items) and compiled into a per-intent
    brief. The grain sections' v1 direct-read instructions are hereby redefined
-   as inputs to this single ritual; the no-kit fallback (read the items
-   directly, in the crash-recovery order) preserves v1 behavior exactly.
+   as inputs to this single ritual; the no-kit fallback reads the same
+   surfaces v1 prescribed, in the same order, plus the v1.1 ghost flags.
 3. **Headings-not-bodies** — other agents'/features' in-flight work is visible
    as headings only, never bodies.
 4. **48h ghost rule** — `in-progress` entries older than 48h are flagged and
@@ -156,6 +168,7 @@ v1.1 adds the **pollution-control architecture**. Nothing from v1 is removed.
 6. **Entry-edit rule tightened** — v1 forbade editing *another agent's*
    entries; v1.1 forbids editing any closed entry, your own included
    (alignment with `SESSION-LOG.md`'s "once closed, immutable").
+   Counter-failure: self-editing history to erase a wrong call.
 7. **Preserved v1 invariants** — restated verbatim above; append-only,
    supersession, attribution, owned NEXT, rebuild-don't-patch,
    pointers-not-payloads, event-triggered writes all carry forward.
