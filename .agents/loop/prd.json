@@ -118,7 +118,7 @@
     {
       "id": "US-009",
       "title": "brief command",
-      "description": "As a session starting work, I want a per-intent compiled brief instead of reading shared files, so that I get continuity without context pollution. `banana brief <feature> --tag <agent>` writes the brief to stdout following the include/exclude table in docs/DESIGN.md exactly (target-feature bodies; headings-only for last 5 other-feature entries; NEXT lines owned by tag or unowned; project STATE.md verbatim; 48h ghosts flagged; ref lines per section; other-feature bodies excluded). Deterministic text processing only.",
+      "description": "As a session starting work, I want a per-intent compiled brief instead of reading shared files, so that I get continuity without context pollution. `banana brief <feature> --tag <agent>` writes the brief to stdout, implementing the include/exclude table in docs/DESIGN.md exactly. Deterministic text processing only — no LLM calls.",
       "acceptanceCriteria": [
         "test/brief.test.mjs exists and `node --test test/brief.test.mjs` exits 0 against fixture logs",
         "Target-feature APPROACH text present in output; other-feature APPROACH text absent",
