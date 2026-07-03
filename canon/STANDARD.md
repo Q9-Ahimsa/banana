@@ -24,7 +24,9 @@ non-conforming agent configs ships as a wiring template with this kit. Session e
 LOGBOOK.md when project-worthy.
 
 **Crash-recovery read order** (session start, any agent): `STATE.md` → last 3–5 logbook entries → follow
-pointers as needed. Never read the whole logbook (grep it instead); never skip STATE.md.
+pointers as needed. Never read the whole logbook (grep it instead); never skip STATE.md. A per-intent
+compiled brief that packages exactly this read order (see `CONTINUITY.md`'s entry ritual) satisfies it —
+the brief is this order, compiled.
 
 ## 1. Entry envelope (fixed across all projects)
 
@@ -128,7 +130,8 @@ cadence the project already has — don't invent a new meeting), check:
 
 ## 8. Agent rules
 
-- Read STATE.md + logbook tail at session start. Grep for specifics; never read the full corpus.
+- Read STATE.md + logbook tail at session start (directly, or via a compiled brief per `CONTINUITY.md`).
+  Grep for specifics; never read the full corpus.
 - Log **actions, not beliefs** — what you did and touched, with file names, not your theory of the project.
 - Resolve an ambiguity by assumption → log it: `ASSUMED: {assumption} (confirm)`.
 - Your session-close entry is not optional, even mid-task (that's a `HANDOFF` entry: done / not-verified /
