@@ -32,8 +32,10 @@ ASSUMED: Constants — ghost threshold 48h, rotation threshold 700 lines, fence 
       evidence:
 
 - [ ] T3 — Harden the canon prose (qualitative gate on T2's CONTINUITY.md).
-      done-when: REVIEW — criteria: preserves every v1 integrity rule (append-only, supersession-not-erasure, owned NEXT, agent attribution, rebuild-don't-patch projections) or lists the deviation under "Changes from v1"; the entry ritual is a closed allowlist (reads nothing outside it by default); every newly added rule names the failure mode it counters; no rule contradicts canon/STANDARD.md or canon/SESSION-LOG.md; no person-, machine-, or path-specific reference survives genericization.
+      done-when: REVIEW — criteria: preserves every v1 integrity rule (append-only, supersession-not-erasure, owned NEXT, agent attribution, rebuild-don't-patch projections) or lists the deviation under "Changes from v1"; the entry ritual is a closed allowlist (reads nothing outside it by default); every newly added rule names the failure mode it counters; no rule contradicts canon/STANDARD.md or canon/SESSION-LOG.md; no person- or machine-identifying reference (personal names, usernames, drive letters, machine-absolute paths) survives genericization — portable tilde-relative and repo-relative paths are allowed.
       evidence:
+      BLOCKED: two consecutive review rounds sustained (round 1: reviewers A+B, fixed at 96e1229; round 2: reviewer D sustained on residual findings). Per protocol: stopped, surfaced to user. Findings triage in session.log banana.7.
+      UNBLOCKED (2026-07-04): user directed fix + round 3 ("banana solid or no banana"). Six-edit fix pass applied; criteria path clause amended above (was a criteria-authoring bug — bans home paths the protocol itself defines). See session.log banana.9.
 
 - [ ] T3-R — Adversarial blind review of T3 artifact (canon/CONTINUITY.md).
       done-when: 2 fresh, independent subagent reviewers (artifact + T3 criteria ONLY — no rationale, no chat history) each fail to sustain a refutation; verdicts quoted in evidence
