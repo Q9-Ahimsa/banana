@@ -19,3 +19,91 @@ VALIDATED: npm run check && npm test — tsc clean, 3/3 tests pass
 COMMITTED: 2c8bf07 feat: scaffold banana CLI (tag: pre-ralph)
 STATUS: complete
 NEXT: claude — write prd.json, run loops preflight, launch headless
+
+## [2026-07-04] claude us-001.1 | build — Canon v1.1 under canon/
+APPROACH: Genericized the three v1 protocol docs from their read-only sources; extended CONTINUITY.md with the six v1.1 pollution-control elements (hot/cold tiering, allowlist ritual, headings-not-bodies, 48h ghost rule, BEGIN/WORK/CLOSE, Changes-from-v1 section) per docs/DESIGN.md. Replaced owner-name references with `human`; test enforces the six required strings and zero machine residue (case-insensitive Ahimsa/VICTUS, hermes.exe, C:/ paths).
+FILES: canon/CONTINUITY.md, canon/STANDARD.md, canon/SESSION-LOG.md, test/canon.test.mjs
+VALIDATED: npm run check && npm test — typecheck clean, 6/6 tests pass (needed npm ci first; worktree had no node_modules)
+COMMITTED: f5de03e feat: [US-001] - Canon v1.1 under canon/
+STATUS: complete
+NEXT: claude — pick up US-002 (templates under templates/) next iteration
+
+## [2026-07-04] claude us-002.1 | build — Templates under templates/
+APPROACH: Derived template content from canon/ docs (STANDARD.md §3 for project-STATE six sections, SESSION-LOG.md for seed + portable directive) and the read-only portable source, genericized. Wiring templates (claude-code, agents-md, portable-directive) carry the exact fence markers from docs/DESIGN.md; only __OWNER__ and __AGENT_TAG__ placeholders. Test walks templates/ recursively: 7 required files, both fence markers per wiring file, placeholder allowlist, zero double-brace residue, zero machine residue.
+FILES: templates/global-STATE.md, templates/project-STATE.md, templates/LOGBOOK-header.md, templates/session-log-seed.md, templates/wiring/claude-code.md, templates/wiring/agents-md.md, templates/wiring/portable-directive.md, test/templates.test.mjs
+VALIDATED: npm run check && npm test — tsc clean, 11/11 tests pass
+COMMITTED: 0fb72c0 feat: [US-002] - Templates under templates/
+STATUS: complete
+NEXT: claude — pick up US-003 (lib/detect.mjs harness detection) next iteration
+
+## [2026-07-04] claude us-003.1 | build — Harness detection lib/detect.mjs
+APPROACH: New lib/detect.mjs with injectable home root + env (PATH/PATHEXT) — no real-HOME reads in logic. Four harness specs (claude-code/.claude+claude-bin, pi/.pi, codex/.codex, hermes/.hermes+hermes-bin); structured report {home, harnesses:[{id,name,detected,via,location}]}; findOnPath handles PATH-delimiter split + PATHEXT suffixes for Windows launchers. Tests build fixture fake-home trees and fake bin dirs in os.tmpdir — present/absent per harness, PATH fallback, dir-only harnesses ignore binaries, file-not-dir edge, home-dir precedence.
+FILES: lib/detect.mjs, test/detect.test.mjs
+VALIDATED: npm run check && npm test — tsc clean, 27/27 tests pass
+COMMITTED: feat: [US-003] - Harness detection lib/detect.mjs
+STATUS: complete
+NEXT: claude — pick up US-004 (fenced-write engine lib/fence.mjs) next iteration
+
+## [2026-07-04] claude us-004.1 | build — Fenced-write engine lib/fence.mjs
+APPROACH: Pure splice core (findFence/spliceFence) + thin IO wrapper (applyFence) that writes only on diff. Markers per docs/DESIGN.md; version parsed from begin marker; replace-in-place spans markers inclusive so everything outside is untouched byte-for-byte. Corrupt fence (begin without end) throws rather than guessing.
+FILES: lib/fence.mjs, test/fence.test.mjs
+VALIDATED: npm run check && npm test — typecheck clean, 38/38 pass (11 new fence tests: double-apply byte-identity, CRLF/no-trailing-newline preservation, v1→v2 in-place bump, corrupt-fence throw)
+COMMITTED: feat: [US-004] - Fenced-write engine lib/fence.mjs
+STATUS: complete
+NEXT: claude — US-005 file-wiring adapters (claude-code, pi, codex); write ONLY via lib/fence.mjs, exports fencedBlock/applyFence/spliceFence/findFence
+
+## [2026-07-04] claude us-005.1 | build — File-wiring adapters (claude-code, pi, codex)
+APPROACH: Shared factory lib/wiring.mjs (makeFileAdapter + renderWiringTemplate) declares each target as data; adapters/{claude-code,pi,codex}.mjs are thin declarations exposing detect/describe/wire. All content writes via lib/fence.mjs applyFence; templates trimmed with trimEnd() so the block ends exactly at the end marker (idempotency). Detect delegates to lib/detect.mjs with injectable env.
+FILES: lib/wiring.mjs, adapters/claude-code.mjs, adapters/pi.mjs, adapters/codex.mjs, test/adapters.test.mjs
+VALIDATED: npm run check && npm test — 59/59 pass (21 new adapter tests: describe target, detect present/absent, owner required, substitution, tag override, byte-identical re-run, path audit via full-tree snapshot)
+COMMITTED: feat: [US-005] - File-wiring adapters (claude-code, pi, codex)
+STATUS: complete
+NEXT: claude — pick up US-006 (hermes write-through adapter) next iteration
+
+## [2026-07-04] claude us-006.1 | build — Hermes write-through adapter
+APPROACH: adapters/hermes.mjs hand-rolled (not makeFileAdapter — no wire): detect delegates to lib/detect.mjs, describe declares target:null + delivery write-through-agent, compose() renders templates/wiring/portable-directive.md via renderWiringTemplate (fence markers stripped — directives aren't files), prepends agent-to-agent sender header + tag line, builds `hermes -z "<quoted>"` one-shot; deliver() no-ops unless opts.deliver===true, injectable run fn.
+FILES: adapters/hermes.mjs, test/hermes.test.mjs
+VALIDATED: npm run check && npm test — green, 68/68 (9 new hermes tests: sender header + envelope line present, sandbox home byte-identical after compose+deliver, deliver refused without flag)
+COMMITTED: feat: [US-006] - Hermes write-through adapter (b89164a)
+STATUS: complete
+NEXT: claude — pick up US-007 (init command) next iteration
+
+## [2026-07-04] claude us-007.1 | build — init command
+APPROACH: lib/init.mjs — parseInitArgs (--owner/--tag/--harnesses/--yes/--deliver) + runInit with injectable home/env/io/run; interactive fallback exactly 3 prompts (owner, harness confirm, write-plan confirm). Global surfaces create-if-missing (never overwrite living CONTINUITY/STATE); STATE.md rendered from templates/global-STATE.md with owner; file adapters wire via existing adapters (fence idempotency inherited); hermes composed always, executed only behind --deliver; paste instructions for unselected file harnesses + generic portable-directive block. bin/banana.mjs dispatches init with lazy readline.
+FILES: lib/init.mjs, bin/banana.mjs, test/init.e2e.test.mjs
+VALIDATED: npm run check && npm test — tsc clean, 80/80 pass (12 new: fresh-init e2e, byte-identical second run, no-overwrite of existing globals, 3-prompt interactive path, decline-abort clean, --yes-without-owner clean fail, unknown harness clean fail, undetected explicit wiring, hermes tree-untouched + command printed, --deliver injected run)
+COMMITTED: 634b895 feat: [US-007] - init command
+STATUS: complete
+NEXT: claude — pick up US-008 (project command) next iteration
+
+## [2026-07-04] claude us-008.1 | build — project command
+APPROACH: New lib/project.mjs mirroring init.mjs pattern (parseProjectArgs + runProject, injectable cwd/io). Creates LOGBOOK.md, STATE.md, .agents/session.log via createIfMissing from templates/; wires repo-local AGENTS.md through renderWiringTemplate('agents-md.md') + applyFence for idempotency. Git-repo guard checks existsSync(.git) (dir or worktree file), refused without --force. Added dispatch branch in bin/banana.mjs.
+FILES: lib/project.mjs, test/project.e2e.test.mjs, bin/banana.mjs
+VALIDATED: npm run check && npm test — typecheck clean, 89/89 pass (8 new project tests: sections, idempotent re-run byte-identical, non-repo refusal, --force, no-overwrite, prompt fallback)
+COMMITTED: feat: [US-008] - project command
+STATUS: complete
+NEXT: claude — pick up US-009 (brief command) next iteration
+
+## [2026-07-04] claude us-009.1 | build — brief command
+APPROACH: lib/brief.mjs — parseSessionLog (envelope regex, bodies, STATUS/NEXT capture), nextOwner (em-dash separator; no separator = unowned), isGhost (in-progress + entry date >48h vs injected clock), compileBrief implementing the DESIGN.md include/exclude table with five ref-carrying sections (STATE.md verbatim, target bodies w/ inline ghost flag, last-5 other-feature headings, tag-or-unowned NEXT handoffs, ghost list). Injectable cwd+now; wired into bin dispatch.
+FILES: lib/brief.mjs, test/brief.test.mjs, bin/banana.mjs
+VALIDATED: node --test test/brief.test.mjs — 15/15 pass; npm run check && npm test — tsc clean, 104/104 pass
+COMMITTED: a17d63a feat: [US-009] - brief command
+STATUS: complete
+NEXT: claude — pick up US-010 (doctor command) next iteration
+
+## [2026-07-04] claude us-010.1 | build — doctor command
+APPROACH: lib/doctor.mjs reuses the existing parts — detect() for the harness report, findFence() for per-file fence versions, parseSessionLog/isGhost/nextOwner from brief.mjs for the audits. Four audits per docs/DESIGN.md: ghosts >48h, unowned NEXT (session.log + LOGBOOK), STATE.md "as of" older than newest LOGBOOK entry, continuity files >700 lines (ROTATION_THRESHOLD_LINES exported). Exit 0 clean / 1 findings; --verify prints recital commands only, never executes. All roots/clock/env injectable; wired doctor branch into bin/banana.mjs.
+FILES: lib/doctor.mjs, test/doctor.test.mjs, bin/banana.mjs
+VALIDATED: npm run check && npm test — tsc clean, 112/112 pass (8 new doctor tests) via single validation subagent
+COMMITTED: feat: [US-010] - doctor command (f1716c4)
+STATUS: complete
+NEXT: claude — pick up US-011 (README quickstart) next iteration
+
+## [2026-07-04] claude us-011.1 | build — README quickstart
+APPROACH: Wrote test/readme.test.mjs first (house style: node:test + assert/strict, required-string arrays), then README.md — first-line definition, npx one-liner, four-command table, per-adapter sections (Claude Code/Pi/Codex file wiring, Hermes write-through, manual-paste path), hot/cold + brief mental model in one section.
+FILES: README.md, test/readme.test.mjs
+VALIDATED: npm run check && npm test — GATES GREEN, 116/116 tests pass, tsc clean
+COMMITTED: feat: [US-011] - README quickstart (54a7079)
+STATUS: complete
+NEXT: none — all 11 stories pass; backlog done
