@@ -75,10 +75,13 @@ grep "STATUS: in-progress" .agents/session.log        # sessions left open
 
 Read the matched entry's latest `STATUS:`/`NEXT:`, then stop. Never read the full file.
 
-This is the **mid-session resume** check — re-anchoring on a task the session already holds context
-for. **Session entry** is the deeper, still-bounded read defined by `CONTINUITY.md`'s entry ritual
-(the declared feature's recent entries, bodies included, capped at the last 10). Distinct operations,
-distinct depths; both stop far short of the full file.
+These three commands are shared tooling serving two distinct operations at two distinct moments. At
+**session entry** (session start), `CONTINUITY.md`'s entry ritual runs them as its allowlist items —
+the feature-history grep feeds item 4 (bodies included, capped at the last 10), the recent-headings
+grep feeds item 3, and the in-progress scan feeds item 6 (ghost flags). **Mid-session resume** —
+permitted only after context loss (e.g. compaction), re-anchoring on a task this session already
+holds — uses the first command alone: read the latest entry's `STATUS:`/`NEXT:`, then stop. Distinct
+moments, distinct depths; both stop far short of the full file.
 
 ## 5. Legacy
 

@@ -24,11 +24,12 @@ non-conforming agent configs ships as a wiring template with this kit. Session e
 LOGBOOK.md when project-worthy.
 
 **Crash-recovery read order** (session start, any agent): `STATE.md` → last 3–5 logbook entries (bodies
-for the session's own declared stream; headings suffice for other streams, per `CONTINUITY.md`'s
-headings-not-bodies rule) → follow pointers as needed, bounded to the `ref:` pointers those reads expose.
-Never read the whole logbook (grep it instead); never skip STATE.md. A per-intent compiled brief that
-packages this read order (see `CONTINUITY.md`'s entry ritual) satisfies it — the brief is this order,
-compiled.
+for the session's own declared stream within that same 3–5 window; headings suffice for other streams,
+per `CONTINUITY.md`'s headings-not-bodies rule) → `ref:` pointers carried, not read: following one is a
+later on-demand read of immutable closed history, not part of the entry read (per `CONTINUITY.md`'s
+entry ritual and WORK rule). Never read the whole logbook (grep it instead); never skip STATE.md. A
+per-intent compiled brief that packages this read order (see `CONTINUITY.md`'s entry ritual) satisfies
+it — the brief is this order, compiled.
 
 ## 1. Entry envelope (fixed across all projects)
 
