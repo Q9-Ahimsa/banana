@@ -26,11 +26,11 @@ Every non-trivial project carries:
   lines. Corrections are new entries with `SUPERSEDES:`, never edits.
 - **`STATE.md`** — one-page projection (Now / Truths / Next / Blocked / Watch /
   Dead ends). Rebuilt from the logbook, never patched. Logbook wins on conflict.
-- **Entry reads:** project `STATE.md` + last 3–5 logbook headings
-  (`grep "^## \[" LOGBOOK.md | tail -5`) — allowlist items 2–3 of the entry
-  ritual, delivered via the compiled brief by default or read directly in the
-  no-kit fallback. Write a close entry before leaving. Authority:
-  `STANDARD.md`, shipped alongside this file.
+- **Entry reads:** project `STATE.md` + the last 3–5 logbook headings
+  (e.g. `grep "^## \[" LOGBOOK.md | tail -5`, which returns up to the last 5) —
+  allowlist items 2–3 of the entry ritual, delivered via the compiled brief by
+  default or read directly in the no-kit fallback. Write a close entry before
+  leaving. Authority: `STANDARD.md`, shipped alongside this file.
 
 ## Task grain — `.agents/session.log`
 
@@ -40,10 +40,13 @@ Fine-grained work journal at each project root, shared by all agents.
 - Write progressively: open with `APPROACH:` + `STATUS: in-progress`,
   checkpoint with `FILES:`/`VALIDATED:`/`PROBLEM:`/`FIX:`, close with final
   `STATUS:` + `NEXT: {owner} — {action}`.
-- Resume: your own feature's entries are allowlist item 4 — the brief carries
-  them (newest first, capped at 10). Minimal direct fallback: `grep
-  "{feature}\." .agents/session.log | tail`, reading the latest entry's
-  `STATUS:`/`NEXT:`. Never read the whole file.
+- Reading back is two distinct operations, with two distinct depths:
+  **session entry** loads the feature's recent history via allowlist item 4
+  (newest first, capped at 10, bodies included); **mid-session resume**
+  (re-anchoring on a task this session already holds context for) is the
+  minimal check defined in `SESSION-LOG.md` §4 — `grep "{feature}\."
+  .agents/session.log | tail`, read the latest entry's `STATUS:`/`NEXT:`,
+  then stop. Never read the whole file in either mode.
 - Append-only. Corrections = new entry with `SUPERSEDES: {feature}.{n}`.
 - Full spec: `SESSION-LOG.md`, shipped alongside this file; a paste-ready
   directive for any agent config ships as a wiring template with this kit.
@@ -63,27 +66,38 @@ session ingest the union of all sessions' context — pollution by broadcast.
 **Closed allowlist entry ritual.** A session's entry reads are exactly this
 set — nothing else by default:
 
-1. global `STATE.md` (hot; machine grain, read directly);
+1. global `STATE.md` (hot; machine grain, one page by hard cap, read directly);
 2. project `STATE.md`, verbatim (hot; one page by contract);
 3. headings of the last 3–5 entries in `LOGBOOK.md` and `.agents/session.log`
-   (awareness of recent and parallel work — headings only, per the rule below);
-4. the declared feature's own `session.log` entries, bodies included, newest
-   first, capped at the last 10;
+   (awareness of recent and parallel work). Entries belonging to the declared
+   feature's own stream are exempt from the headings-only limit — item 4
+   carries their bodies; all other streams stay headings-only (per the
+   headings-not-bodies rule below);
+4. the declared feature's own entries — its `session.log` entries and its
+   `LOGBOOK.md` stream — bodies included, newest first, capped at the last 10
+   of each;
 5. `NEXT:` lines owned by this session's agent tag or unowned, drawn only from
    the surfaces items 2–4 already expose;
-6. ghost flags (per the 48h ghost rule).
+6. ghost flags (per the 48h ghost rule): `STATUS: in-progress` lines older
+   than 48h, detected by a status-line scan of the project's active
+   `session.log` — project-scoped and bounded by the file's rotation cap.
+
+Counter-failure (this ritual): anything visible gets woven into plans, so
+relevance filtering must happen *before* context load, not after.
 
 The kit's `brief` command compiles items 2–6 into one disposable per-intent
 artifact, each section carrying a `ref:` pointer to its source. Without the
-kit, read the six items directly, in the order listed — this implements
-`STANDARD.md`'s crash-recovery sequence at project grain (projection first,
-recent chronology second), with its "follow pointers as needed" step bounded
-to the `ref:` pointers items 2–4 expose.
+kit, read the six items directly, in the order listed — `STANDARD.md`'s
+crash-recovery sequence (projection first, recent chronology second, pointers
+last), whose chronology and pointer steps this ritual deliberately narrows as
+disclosed in "Changes from v1": non-target streams are headings-only, and
+"follow pointers as needed" is bounded to the `ref:` pointers items 2–4
+expose. `STANDARD.md` states the same narrowings at its crash-recovery
+definition, so the two documents agree.
 Briefs are per-session compilations of logged facts, discarded at close; they
 are never persisted and never contain guidance, so the speculative-auto-context
 failure mode in `STANDARD.md`'s table (which targets persistent state files)
-does not apply to them. Counter-failure: anything visible gets woven into
-plans, so relevance filtering must happen *before* context load, not after.
+does not apply to them.
 
 **Headings-not-bodies.** For other agents' or other features' in-flight work, a
 session may see entry HEADINGS (awareness that work exists) but not bodies (no
@@ -131,8 +145,9 @@ Counter-failure: shared files changing under a session mid-task.
    likewise a new entry. Counter-failure: self-editing history to erase a
    wrong call destroys the calibration data and audit trail that supersession
    exists to preserve.
-5. **Awareness is global, initiative is scoped.** Read all shared state you are
-   shown, but act only on what the user asked for in *this* session plus items
+5. **Awareness is global, initiative is scoped.** Read all shared state you
+   are shown (what the entry ritual and mid-session greps expose — this rule
+   widens nothing), but act only on what the user asked for in *this* session plus items
    whose `NEXT:` names you or is unowned. Another agent's or session's
    in-flight work is context to reference, never backlog to re-plan — name
    intersections, don't grab them.
@@ -155,12 +170,17 @@ write time.
 1. **Hot/cold surface tiering** — projections are hot (auto-loaded, one page);
    chronology and entry bodies are cold (grep-on-demand only).
 2. **Closed allowlist entry ritual** — the session-start read set is
-   enumerated in this document (six items) and compiled into a per-intent
-   brief. The grain sections' v1 direct-read instructions are hereby redefined
-   as inputs to this single ritual; the no-kit fallback reads the same
-   surfaces v1 prescribed, in the same order, plus the v1.1 ghost flags.
+   enumerated in this document (six items, each bounded) and compiled into a
+   per-intent brief. The grain sections' v1 direct-read instructions are
+   hereby redefined as inputs to this single ritual; the no-kit fallback reads
+   the same surfaces v1 prescribed, in the same order, plus the v1.1 ghost
+   flags. Session entry (item 4's capped bodies-included read) and
+   mid-session resume (`SESSION-LOG.md` §4's latest-STATUS/NEXT check) are
+   distinct operations with distinct depths.
 3. **Headings-not-bodies** — other agents'/features' in-flight work is visible
-   as headings only, never bodies.
+   as headings only, never bodies; the declared feature's own stream is
+   exempt. This deliberately narrows v1's crash-recovery chronology step
+   (which read full entries) for non-target streams.
 4. **48h ghost rule** — `in-progress` entries older than 48h are flagged and
    closed as `abandoned` by the next session in that project.
 5. **Snapshot session lifecycle (BEGIN/WORK/CLOSE)** — brief as snapshot, no

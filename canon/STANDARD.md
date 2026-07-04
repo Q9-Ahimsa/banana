@@ -23,10 +23,12 @@ shared by all agents. Spec: `SESSION-LOG.md` (shipped alongside this standard); 
 non-conforming agent configs ships as a wiring template with this kit. Session entries promote to
 LOGBOOK.md when project-worthy.
 
-**Crash-recovery read order** (session start, any agent): `STATE.md` → last 3–5 logbook entries → follow
-pointers as needed. Never read the whole logbook (grep it instead); never skip STATE.md. A per-intent
-compiled brief that packages exactly this read order (see `CONTINUITY.md`'s entry ritual) satisfies it —
-the brief is this order, compiled.
+**Crash-recovery read order** (session start, any agent): `STATE.md` → last 3–5 logbook entries (bodies
+for the session's own declared stream; headings suffice for other streams, per `CONTINUITY.md`'s
+headings-not-bodies rule) → follow pointers as needed, bounded to the `ref:` pointers those reads expose.
+Never read the whole logbook (grep it instead); never skip STATE.md. A per-intent compiled brief that
+packages this read order (see `CONTINUITY.md`'s entry ritual) satisfies it — the brief is this order,
+compiled.
 
 ## 1. Entry envelope (fixed across all projects)
 

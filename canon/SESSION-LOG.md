@@ -75,6 +75,11 @@ grep "STATUS: in-progress" .agents/session.log        # sessions left open
 
 Read the matched entry's latest `STATUS:`/`NEXT:`, then stop. Never read the full file.
 
+This is the **mid-session resume** check — re-anchoring on a task the session already holds context
+for. **Session entry** is the deeper, still-bounded read defined by `CONTINUITY.md`'s entry ritual
+(the declared feature's recent entries, bodies included, capped at the last 10). Distinct operations,
+distinct depths; both stop far short of the full file.
+
 ## 5. Legacy
 
 `.claude/session.log` (pre-v2 projects) and its `<!-- id:... | phase:... | status:... -->`
