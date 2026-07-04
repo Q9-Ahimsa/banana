@@ -1,0 +1,19 @@
+# LOGBOOK — (project)
+> Append-only chronology per the Logbook Standard v1 (shipped with this kit as
+> `STANDARD.md`). Never edit or delete an entry — corrections are new entries
+> carrying `SUPERSEDES:`. STATE.md is the projection; the logbook wins on
+> conflict.
+
+**Envelope:** `## [YYYY-MM-DD] {actor} {stream}.{n} | {TYPE} — {title}` +
+prefix lines, body ≤ ~10 lines, pointers not payloads.
+
+**TYPE vocabulary** (declared here; extend deliberately, in this block):
+SESSION · DECISION · MILESTONE · PROBLEM · FIX · INSIGHT · RESEARCH · HANDOFF · CAPTURE
+
+**Prefixes:** `WHAT:` / `WHY:` / `ref:` / `DONE:` / `NEXT:` / `BLOCKED:` /
+`ASSUMED:` / `SUPERSEDES:`
+
+**Read protocol:** STATE.md first, then `grep "^## \[" LOGBOOK.md | tail -5`.
+Grep for specifics; never read the whole file.
+
+---
