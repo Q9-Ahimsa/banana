@@ -27,59 +27,60 @@ ASSUMED: Constants — ghost threshold 48h, rotation threshold 700 lines, fence 
       done-when: `node bin/banana.mjs --version` prints the package.json version and exits 0
       evidence: `node bin/banana.mjs --version` → 0.1.0, exit 0; gates green (tsc clean, node --test 3/3 pass); commit 2c8bf07, tag pre-ralph. Deviation logged: test script is `node --test` (dir-arg form broke on Windows); +@types/node dev dep for checkJs.
 
-- [ ] T2 — Write canon v1.1 under canon/: CONTINUITY.md genericized and extended with the new architecture — closed allowlist entry ritual with the compiled brief as the sole default read, hot/cold surface tiering, headings-not-bodies rule for other agents' in-flight work, 48h ghost rule, snapshot session lifecycle (BEGIN/WORK/CLOSE), and a "Changes from v1" section listing every deviation — plus STANDARD.md and SESSION-LOG.md copied with machine-specific references removed.
+- [x] T2 — Write canon v1.1 under canon/: CONTINUITY.md genericized and extended with the new architecture — closed allowlist entry ritual with the compiled brief as the sole default read, hot/cold surface tiering, headings-not-bodies rule for other agents' in-flight work, 48h ghost rule, snapshot session lifecycle (BEGIN/WORK/CLOSE), and a "Changes from v1" section listing every deviation — plus STANDARD.md and SESSION-LOG.md copied with machine-specific references removed.
       done-when: `node --test test/canon.test.mjs` exits 0 — asserts the six required section/rule strings are present in canon/CONTINUITY.md and that "Ahimsa", "VICTUS", "hermes.exe", and absolute C:/ paths have zero occurrences across canon/
-      evidence:
+      evidence: US-001, commit f5de03e; canon.test.mjs green in every suite run since (final: 116/116 on merged main 7df1b95). Prose hardened across review rounds via 96e1229, f285314, 3c3e680.
 
-- [ ] T3 — Harden the canon prose (qualitative gate on T2's CONTINUITY.md).
+- [x] T3 — Harden the canon prose (qualitative gate on T2's CONTINUITY.md).
       done-when: REVIEW — criteria: preserves every v1 integrity rule (append-only, supersession-not-erasure, owned NEXT, agent attribution, rebuild-don't-patch projections) or lists the deviation under "Changes from v1"; the entry ritual is a closed allowlist (reads nothing outside it by default); every newly added rule names the failure mode it counters; no rule contradicts canon/STANDARD.md or canon/SESSION-LOG.md; no person- or machine-identifying reference (personal names, usernames, drive letters, machine-absolute paths) survives genericization — portable tilde-relative and repo-relative paths are allowed.
       evidence:
       BLOCKED: two consecutive review rounds sustained (round 1: reviewers A+B, fixed at 96e1229; round 2: reviewer D sustained on residual findings). Per protocol: stopped, surfaced to user. Findings triage in session.log banana.7.
       UNBLOCKED (2026-07-04): user directed fix + round 3 ("banana solid or no banana"). Six-edit fix pass applied; criteria path clause amended above (was a criteria-authoring bug — bans home paths the protocol itself defines). See session.log banana.9.
+      PASSED (2026-07-04, round 5): user escalated to iterate-until-clean; rounds 3+4 sustained (fixed at f285314, then the read-model root fix at 3c3e680: mutable/immutable split scoping the WORK snapshot ban); round 5 reviewers I+J both NOT SUSTAINED. Enumerated residue (all reviewer-rated MINOR/defensible): "the doctor" scope undefined in canon; feature-grep shown as locate-step vs bodies claim; soft rotation-cap bound on ghost scan; changelog recap references earlier counter-failure; feature-slug/stream-id mapping implicit. Trail: session.log banana.7-15.
 
-- [ ] T3-R — Adversarial blind review of T3 artifact (canon/CONTINUITY.md).
+- [x] T3-R — Adversarial blind review of T3 artifact (canon/CONTINUITY.md).
       done-when: 2 fresh, independent subagent reviewers (artifact + T3 criteria ONLY — no rationale, no chat history) each fail to sustain a refutation; verdicts quoted in evidence
-      evidence:
+      evidence: Round 5, fresh reviewers I+J, blind (artifact + criteria only). I: "VERDICT: NOT SUSTAINED (no BLOCKING violation found across 5 criteria...)". J: "VERDICT: NOT SUSTAINED ... No BLOCKING violation of any criterion was found on this pass." Ten reviewer-passes total across 5 rounds (A-J), every finding fixed or enumerated as residue on T3.
 
-- [ ] T4 — Templates under templates/: global-STATE.md, project-STATE.md, LOGBOOK-header.md, session-log-seed.md, wiring/claude-code.md, wiring/agents-md.md, wiring/portable-directive.md. Wiring blocks carry the kit fence markers; placeholders use only the documented tokens.
+- [x] T4 — Templates under templates/: global-STATE.md, project-STATE.md, LOGBOOK-header.md, session-log-seed.md, wiring/claude-code.md, wiring/agents-md.md, wiring/portable-directive.md. Wiring blocks carry the kit fence markers; placeholders use only the documented tokens.
       done-when: `node --test test/templates.test.mjs` exits 0 — every wiring template contains both fence markers; only `__OWNER__`/`__AGENT_TAG__` placeholder tokens appear; zero double-brace template residue anywhere in templates/
-      evidence:
+      evidence: US-002, commit 0fb72c0; templates.test.mjs green (suite 116/116 on merged main 7df1b95).
 
-- [ ] T5 — Harness detection: lib/detect.mjs with injectable home root; detects claude-code (.claude dir or claude on PATH), pi (.pi), codex (.codex), hermes (home dir or binary on PATH); returns a structured report consumed by init and doctor.
+- [x] T5 — Harness detection: lib/detect.mjs with injectable home root; detects claude-code (.claude dir or claude on PATH), pi (.pi), codex (.codex), hermes (home dir or binary on PATH); returns a structured report consumed by init and doctor.
       done-when: `node --test test/detect.test.mjs` exits 0 against fixture fake-home trees covering present and absent cases for each of the four harnesses
-      evidence:
+      evidence: US-003, commit 789272c; detect.test.mjs green against fixture fake-home trees (suite 116/116 on 7df1b95).
 
-- [ ] T6 — Fenced-write engine: lib/fence.mjs — insert-or-replace a version-marked block in a target file, creating the file if missing, preserving all surrounding content byte-for-byte.
+- [x] T6 — Fenced-write engine: lib/fence.mjs — insert-or-replace a version-marked block in a target file, creating the file if missing, preserving all surrounding content byte-for-byte.
       done-when: `node --test test/fence.test.mjs` exits 0 — includes: applying twice yields a byte-identical file; user content outside the fence unchanged; a version bump replaces the old block in place
-      evidence:
+      evidence: US-004, commit d98da48; fence.test.mjs green incl. double-apply byte-identity and version-bump replace (suite 116/116 on 7df1b95).
 
-- [ ] T7 — File-wiring adapters: adapters/claude-code.mjs (fenced block into <home>/.claude/CLAUDE.md), adapters/pi.mjs (<home>/.pi/agent/AGENTS.md), adapters/codex.mjs (<home>/.codex/AGENTS.md) — each exposing detect/wire/describe and writing only via lib/fence.mjs.
+- [x] T7 — File-wiring adapters: adapters/claude-code.mjs (fenced block into <home>/.claude/CLAUDE.md), adapters/pi.mjs (<home>/.pi/agent/AGENTS.md), adapters/codex.mjs (<home>/.codex/AGENTS.md) — each exposing detect/wire/describe and writing only via lib/fence.mjs.
       done-when: `node --test test/adapters.test.mjs` exits 0 — each adapter wires a sandbox home; a second run is byte-identical; a path-audit assertion proves no writes outside each adapter's declared target file
-      evidence:
+      evidence: US-005, commit 919dee7; adapters.test.mjs green incl. idempotency + path-audit (suite 116/116 on 7df1b95).
 
-- [ ] T8 — Hermes adapter (write-through-agent): adapters/hermes.mjs — detect/describe plus compose() building the directive text (agent-to-agent sender header, protocol summary, agent tag hermes) and the one-shot command string; delivery only behind an explicit --deliver flag; never writes files under the hermes home.
+- [x] T8 — Hermes adapter (write-through-agent): adapters/hermes.mjs — detect/describe plus compose() building the directive text (agent-to-agent sender header, protocol summary, agent tag hermes) and the one-shot command string; delivery only behind an explicit --deliver flag; never writes files under the hermes home.
       done-when: `node --test test/hermes.test.mjs` exits 0 — composed directive contains the sender header and the session-log envelope line; running the adapter against a sandbox hermes home leaves its file tree byte-identical
-      evidence:
+      evidence: US-006, commit b89164a; hermes.test.mjs green incl. sandbox-home byte-identity (suite 116/116 on 7df1b95).
 
-- [ ] T9 — init command: non-interactive flags (--owner, --tag, --harnesses, --yes) with interactive fallback capped at 3 prompts (owner, confirm detected harnesses, confirm write plan); creates <home>/.agents/CONTINUITY.md + STATE.md from canon/templates, runs selected adapters, prints paste instructions for undetected or manual-only harnesses.
+- [x] T9 — init command: non-interactive flags (--owner, --tag, --harnesses, --yes) with interactive fallback capped at 3 prompts (owner, confirm detected harnesses, confirm write plan); creates <home>/.agents/CONTINUITY.md + STATE.md from canon/templates, runs selected adapters, prints paste instructions for undetected or manual-only harnesses.
       done-when: `node --test test/init.e2e.test.mjs` exits 0 — sandbox-HOME e2e: fresh init creates both global files plus wiring for detected harnesses; a second run exits 0 with a byte-identical tree
-      evidence:
+      evidence: US-007, commit 634b895; init.e2e.test.mjs green incl. second-run byte-identical tree (suite 116/116 on 7df1b95).
 
-- [ ] T10 — project command: inside a git repo, creates LOGBOOK.md (header block + declared TYPE vocabulary), STATE.md (all six sections), .agents/session.log seed, and appends the fenced AGENTS.md wiring block; refuses to run outside a git repo unless --force.
+- [x] T10 — project command: inside a git repo, creates LOGBOOK.md (header block + declared TYPE vocabulary), STATE.md (all six sections), .agents/session.log seed, and appends the fenced AGENTS.md wiring block; refuses to run outside a git repo unless --force.
       done-when: `node --test test/project.e2e.test.mjs` exits 0 — temp-repo e2e: files created with required sections; re-run idempotent; non-repo dir without --force exits non-zero
-      evidence:
+      evidence: US-008, commit 27d7e3c; project.e2e.test.mjs green incl. idempotent re-run and non-repo refusal (suite 116/116 on 7df1b95).
 
-- [ ] T11 — brief command: `banana brief <feature> --tag <agent>` compiles a per-intent brief to stdout — target feature's session-log entries with bodies; headings-only for the last 5 entries of other features; NEXT lines owned by the given tag or unowned; project STATE.md verbatim (one page by contract); in-progress entries older than 48h flagged as ghosts; every section carries source refs; other features' bodies excluded.
+- [x] T11 — brief command: `banana brief <feature> --tag <agent>` compiles a per-intent brief to stdout — target feature's session-log entries with bodies; headings-only for the last 5 entries of other features; NEXT lines owned by the given tag or unowned; project STATE.md verbatim (one page by contract); in-progress entries older than 48h flagged as ghosts; every section carries source refs; other features' bodies excluded.
       done-when: `node --test test/brief.test.mjs` exits 0 — fixture logs: target-feature APPROACH text present; other-feature APPROACH text absent; ghost entry flagged; each brief section carries a ref line
-      evidence:
+      evidence: US-009, commit a17d63a; brief.test.mjs green: target bodies in, other-feature bodies out, ghost flagged, refs per section (suite 116/116 on 7df1b95).
 
-- [ ] T12 — doctor command: reports detected harnesses + fence block versions; audits — in-progress entries older than 48h, unowned NEXT lines, STATE.md "as of" older than the newest LOGBOOK entry date, any tracked continuity file over 700 lines; exit 0 clean / 1 findings; --verify prints (not executes) the per-harness headless recital commands.
+- [x] T12 — doctor command: reports detected harnesses + fence block versions; audits — in-progress entries older than 48h, unowned NEXT lines, STATE.md "as of" older than the newest LOGBOOK entry date, any tracked continuity file over 700 lines; exit 0 clean / 1 findings; --verify prints (not executes) the per-harness headless recital commands.
       done-when: `node --test test/doctor.test.mjs` exits 0 — seeded-violation fixture: all four audit types flagged with exit 1; clean fixture exits 0
-      evidence:
+      evidence: US-010, commit f1716c4; doctor.test.mjs green: all four audit types flagged on seeded fixture exit 1, clean fixture exit 0 (suite 116/116 on 7df1b95).
 
-- [ ] T13 — README quickstart: the npx one-liner, four-command tour, per-harness wiring table ("what gets written where"), manual paste path for unsupported tools, and the hot/cold + brief mental model in one short section.
+- [x] T13 — README quickstart: the npx one-liner, four-command tour, per-harness wiring table ("what gets written where"), manual paste path for unsupported tools, and the hot/cold + brief mental model in one short section.
       done-when: `node --test test/readme.test.mjs` exits 0 — README.md contains the npx github:Q9-Ahimsa/banana command, all four command names, and one section per shipped adapter
-      evidence:
+      evidence: US-011, commit 54a7079; readme.test.mjs green: npx command, four commands, per-adapter sections asserted (suite 116/116 on 7df1b95).
 
 - [ ] T14 — Ship: full gates green, conventional commits throughout, create public GitHub repo Q9-Ahimsa/banana via gh, push, then smoke-test the cold npx path.
       done-when: `npx --yes github:Q9-Ahimsa/banana --version` prints the version and exits 0, output shown

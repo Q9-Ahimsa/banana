@@ -175,3 +175,8 @@ VALIDATED: npm run check && npm test — GATES GREEN, 116/116 tests pass, tsc cl
 COMMITTED: feat: [US-011] - README quickstart (54a7079)
 STATUS: complete
 NEXT: none — all 11 stories pass; backlog done
+## [2026-07-04] claude banana.16 | ops — round 5 PASSED; landed; ship blocked on gh permission
+VALIDATED: T3/T3-R passed (I+J both NOT SUSTAINED); merge --no-ff 7df1b95 (session.log union-resolved); gates on merged main: tsc clean + 116/116; worktree removed clean; packet: 14/15 checked with evidence; global Verify run, output shown in conversation.
+PROBLEM: `gh repo create Q9-Ahimsa/banana --public --push` denied by permission classifier (outward-facing publish).
+STATUS: blocked
+NEXT: ahimsa — approve/run the gh repo create command, then claude finishes T14 (cold npx smoke test) and closes out
