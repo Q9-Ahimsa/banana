@@ -104,9 +104,10 @@ Fine-grained work journal at each project root, shared by all agents.
   moments: **session entry** (at BEGIN) loads the feature's recent history via
   allowlist item 4; **mid-session resume** — permitted only after context loss
   (e.g. compaction), re-anchoring on a task this session already holds — is
-  the minimal check defined in `SESSION-LOG.md` §4: `grep "{feature}\."
-  .agents/session.log | tail`, read the latest entry's `STATUS:`/`NEXT:`,
-  then stop. Never read the whole file in either mode.
+  the minimal check defined in `SESSION-LOG.md` §4: locate the feature's
+  latest entry (`grep -n "{feature}\." .agents/session.log | tail`), read
+  that entry's span for its `STATUS:`/`NEXT:`, then stop. Never read the
+  whole file in either mode.
 - Append-only. Corrections = new entry with `SUPERSEDES: {feature}.{n}`.
 - Full spec: `SESSION-LOG.md`, shipped alongside this file; a paste-ready
   directive for any agent config ships as a wiring template with this kit.
@@ -281,7 +282,9 @@ projections · pointers-not-payloads · event-triggered writes.
 
 ## Changes from v1
 
-v1.1 adds the **pollution-control architecture**. Nothing from v1 is removed.
+v1.1 adds the **pollution-control architecture**. No v1 surface, record, or
+write behavior is removed; two v1 *read* behaviors are deliberately narrowed,
+disclosed in items 2–3 below.
 
 1. **Hot/cold surface tiering** — projections are hot (auto-loaded, one page);
    chronology and entry bodies are cold (grep-on-demand only). The tiering

@@ -120,10 +120,11 @@ name and owner):
 - (approaches tried and abandoned, one line each + why, or an entry pointer)
 ```
 
-At first creation — a bootstrap with no logbook entries yet — the header line reads `(through none)`
-literally; the first rebuild after a real entry replaces `(date)` and `none` with the real date and
-that entry's id. Sections with nothing to report yet keep their single placeholder line, as shown,
-rather than being omitted, so every fresh STATE.md has the same six-section shape.
+At first creation the header line is copied byte-verbatim — `(date)` and `none` stay literal
+placeholder text, never filled at bootstrap time; the first rebuild after a real logbook entry
+replaces both with the real date and that entry's id. Sections with nothing to report yet keep
+their single placeholder line, as shown, rather than being omitted, so every fresh STATE.md has
+the same six-section shape.
 
 The `Dead ends` section is non-negotiable for agent-heavy projects: without it, successive fresh-context
 sessions confidently re-attempt the same failed approaches (Anthropic long-running-agent finding).

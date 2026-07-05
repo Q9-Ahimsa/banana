@@ -62,6 +62,14 @@ NEXT: human — review token TTL choice (15m access / 7d refresh)
 2. **Checkpoint** — append `FILES:` / `VALIDATED:` / `PROBLEM:` / `FIX:` / `INSIGHT:` /
    `DECISION:` lines as work happens — still the same open entry, appended to the bottom of the
    file (not editing above the cursor), so this doesn't break append-only.
+   **Concurrency guard:** prefix lines attach to the nearest heading *above* them. Before
+   appending checkpoint or close lines, confirm your entry's heading is still the file's last
+   heading (`grep "^## \[" .agents/session.log | tail -1`). If another entry has landed below
+   yours, do not append bare lines — they would attach to the wrong heading. Open a continuation
+   entry instead: same feature, next `n`, first body line
+   `SUPERSEDES: {feature}.{n} (continuation — closes the entry left open above)`, then your
+   checkpoint/close lines. Counter-failure: close lines orphaned under a stranger's heading, and
+   a finished task stranded as a forever-in-progress ghost.
 3. **Close** — append final `STATUS:` + `NEXT: {owner} — {action}`. Once closed, immutable.
 4. **Correct** — never edit a closed entry. A new entry with `SUPERSEDES: {feature}.{n}` fixes it;
    the original stays.
@@ -71,12 +79,17 @@ Read-only during resumption: never re-open or edit a closed entry from a prior s
 ## 4. Resume protocol
 
 ```
-grep "{feature}\." .agents/session.log | tail        # this feature's history
-grep "^## \[" .agents/session.log | tail -5           # most recent entries, any feature
-grep "STATUS: in-progress" .agents/session.log        # sessions left open
+grep -n "{feature}\." .agents/session.log | tail      # locate this feature's entries
+grep -n "^## \[" .agents/session.log | tail -5         # most recent entries, any feature
+grep -n "STATUS: in-progress" .agents/session.log      # sessions left open
 ```
 
-Read the matched entry's latest `STATUS:`/`NEXT:`, then stop. Never read the full file.
+The feature grep matches heading lines only — the id lives in the heading; body lines never
+repeat it. To read an entry's body, open the file at the matched line number: an entry runs from
+its heading to the line before the next `## [` heading. "Bodies included" reads (the entry
+ritual's item 4) are exactly this: locate by heading, then read each located entry's span.
+For mid-session resume, read the latest located entry's span for its `STATUS:`/`NEXT:`, then
+stop. Never read the full file.
 
 These three commands are shared tooling serving two distinct operations at two distinct moments. At
 **session entry** (session start), `CONTINUITY.md`'s entry ritual runs them as its allowlist items —
