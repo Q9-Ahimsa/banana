@@ -1,4 +1,5 @@
-# CONTINUITY — cross-harness protocol (canonical) — v1.1
+<!-- banana:canon rev 1.2 -->
+# CONTINUITY — cross-harness protocol (canonical) — v1.2
 
 Any agent working on this machine or its repos follows this. The record is
 **file-based and harness-neutral**: no agent's private memory is the source of
@@ -8,6 +9,36 @@ read and write the same surfaces.
 **Your agent tag:** write yourself as `claude`, `pi`, `hermes`, `codex`,
 `cursor`, or `human` in every entry you author; `joint` is valid for genuinely
 co-authored human+agent entries (and as a `NEXT:` owner). Never omit the tag.
+
+## Agent bootstrap — landing in a bare workspace
+
+For an agent with zero prior context arriving in a workspace that has no
+continuity files yet. A **workspace** is anything worth a durable record: a
+git repository or a non-code **topic directory** (research notes, a course,
+an ops runbook) — version control is not a precondition for continuity.
+
+1. **Machine context first.** Read `~/.agents/STATE.md` if it exists (global
+   grain, one page). If missing, create it from the one-page projection shape
+   in `STANDARD.md` §3, scoped to the machine instead of one project.
+2. **Initialize the workspace.** Preferred: run the kit's `project` command
+   named in your wiring block — it creates the files below idempotently and
+   proceeds in non-git topic dirs. By hand, create whichever are missing:
+   - `.agents/session.log` — task-grain journal, entries per the envelope in
+     `SESSION-LOG.md` §1;
+   - `STATE.md` — one-page projection per `STANDARD.md` §3;
+   - `LOGBOOK.md` — project-grain chronology per `STANDARD.md` §1;
+     lightweight workspaces may defer it and run session.log alone
+     (`SESSION-LOG.md` §6).
+3. **Enter through the ritual.** Declare a feature slug, run the session
+   entry ritual (the allowlist below) — via the kit's `brief` or the direct
+   reads — and open your session.log entry (`APPROACH:` +
+   `STATUS: in-progress`).
+4. **Close before leaving.** Final `STATUS:` + owned `NEXT:` — the close
+   entry is mandatory even mid-task (`STANDARD.md` §8).
+
+Counter-failure: an agent landing cold either invents ad-hoc record-keeping
+or keeps none — either way the next session inherits nothing. Bootstrap makes
+workspace self-setup deterministic, with no human in the loop.
 
 ## Global grain — `~/.agents/STATE.md`
 
@@ -143,6 +174,31 @@ for a single log entry.)
 
 Counter-failure: mutable shared files changing under a session mid-task.
 
+## Upstream and sync — who owns which surface
+
+The protocol documents you are reading are installed by the kit into a
+**kit-owned** directory: `~/.agents/canon/` (`CONTINUITY.md`, `STANDARD.md`,
+`SESSION-LOG.md`).
+
+- **Kit-owned, sync-overwritable:** everything under `~/.agents/canon/`. The
+  kit's `sync` command overwrites this directory with its bundled canon
+  freely. Never hand-edit these files — edits are lost on the next sync;
+  protocol changes belong upstream in the kit repo.
+- **User-owned, never overwritten by the kit:** the record itself — global
+  and project `STATE.md`, `.agents/session.log` and its rotated archives,
+  `LOGBOOK.md` and its `logbook/` archives, and any wired instruction file's
+  content outside the kit's fence markers. The kit creates these only if
+  missing and rewrites only inside its own fences.
+- **Version markers:** the first line of every canon file is a
+  machine-readable marker, `<!-- banana:canon rev X.Y -->`. The doctor
+  compares installed markers against the kit's bundled canon and flags stale
+  installs; `sync` is the remediation it names.
+
+Counter-failure, in both directions: without a kit-owned overwrite zone,
+wired machines drift onto stale protocol with no mechanical detection;
+without the user-owned boundary, an updater could trample the very record
+this protocol exists to protect.
+
 ## Rules that keep this working
 
 All six rules carry forward from v1; rule 3 is clarified and rule 4 tightened,
@@ -221,3 +277,22 @@ v1.1 adds the **pollution-control architecture**. Nothing from v1 is removed.
 8. **Preserved v1 invariants** — restated verbatim above; append-only,
    supersession, attribution, owned NEXT, rebuild-don't-patch,
    pointers-not-payloads, event-triggered writes all carry forward.
+
+v1.2 adds the **agent-first bootstrap and upstream model**. Nothing from
+v1.1 is removed.
+
+9. **Agent bootstrap section** — a zero-context agent self-initializes any
+   bare workspace (git repo or non-code topic dir) from the canon alone:
+   which files to create, the entry envelope, the session ritual.
+   Counter-failure: cold landings producing ad-hoc or absent record-keeping.
+10. **Upstream/sync surface ownership** — `~/.agents/canon/` is kit-owned and
+    sync-overwritable; STATE pages, session logs, and logbooks are user-owned
+    and never overwritten by the kit. Counter-failure: stale-protocol drift
+    on wired machines, and updaters trampling user record surfaces.
+11. **Version markers** — every canon file opens with
+    `<!-- banana:canon rev X.Y -->`, giving the doctor and `sync` a
+    mechanical staleness check. Counter-failure: undetectable canon drift.
+12. **Topic-grain workspaces** — a workspace needing continuity may be a git
+    repository or a non-code topic directory; the protocol and the kit's
+    `project` command apply to both. Counter-failure: continuity gated on
+    version control, leaving non-code work recordless.

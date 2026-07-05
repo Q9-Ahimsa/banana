@@ -1,3 +1,4 @@
+<!-- banana:canon rev 1.2 -->
 # Session Log — v2.0 (2026-07-02)
 ### The fine-grained work journal. One file, every agent, every project.
 
