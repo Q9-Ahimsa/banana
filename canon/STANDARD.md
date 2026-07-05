@@ -62,7 +62,9 @@ Recommended default set (start here, extend deliberately):
 Recommended default prefixes: `WHAT: / WHY: / ref: / DONE: / NEXT: / BLOCKED: / ASSUMED:`
 
 The header block's literal shape is fixed — the kit's `project` command writes exactly this, and a
-by-hand bootstrap copies it verbatim (swap in the project name, then edit the vocabulary lines only):
+by-hand bootstrap copies it verbatim, swapping in only the project name. Every other line —
+including the default vocabulary — is kept byte-verbatim at bootstrap; vocabulary edits are later
+deliberate extensions made in this block (§2's "extend deliberately"), never bootstrap-time choices:
 
 ```markdown
 # LOGBOOK — {project}

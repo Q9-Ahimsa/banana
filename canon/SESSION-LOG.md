@@ -89,7 +89,9 @@ repeat it. To read an entry's body, open the file at the matched line number: an
 its heading to the line before the next `## [` heading. "Bodies included" reads (the entry
 ritual's item 4) are exactly this: locate by heading, then read each located entry's span.
 For mid-session resume, read the latest located entry's span for its `STATUS:`/`NEXT:`, then
-stop. Never read the full file.
+stop. Never read the full file. Counter-failure: a whole-file read re-ingests every stream's
+context (the pollution the tiering exists to prevent); a headings-only read silently misses the
+`STATUS:`/`NEXT:` lines resumption depends on — span reads are the only depth that does neither.
 
 These three commands are shared tooling serving two distinct operations at two distinct moments. At
 **session entry** (session start), `CONTINUITY.md`'s entry ritual runs them as its allowlist items —
@@ -133,4 +135,4 @@ active file lean (same threshold as the Logbook Standard, same reason — oversi
 getting read).
 
 ---
-*Session Log v2.1 · companion to `STANDARD.md` (Logbook Standard v1.2) — same integrity rules (append-only, supersession, ≤10-line bodies, pointers not payloads), applied at task grain. Changes from v2.0: concurrency guard (§3), locate-then-read-span resume mechanics (§4), counter-failure disclosures (§1, §5). Counter-failure (this disclosure): a moving body under a frozen version string breaks auditability.*
+*Session Log v2.1 · companion to `STANDARD.md` (Logbook Standard v1.2) — same integrity rules (append-only, supersession, ≤10-line bodies, pointers not payloads), applied at task grain. Changes from v2.0: concurrency guard (§3), locate-then-read-span resume mechanics (§4), counter-failure disclosures (§1, §4, §5). Counter-failure (this disclosure): a moving body under a frozen version string breaks auditability.*
