@@ -203,3 +203,9 @@ PROBLEM: both headless launches (16:16, 16:48) reported killed; user did not sto
 FIX: relaunched detached per v1 pattern — Start-Process wrapper (.loop-worktrees/banana/run-ralph-detached.ps1) holding SetThreadExecutionState ES_SYSTEM_REQUIRED for the run, exit marker + Monitor for completion. Run-1 iter logs preserved to logs/run1/.
 STATUS: in-progress
 NEXT: claude — on loop exit: land, T3/T3-R blind review, ship
+
+## [2026-07-05] claude banana-v2.4 | debug — heal round 2: keep-awake type bug + monitor false positive
+PROBLEM: (1) wrapper SetThreadExecutionState(0x80000001) failed — PowerShell types hex literal as negative Int32, UInt32 conversion threw, so the detached loop ran with NO sleep protection; (2) first Monitor used tasklist/ps -W which cannot see the wrapper pid, fired a false LOOP DIED and exited.
+FIX: separate detached keep-awake.ps1 holder (correct [uint32] flags, re-asserts every 30s, releases on exit marker or wrapper death; assertion verified, prev-state 2147483648 returned); wrapper fixed for future runs; Monitor re-armed polling Get-Process via pwsh with 5s grace + marker re-check before declaring death. Loop verified healthy throughout: 54940 -> 46724 (ralph) -> claude on US-004.
+STATUS: in-progress
+NEXT: claude — on loop exit: land, T3/T3-R blind review, ship
