@@ -197,3 +197,9 @@ APPROACH: arm fire op -> loops prep/preflight/launch. v1 loop archived to .agent
 VALIDATED: preflight.ps1 PASS (0 fail, 0 warn) at 0d82b42; gates green pre-launch (116 tests).
 STATUS: in-progress
 NEXT: claude — monitor loop, then land + T3/T3-R blind review
+
+## [2026-07-05] claude banana-v2.3 | debug — loop kills diagnosed: laptop sleep reaped harness-tracked tasks
+PROBLEM: both headless launches (16:16, 16:48) reported killed; user did not stop them. Kernel-Power event 42 at 16:53 + RTC jump 09:53Z->13:25Z = machine slept ~3.5h; Modern Standby suspension reaped the session-tracked background tasks. 3 of 8 stories had landed green (US-001..003).
+FIX: relaunched detached per v1 pattern — Start-Process wrapper (.loop-worktrees/banana/run-ralph-detached.ps1) holding SetThreadExecutionState ES_SYSTEM_REQUIRED for the run, exit marker + Monitor for completion. Run-1 iter logs preserved to logs/run1/.
+STATUS: in-progress
+NEXT: claude — on loop exit: land, T3/T3-R blind review, ship
