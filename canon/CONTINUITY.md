@@ -272,13 +272,16 @@ disclosed in "Changes from v1".
 
 **Preserved v1 practice invariants** — write-behavior guarantees whose
 mechanisms carry through v1.1 intact. A companion checklist, not a second
-enumeration of the numbered rules: it restates rules 2–3 in practice form
-plus rule 4's supersession mechanism (the mechanism is unchanged; the rule's
-*scope* was tightened in v1.1 — changes item 6), and the remainder
-(rebuild-don't-patch, pointers-not-payloads, event-triggered writes) are
-`STANDARD.md`'s write contracts: append-only + `SUPERSEDES:` corrections ·
-agent attribution in every entry · owned `NEXT:` · rebuild-don't-patch
-projections · pointers-not-payloads · event-triggered writes.
+enumeration of the numbered rules: it restates rules 2–3 in practice form,
+rule 4's supersession mechanism (the mechanism is unchanged; the rule's
+*scope* was tightened in v1.1 — changes item 6), the entry-attribution
+mandate from this document's preamble ("never omit the tag") and
+`STANDARD.md` §1 ("every entry is attributed — no exceptions"), and the
+remainder (rebuild-don't-patch, pointers-not-payloads, event-triggered
+writes) are `STANDARD.md`'s write contracts: append-only + `SUPERSEDES:`
+corrections · agent attribution in every entry · owned `NEXT:` ·
+rebuild-don't-patch projections · pointers-not-payloads · event-triggered
+writes.
 
 ## Changes from v1
 

@@ -14,7 +14,8 @@
   continuity files, initialize it yourself per the canon's agent bootstrap
   section: run `npx --yes github:Q9-Ahimsa/banana project` from the workspace
   root.
-- **Session ritual:** start with your brief
+- **Session ritual:** read `~/.agents/STATE.md` first (machine grain — the
+  brief does not carry it), then your brief
   (`npx --yes github:Q9-Ahimsa/banana brief <feature> --tag __AGENT_TAG__`);
   end by closing your log entry with an owned `NEXT:`.
 <!-- banana:end -->
