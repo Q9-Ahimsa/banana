@@ -180,3 +180,14 @@ VALIDATED: T3/T3-R passed (I+J both NOT SUSTAINED); merge --no-ff 7df1b95 (sessi
 PROBLEM: `gh repo create Q9-Ahimsa/banana --public --push` denied by permission classifier (outward-facing publish).
 STATUS: blocked
 NEXT: ahimsa — approve/run the gh repo create command, then claude finishes T14 (cold npx smoke test) and closes out
+
+## [2026-07-05] claude banana-v2.1 | ops — arm v2 packet (agent-first realignment)
+APPROACH: Session realignment (all three drift candidates confirmed by ahimsa): real user is the
+agents; human surface = one npx command; wired blocks become thin bootstrap pointers at a living
+canon; agents self-initialize workspaces (git repo or non-code topic); new sync command propagates
+canon updates. v1 packet (14/15, only T14 ship open) archived to
+.agents/goal/archive/2026-07-05-banana-v1/ — its ship task carries into v2 as T10.
+FILES: .agents/goal/packet.md (new, 11 tasks), .agents/goal/archive/2026-07-05-banana-v1/packet.md
+VALIDATED: packet-lint.ps1 → RESULT: PASS (0 fail, 0 warn)
+STATUS: complete
+NEXT: ahimsa — nod or correct the packet (10 ASSUMED lines, 1 REVIEW demotion) before fire
