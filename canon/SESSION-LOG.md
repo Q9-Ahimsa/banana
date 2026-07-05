@@ -21,7 +21,9 @@ NEXT: {owner} — {action}
 - **feature.n**: id namespace, same shape as the Logbook Standard's `stream.n`.
 - **PHASE**: one of `discuss · build · refactor · debug · review · ops`.
 - Heading is greppable by construction — old HTML-comment metadata is retired, everything now
-  lives in the heading + body prefixes.
+  lives in the heading + body prefixes. Counter-failure: metadata inside HTML comments is
+  invisible to the plain `grep "^## \["` scans in §4, so resume tooling either grows per-vendor
+  comment parsers or silently misses status.
 
 Example:
 ```markdown
@@ -88,7 +90,9 @@ moments, distinct depths; both stop far short of the full file.
 
 `.claude/session.log` (pre-v2 projects) and its `<!-- id:... | phase:... | status:... -->`
 metadata comments are honored **read-only** for history. Write new entries to
-`.agents/session.log` in the v2 envelope; don't port old entries forward.
+`.agents/session.log` in the v2 envelope; don't port old entries forward. Counter-failure:
+porting rewrites closed history (breaking append-only and attribution), and a dual-format file
+defeats the envelope greps in §4.
 
 ## 6. Layering contract
 

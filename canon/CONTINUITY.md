@@ -18,8 +18,12 @@ git repository or a non-code **topic directory** (research notes, a course,
 an ops runbook) — version control is not a precondition for continuity.
 
 1. **Machine context first.** Read `~/.agents/STATE.md` if it exists (global
-   grain, one page). If missing, create it from the one-page projection shape
-   in `STANDARD.md` §3, scoped to the machine instead of one project.
+   grain, one page). If missing, create it at machine grain with exactly the
+   sections the "Global grain" section below defines: Active threads ·
+   Backlog (owned) · Watch · Recently closed. (`STANDARD.md` §3's six-section
+   template is project grain — its Truths/Blocked/Dead-ends sections and
+   logbook ids are project-scoped and do not apply here; only §3's page-level
+   rules carry over: one page, rebuilt whole, never patched.)
 2. **Initialize the workspace.** Preferred: run the kit's `project` command
    named in your wiring block — it creates the files below idempotently and
    proceeds in non-git topic dirs. By hand, create whichever are missing:
@@ -42,7 +46,8 @@ workspace self-setup deterministic, with no human in the loop.
 
 ## Global grain — `~/.agents/STATE.md`
 
-One-page cross-project projection: active threads, backlog, watch items.
+One-page cross-project projection. Sections: **Active threads · Backlog
+(owned) · Watch · Recently closed** — the same shape bootstrap step 1 creates.
 - **Session start:** read it — allowlist item 1 of the entry ritual (machine
   grain, so it sits outside any project brief and is read directly).
 - **Session close:** if cross-project state changed (thread opened/closed,
@@ -176,9 +181,10 @@ Counter-failure: mutable shared files changing under a session mid-task.
 
 ## Upstream and sync — who owns which surface
 
-The protocol documents you are reading are installed by the kit into a
-**kit-owned** directory: `~/.agents/canon/` (`CONTINUITY.md`, `STANDARD.md`,
-`SESSION-LOG.md`).
+The protocol documents you are reading are installed by the kit's `init`
+command (the one-time machine-level setup: canon install + harness wiring)
+into a **kit-owned** directory: `~/.agents/canon/` (`CONTINUITY.md`,
+`STANDARD.md`, `SESSION-LOG.md`).
 
 - **Kit-owned, sync-overwritable:** everything under `~/.agents/canon/`. The
   kit's `sync` command overwrites this directory with its bundled canon
@@ -201,8 +207,10 @@ this protocol exists to protect.
 
 ## Rules that keep this working
 
-All six rules carry forward from v1; rule 3 is clarified and rule 4 tightened,
-both disclosed in "Changes from v1".
+All six rules carry forward from v1; rule 3 is clarified, rule 4 is
+tightened, and rule 5 gained its read-scope parenthetical (binding "what you
+are shown" to the v1.1 entry ritual and its sanctioned re-reads) — each
+disclosed in "Changes from v1".
 
 1. **Memory and files are complementary, with one arbiter.** Private agent
    memory is first-class for what it uniquely holds: user preferences, learned
@@ -233,8 +241,12 @@ both disclosed in "Changes from v1".
    are honored read-only; new entries go to the tool-neutral
    `.agents/session.log`.
 
-**Preserved v1 invariants** (unchanged in v1.1, restated here): append-only +
-`SUPERSEDES:` corrections · agent attribution in every entry · owned `NEXT:` ·
+**Preserved v1 practice invariants** — write-behavior guarantees carried
+unchanged through v1.1. A companion checklist, not a second enumeration of
+the numbered rules: it restates rules 2–4 in practice form, and the
+remainder (rebuild-don't-patch, pointers-not-payloads, event-triggered
+writes) are `STANDARD.md`'s write contracts: append-only + `SUPERSEDES:`
+corrections · agent attribution in every entry · owned `NEXT:` ·
 rebuild-don't-patch projections · pointers-not-payloads · event-triggered
 writes.
 
@@ -255,7 +267,10 @@ v1.1 adds the **pollution-control architecture**. Nothing from v1 is removed.
    reads of immutable closed history. Session entry (item 4's capped
    bodies-included read, at BEGIN) and mid-session resume (`SESSION-LOG.md`
    §4's latest-STATUS/NEXT check, only after context loss) are distinct
-   operations at distinct moments with distinct depths.
+   operations at distinct moments with distinct depths. Rule 5's read-scope
+   parenthetical was added alongside this ritual, binding its "read all
+   shared state you are shown" clause to the ritual's exposure; the rule's
+   initiative scope is unchanged from v1.
 3. **Headings-not-bodies** — other agents'/features' in-flight work is visible
    as headings only, never bodies; the declared feature's own stream is
    exempt. This deliberately narrows v1's crash-recovery chronology step
@@ -274,9 +289,10 @@ v1.1 adds the **pollution-control architecture**. Nothing from v1 is removed.
    write rule is unchanged (NEXT is always owned at write time).
    Counter-failure: orphaned handoffs that nobody picks up — the single best
    predictor of a dead log.
-8. **Preserved v1 invariants** — restated verbatim above; append-only,
+8. **Preserved v1 practice invariants** — restated above; append-only,
    supersession, attribution, owned NEXT, rebuild-don't-patch,
-   pointers-not-payloads, event-triggered writes all carry forward.
+   pointers-not-payloads, event-triggered writes all carry forward. A
+   write-behavior checklist alongside the numbered rules, as labeled there.
 
 v1.2 adds the **agent-first bootstrap and upstream model**. Nothing from
 v1.1 is removed.

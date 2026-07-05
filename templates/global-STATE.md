@@ -1,7 +1,7 @@
 # GLOBAL STATE — cross-project projection
 > One page, hard cap. Rebuilt whole, never patched. Chronology lives in project
 > logbooks; this file only answers "what's live and what's queued across
-> everything." Owner: __OWNER__. Protocol: `~/.agents/CONTINUITY.md`.
+> everything." Owner: __OWNER__. Protocol: `~/.agents/canon/CONTINUITY.md`.
 
 ## Active threads
 - (one line per in-flight project: **name** — status → pointer to its STATE.md)
