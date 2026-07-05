@@ -197,3 +197,71 @@ APPROACH: arm fire op -> loops prep/preflight/launch. v1 loop archived to .agent
 VALIDATED: preflight.ps1 PASS (0 fail, 0 warn) at 0d82b42; gates green pre-launch (116 tests).
 STATUS: in-progress
 NEXT: claude — monitor loop, then land + T3/T3-R blind review
+
+## [2026-07-05] claude us-001.1 | build — Canon rev 1.2 (bootstrap + upstream/sync, version markers)
+APPROACH: Marker line `<!-- banana:canon rev 1.2 -->` as line 1 of all three canon files (namespaced like fence markers, parseable by future doctor/sync); CONTINUITY.md gains "Agent bootstrap — landing in a bare workspace" + "Upstream and sync — who owns which surface" sections and v1.2 items 9-12 in Changes from v1; canon.test.mjs extended with v1.2 section/marker/topic-grain assertions.
+STATUS: in-progress
+FILES: canon/CONTINUITY.md, canon/STANDARD.md, canon/SESSION-LOG.md, test/canon.test.mjs
+VALIDATED: npm run check && npm test — exit 0 / exit 0, 118/118 tests pass (single validation subagent)
+COMMITTED: 2bd43ec feat: [US-001] - Canon rev 1.2 (bootstrap + upstream/sync sections, version markers)
+STATUS: complete
+NEXT: claude — pick up US-002 (wiring templates v2, thin bootstrap-pointer blocks) next iteration
+
+## [2026-07-05] claude us-002.1 | build — Wiring templates v2 (thin bootstrap-pointer blocks, v2 fences)
+APPROACH: Rewrote the three wiring templates as thin v2 bootstrap-pointer blocks (identity, ~/.agents/canon/ authority, canonical npx invocation, self-setup, session ritual one-liner); protocol rules now live behind the canon pointer. Extended templates.test.mjs per T2 done-when (v2 markers, pointer surface, 30-line body cap).
+DECISION: Forbidden-pattern scan whitelists the exact repo slug Q9-Ahimsa/banana — the ASSUMED canonical npx invocation requires it; all other person/machine leakage stays forbidden. T3 reviewers should weigh this against criterion 6.
+FILES: templates/wiring/claude-code.md, templates/wiring/agents-md.md, templates/wiring/portable-directive.md, test/templates.test.mjs, test/adapters.test.mjs, test/project.e2e.test.mjs, test/init.e2e.test.mjs, test/hermes.test.mjs
+PROBLEM: hermes.test.mjs asserted the session-log envelope line inside the composed directive — content the v2 thin block deliberately drops.
+FIX: Assertion retargeted to the v2 pointer surface (canon dir + npx invocation); compose/deliver mechanics untouched.
+VALIDATED: npm run check && npm test — exit 0, 120/120 pass
+COMMITTED: feat: [US-002] - Wiring templates v2 (thin bootstrap-pointer blocks, v2 fences) (9c65034)
+STATUS: complete
+NEXT: claude — US-003 (init v2: owner inference, non-TTY fail-fast, canon dir install) next iteration
+
+## [2026-07-05] claude us-003.1 | build — init v2 (owner inference, non-TTY fail-fast, canon dir install)
+APPROACH: Added injectable isTTY + gitUserName deps to runInit; owner rungs --owner > git config > TTY prompt; interactive = isTTY && !--yes gates all three prompts so headless runs auto-accept detection or fail fast printing the exact npx invocation (names --owner and --yes). Canon install moved to ~/.agents/canon/ (three files, created-or-refreshed to bundled); legacy ~/.agents/CONTINUITY.md write dropped; STATE.md stays create-if-missing. bin/banana.mjs wires process.stdin.isTTY + execSync git-config lookup.
+FILES: lib/init.mjs, bin/banana.mjs, test/init.e2e.test.mjs
+VALIDATED: npm run check && npm test — both exit 0, 125/125 pass (new e2e: zero-flag git-stub success with 0 prompts, flag-beats-git, non-TTY fail-fast, stale-canon refresh, 2-prompt TTY path, byte-identical second run)
+COMMITTED: feat: [US-003] - init v2 (owner inference, non-TTY fail-fast, canon dir install)
+STATUS: complete
+NEXT: claude — pick up US-004 (sync command) next iteration
+
+## [2026-07-05] claude us-004.1 | build — sync command (canon refresh + fence re-apply)
+APPROACH: New lib/sync.mjs — canon dir refreshed byte-for-byte from the bundled canon (init's create-or-refresh pattern), then stale fences re-applied via adapter.wire. Current version comes from the template's own begin marker (new wiringTemplateVersion in lib/wiring.mjs, reusable by T8 doctor v2). Owner/tag recovered from the existing block — v1 and v2 identity lines both parseable; unrecoverable/corrupt blocks skipped with a report, never overwritten. Unwired files never created; STATE.md never touched.
+FILES: lib/sync.mjs, lib/wiring.mjs, bin/banana.mjs, test/sync.test.mjs, test/smoke.test.mjs
+VALIDATED: npm run check && npm test — both exit 0, 133/133 pass (8 new sync tests incl. stale-canon+v1-fence e2e, second-run byte-identical tree, identity round-trip against all three templates)
+COMMITTED: feat: [US-004] - sync command (canon refresh + fence re-apply) (08e1e63)
+STATUS: complete
+NEXT: claude — pick up US-005 (project v2: topic-grain, shared owner inference) next iteration
+
+## [2026-07-05] claude us-005.1 | build — project v2 (topic-grain: non-git proceeds, shared owner inference)
+APPROACH: Extracted init's owner inference (flag -> git config -> TTY-gated prompt, non-TTY fail-fast) into lib/owner.mjs parameterized by command; refactored init onto it (output byte-identical). project: --force removed, non-git dir proceeds printing a not-version-controlled topic-workspace note, owner resolution now shares the helper via injectable isTTY/gitUserName; bin wires both deps into the project dispatch with a hoisted shared gitUserName closure. Stale --force line in README fixed while there.
+FILES: lib/owner.mjs (new), lib/project.mjs, lib/init.mjs, bin/banana.mjs, test/owner.test.mjs (new), test/project.e2e.test.mjs, README.md
+VALIDATED: npm run check && npm test — both exit 0, 141/141 pass (6 new owner unit tests; project e2e: note present/absent, non-git create + idempotent re-run, git-config inference, non-TTY fail-fast naming --owner/--yes)
+COMMITTED: feat: [US-005] - project v2 (topic-grain: non-git proceeds, shared owner inference) (2e4ff03)
+STATUS: complete
+NEXT: claude — pick up US-006 (brief discovery: no-arg slug listing) next iteration
+
+## [2026-07-05] claude us-006.1 | build — brief discovery (no-arg listing, unknown-slug listing)
+APPROACH: parseBriefArgs made feature-optional (null = discovery mode, --tag still mandatory with a feature). New slugListing(entries) export: slug + latest-entry date, newest first, slug asc on ties, usage footer. runBrief three shapes per packet T7: no-arg lists to stdout exit 0; unknown slug prints listing to stderr exit 1 (stdout empty); known-slug compileBrief contract untouched. Extracted loadSessionLog(cwd) helper shared by compileBrief/runBrief.
+FILES: lib/brief.mjs, test/brief.test.mjs, bin/banana.mjs
+VALIDATED: npm run check && npm test — 147/147 pass, typecheck clean; test/brief.test.mjs alone 21/21; CLI smoke in temp fixture (listing exit 0, unknown slug exit 1)
+COMMITTED: feat: [US-006] - brief discovery (no-arg listing, unknown-slug listing) (126af03)
+STATUS: complete
+NEXT: claude — pick up US-007 (doctor v2 stale-canon + stale-fence audits) next iteration
+## [2026-07-05] claude us-007.1 | build — doctor v2 (stale-canon + stale-fence audits naming sync)
+APPROACH: New exported auditUpstream(home, cwd) in lib/doctor.mjs, merged into runDoctor's findings alongside auditProject (which is untouched — four v1 audits + exit semantics unchanged). stale-canon: canon dir missing, canon file missing/unmarked, or rev marker older than the kit's bundled canon (canonRev helper parses the marker; numeric major.minor compare). stale-fence: three home adapter targets + repo-local AGENTS.md, each block compared against wiringTemplateVersion(its template) — reusing the T5 helper, no version constant. Every finding text names sync as the remediation. v1 doctor-test fixture homes now seed the bundled canon (installCanon helper) because a canon-less home is itself a finding per packet T8; report-test fence bumped to the template-derived current version.
+FILES: lib/doctor.mjs, test/doctor.test.mjs
+VALIDATED: npm run check && npm test — both exit 0, 153/153 pass (doctor.test.mjs 14/14: stale-canon rev-1.1 + missing-dir, stale-fence home + project AGENTS.md, current-fixture clean, canonRev unit, all v1 assertions)
+COMMITTED: feat: [US-007] - doctor v2 (stale-canon + stale-fence audits naming sync) (0c0ae72)
+STATUS: complete
+NEXT: claude — pick up US-008 (README inversion + version 0.2.0) next iteration
+
+
+## [2026-07-05] claude us-008.1 | build — README inversion + version 0.2.0
+APPROACH: package.json bumped 0.1.0 -> 0.2.0. README rewritten agent-first per packet T9: human section is 27 lines (canonical npx one-liner, "your agents handle the rest" framing, sync update story), everything below '## Agents: start here' addressed to agents (canon pointer ~/.agents/canon/, bootstrap model, five-command reference incl. sync). Four-command human tour and hot/cold daily-ritual human sections removed. test/readme.test.mjs rewritten to v2 acceptance criteria (canonical --yes npx form, five commands, canon dir path, human-section line cap via first /agent/i heading, spawned --version check).
+FILES: package.json, README.md, test/readme.test.mjs
+VALIDATED: npm run check && npm test — typecheck clean, 155/155 pass
+COMMITTED: feat: [US-008] - README inversion + version 0.2.0 (08e1acf)
+STATUS: complete
+NEXT: user — all 8 PRD stories pass; packet T3/T3-R (qualitative review) and T10 (ship: gh repo create + cold npx smoke) are adjudicated outside this loop
