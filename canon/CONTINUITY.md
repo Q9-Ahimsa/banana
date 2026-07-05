@@ -179,7 +179,11 @@ approach.
 
 **48h ghost rule.** A `STATUS: in-progress` entry older than 48 hours is a
 ghost: flagged in briefs and by the doctor; the next session in that project
-closes it as `abandoned` via a superseding entry. Counter-failure: dead claims
+closes it as `abandoned` via a superseding entry. Entry dates are day-grain,
+so the operational test is fixed: the 48 hours are measured from midnight UTC
+at the start of the entry's heading date — an entry dated D is a ghost from
+the start of day D+2 (UTC). The kit's `brief` and `doctor` compute exactly
+this; a by-hand scan applies the same test. Counter-failure: dead claims
 steering live sessions.
 
 ## Session lifecycle
@@ -285,9 +289,11 @@ writes.
 
 ## Changes from v1
 
-v1.1 adds the **pollution-control architecture**. No v1 surface, record, or
-write behavior is removed; two v1 *read* behaviors are deliberately narrowed,
-disclosed in items 2–3 below.
+v1.1 adds the **pollution-control architecture**. No v1 surface or record is
+removed. One v1 write permission is revoked — editing your own closed entries,
+rule 4's tightening, disclosed in item 6 — and two v1 *read* behaviors are
+deliberately narrowed, disclosed in items 2–3; every other v1 behavior
+carries forward.
 
 1. **Hot/cold surface tiering** — projections are hot (auto-loaded, one page);
    chronology and entry bodies are cold (grep-on-demand only). The tiering
