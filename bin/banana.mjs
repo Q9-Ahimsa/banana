@@ -36,7 +36,7 @@ Usage: banana <command> [options]
 Commands:
   init      detect installed agent harnesses, wire the continuity protocol into each
   project   initialize a workspace (git repo or topic dir) with LOGBOOK.md, STATE.md, and .agents/session.log
-  brief     compile a per-intent context brief for a session (feature-scoped)
+  brief     compile a per-intent context brief for a session; no feature arg lists active slugs
   doctor    check wiring versions and run liveness audits
   sync      refresh the kit-owned canon and re-apply stale wiring fences`);
   process.exit(cmd === undefined ? 1 : 0);
@@ -115,7 +115,7 @@ if (cmd === 'project') {
 
 if (cmd === 'brief') {
   const { parseBriefArgs, runBrief } = await import('../lib/brief.mjs');
-  /** @type {import('../lib/brief.mjs').BriefFlags} */
+  /** @type {import('../lib/brief.mjs').BriefArgs} */
   let flags;
   try {
     flags = parseBriefArgs(process.argv.slice(3));

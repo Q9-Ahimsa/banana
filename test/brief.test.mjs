@@ -9,6 +9,7 @@ import {
   parseSessionLog,
   nextOwner,
   isGhost,
+  slugListing,
   compileBrief,
   runBrief,
   GHOST_THRESHOLD_HOURS,
@@ -117,8 +118,12 @@ test('parseBriefArgs: feature positional plus --tag', () => {
   });
 });
 
-test('parseBriefArgs: rejects missing feature, missing tag, unknown options', () => {
-  assert.throws(() => parseBriefArgs(['--tag', 'claude']), /feature/);
+test('parseBriefArgs: no feature arg enters discovery mode (tag optional)', () => {
+  assert.deepEqual(parseBriefArgs([]), { feature: null, tag: null });
+  assert.deepEqual(parseBriefArgs(['--tag', 'claude']), { feature: null, tag: 'claude' });
+});
+
+test('parseBriefArgs: rejects missing tag with a feature, unknown options', () => {
   assert.throws(() => parseBriefArgs(['auth']), /--tag/);
   assert.throws(() => parseBriefArgs(['auth', '--tag']), /--tag requires a value/);
   assert.throws(() => parseBriefArgs(['auth', '--tag', 'claude', '--nope']), /unknown/);
@@ -265,6 +270,89 @@ test('runBrief: prints the brief and exits 0', async () => {
   const printed = outLines.join('\n');
   assert.match(printed, /TARGET_MARK_A1/);
   assert.match(printed, /STATE_VERBATIM_MARKER/);
+});
+
+// --- slug discovery (v2: no-arg listing, unknown-slug listing) ---
+
+test('slugListing: one line per slug with its latest entry date, newest first', () => {
+  const listing = slugListing(parseSessionLog(SESSION_LOG));
+  const lines = listing.split('\n');
+  // Latest entry per slug: auth 07-04, docs 07-03, infra 07-03, billing 07-02.
+  // Ordered by date desc, then slug asc on ties.
+  const auth = lines.findIndex((l) => l.includes('auth'));
+  const docs = lines.findIndex((l) => l.includes('docs'));
+  const infra = lines.findIndex((l) => l.includes('infra'));
+  const billing = lines.findIndex((l) => l.includes('billing'));
+  for (const [slug, at] of [['auth', auth], ['docs', docs], ['infra', infra], ['billing', billing]]) {
+    assert.ok(at !== -1, `slug ${slug} listed`);
+  }
+  assert.ok(auth < docs && docs < infra && infra < billing, 'date desc, slug asc on ties');
+  assert.match(lines[auth], /auth.*2026-07-04/);
+  assert.match(lines[docs], /docs.*2026-07-03/);
+  assert.match(lines[infra], /infra.*2026-07-03/);
+  assert.match(lines[billing], /billing.*2026-07-02/);
+});
+
+test('slugListing: empty log yields a none-yet note, not an empty string', () => {
+  assert.match(slugListing([]), /none yet/);
+});
+
+test('runBrief: no feature arg prints the slug listing to stdout and exits 0', async () => {
+  const dir = makeProject();
+  /** @type {string[]} */
+  const outLines = [];
+  /** @type {string[]} */
+  const errLines = [];
+  const io = {
+    out: (/** @type {string} */ line = '') => outLines.push(line),
+    err: (/** @type {string} */ line = '') => errLines.push(line),
+  };
+  const result = await runBrief({ feature: null, tag: null }, { cwd: dir, io, now: NOW });
+  assert.equal(result.code, 0);
+  const printed = outLines.join('\n');
+  for (const [slug, date] of [
+    ['auth', '2026-07-04'],
+    ['billing', '2026-07-02'],
+    ['docs', '2026-07-03'],
+    ['infra', '2026-07-03'],
+  ]) {
+    assert.ok(printed.includes(slug) && printed.includes(date), `${slug} + ${date} listed`);
+  }
+  assert.ok(!printed.includes('TARGET_MARK_A1'), 'listing carries no entry bodies');
+  assert.equal(errLines.length, 0);
+});
+
+test('runBrief: unknown slug exits 1 with the listing on stderr', async () => {
+  const dir = makeProject();
+  /** @type {string[]} */
+  const outLines = [];
+  /** @type {string[]} */
+  const errLines = [];
+  const io = {
+    out: (/** @type {string} */ line = '') => outLines.push(line),
+    err: (/** @type {string} */ line = '') => errLines.push(line),
+  };
+  const result = await runBrief({ feature: 'nope', tag: 'claude' }, { cwd: dir, io, now: NOW });
+  assert.equal(result.code, 1);
+  const errText = errLines.join('\n');
+  assert.match(errText, /nope/);
+  for (const slug of ['auth', 'billing', 'docs', 'infra']) {
+    assert.ok(errText.includes(slug), `listing on stderr names ${slug}`);
+  }
+  assert.equal(outLines.length, 0, 'nothing on stdout for an unknown slug');
+});
+
+test('runBrief: no feature arg with missing session.log still exits 1', async () => {
+  const dir = makeProject({ log: null });
+  /** @type {string[]} */
+  const errLines = [];
+  const io = {
+    out: () => {},
+    err: (/** @type {string} */ line = '') => errLines.push(line),
+  };
+  const result = await runBrief({ feature: null, tag: null }, { cwd: dir, io, now: NOW });
+  assert.equal(result.code, 1);
+  assert.match(errLines.join('\n'), /session\.log/);
 });
 
 test('runBrief: missing session.log exits non-zero with a pointer to banana project', async () => {
