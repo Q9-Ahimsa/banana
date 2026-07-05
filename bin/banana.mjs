@@ -12,6 +12,18 @@ const pkg = JSON.parse(
 const COMMANDS = ['init', 'project', 'brief', 'doctor', 'sync'];
 const [cmd] = process.argv.slice(2);
 
+/** Owner inference rung shared by init and project: git config user.name. */
+function gitUserName() {
+  try {
+    const name = execSync('git config --get user.name', {
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).toString().trim();
+    return name || null;
+  } catch {
+    return null;
+  }
+}
+
 if (cmd === '--version' || cmd === '-v') {
   console.log(pkg.version);
   process.exit(0);
@@ -23,7 +35,7 @@ Usage: banana <command> [options]
 
 Commands:
   init      detect installed agent harnesses, wire the continuity protocol into each
-  project   initialize a repo with LOGBOOK.md, STATE.md, and .agents/session.log
+  project   initialize a workspace (git repo or topic dir) with LOGBOOK.md, STATE.md, and .agents/session.log
   brief     compile a per-intent context brief for a session (feature-scoped)
   doctor    check wiring versions and run liveness audits
   sync      refresh the kit-owned canon and re-apply stale wiring fences`);
@@ -62,16 +74,7 @@ if (cmd === 'init') {
     home: homedir(),
     io,
     isTTY: process.stdin.isTTY === true,
-    gitUserName: () => {
-      try {
-        const name = execSync('git config --get user.name', {
-          stdio: ['ignore', 'pipe', 'ignore'],
-        }).toString().trim();
-        return name || null;
-      } catch {
-        return null;
-      }
-    },
+    gitUserName,
   });
   rl?.close();
   process.exit(result.code);
@@ -100,7 +103,12 @@ if (cmd === 'project') {
       return rl.question(question);
     },
   };
-  const result = await runProject(flags, { cwd: process.cwd(), io });
+  const result = await runProject(flags, {
+    cwd: process.cwd(),
+    io,
+    isTTY: process.stdin.isTTY === true,
+    gitUserName,
+  });
   rl?.close();
   process.exit(result.code);
 }

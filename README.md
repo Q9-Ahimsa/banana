@@ -13,7 +13,7 @@ npx github:Q9-Ahimsa/banana init
 | Command | What it does |
 |---|---|
 | `banana init` | detect installed agent harnesses, wire the continuity protocol into each. Non-interactive: `--owner`, `--tag`, `--harnesses`, `--yes` |
-| `banana project` | initialize a repo with `LOGBOOK.md`, `STATE.md`, and `.agents/session.log`. Refuses outside a git repo unless `--force` |
+| `banana project` | initialize a workspace (git repo or non-code topic dir) with `LOGBOOK.md`, `STATE.md`, and `.agents/session.log` |
 | `banana brief <feature> --tag <agent>` | compile a per-intent context brief for a session — feature-scoped, deterministic text processing, no LLM calls |
 | `banana doctor` | check wiring versions and run liveness audits (ghost entries, unowned NEXT lines, stale STATE, oversized files). `--verify` prints per-harness recital commands |
 
