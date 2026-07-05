@@ -7,7 +7,7 @@
     {
       "id": "US-001",
       "title": "Canon rev 1.2 (bootstrap + upstream/sync sections, version markers)",
-      "description": "As an agent landing in a workspace with zero prior context, I want the canon to carry an agent bootstrap section, so that I can self-initialize any workspace (git repo or non-code topic dir) from the canon alone. Extend canon/ per packet T1: bootstrap section (which files to create, entry envelope, session ritual), upstream/sync section (canon dir is kit-owned and overwritable by sync; STATE.md, logs, logbooks are user-owned and never overwritten by the kit), an HTML-comment version marker line containing 1.2 in each canon file, and the changes-from-v1 section extended with the v1.2 additions.",
+      "description": "As an agent landing in a workspace with zero prior context, I want the canon to carry an agent bootstrap section, so that I can self-initialize any workspace (git repo or non-code topic dir) from the canon alone. Implement packet T1: bootstrap section, upstream/sync section (kit-owned canon dir vs user-owned surfaces), an HTML-comment version marker containing 1.2 in each canon file, and the changes-from-v1 section extended with the v1.2 additions.",
       "acceptanceCriteria": [
         "node --test test/canon.test.mjs exits 0",
         "The test asserts the bootstrap section heading, the upstream/sync section heading, a version marker containing '1.2' in each canon file, and workspace/topic (non-git) language",
@@ -22,7 +22,7 @@
     {
       "id": "US-002",
       "title": "Wiring templates v2 (thin bootstrap-pointer blocks, v2 fences)",
-      "description": "As an agent reading a wired instruction file, I want the fenced block to be a thin stable bootstrap pointer, so that protocol updates propagate via the canon instead of re-wiring. Rewrite templates/wiring/claude-code.md, agents-md.md, portable-directive.md per packet T2: agent identity (tag), pointer to <home>/.agents/canon/ as protocol authority, the canonical invocation string 'npx --yes github:Q9-Ahimsa/banana', the self-setup instruction (initialize any workspace lacking continuity files per the canon bootstrap section), and the session ritual one-liner. Bump fence markers to v2 ('<!-- banana:begin v2 -->'). Protocol rules live behind the pointer, not in the block.",
+      "description": "As an agent reading a wired instruction file, I want the fenced block to be a thin stable bootstrap pointer, so that protocol updates propagate via the canon instead of re-wiring. Implement packet T2: rewrite the three wiring templates as pointer blocks (identity tag, canon dir pointer, npx invocation string, self-setup instruction, session ritual one-liner) and bump fence markers to v2. Protocol rules live behind the pointer, not in the block.",
       "acceptanceCriteria": [
         "node --test test/templates.test.mjs exits 0",
         "The test asserts every wiring template contains both v2 fence markers, the canon dir pointer, the npx invocation string, and a self-setup instruction",
@@ -37,7 +37,7 @@
     {
       "id": "US-003",
       "title": "init v2 (owner inference, non-TTY fail-fast, canon dir install)",
-      "description": "As a colleague running one command once, I want init to infer my identity and never hang headless, so that setup is a single npx call in any environment. Per packet T4: owner resolution order --owner flag, then git config --get user.name, then interactive prompt only when stdin is a TTY (TTY state and the git-config lookup injectable for tests); non-TTY with no inferable owner exits 1 printing the exact non-interactive invocation naming --owner and --yes. init installs canon files into <home>/.agents/canon/ (created or refreshed to the bundled canon), keeps <home>/.agents/STATE.md create-if-missing, wires adapters with the v2 blocks; hermes compose/deliver and paste-instruction paths keep their current behavior.",
+      "description": "As a colleague running one command once, I want init to infer my identity and never hang headless, so that setup is a single npx call anywhere. Implement packet T4: owner resolution is --owner flag, then git config user.name, then prompt only on a TTY (TTY state and git lookup injectable); non-TTY without an owner exits 1 naming the flags. init installs the bundled canon into the home .agents/canon/ dir, keeps STATE.md create-if-missing, wires the v2 blocks; hermes and paste paths keep current behavior.",
       "acceptanceCriteria": [
         "node --test test/init.e2e.test.mjs exits 0",
         "Sandbox-HOME e2e: zero-flag init succeeds when a git-config owner stub is injected",
@@ -52,7 +52,7 @@
     {
       "id": "US-004",
       "title": "sync command (canon refresh + fence re-apply)",
-      "description": "As a machine wired last month, I want one command that pulls the current canon and re-fences stale blocks, so that whatever the upstream updates propagates everywhere. Per packet T5: sync copies the kit's bundled canon over <home>/.agents/canon/, re-applies the fenced block to every already-wired harness file whose block version is older than current, reports each change, exits 0; it never touches user-owned surfaces (STATE.md, session logs, logbooks). No network code — npx fetching the latest kit IS the transport.",
+      "description": "As a machine wired last month, I want one command that refreshes the canon and re-fences stale blocks, so that upstream updates propagate everywhere. Implement packet T5: sync copies the bundled canon over the home .agents/canon/ dir, re-applies the fence to wired files whose block version is older than current, reports each change, exits 0; user-owned surfaces are never touched. No network code — npx fetching the latest kit is the transport.",
       "acceptanceCriteria": [
         "node --test test/sync.test.mjs exits 0",
         "Sandbox with stale canon + a v1 fence block: after sync the canon dir is byte-equal to the kit's bundled canon and the fence block reads v2 with user content outside the fence byte-identical",
