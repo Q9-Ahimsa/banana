@@ -10,7 +10,9 @@ import * as hermes from '../adapters/hermes.mjs';
 const NO_PATH = { env: { PATH: '', PATHEXT: '' } };
 
 const SENDER_HEADER = 'FROM: banana continuity kit (agent-to-agent) on behalf of alice';
-const ENVELOPE_LINE = '## [YYYY-MM-DD] {agent} {feature}.{n} | {PHASE} — {title}';
+// v2 directives are thin bootstrap pointers — protocol rules live in the canon.
+const CANON_DIR_POINTER = '~/.agents/canon/';
+const NPX_INVOCATION = 'npx --yes github:Q9-Ahimsa/banana';
 
 /** @returns {string} a fresh sandbox home, cleaned up when the test ends */
 function sandbox(t) {
@@ -57,10 +59,11 @@ test('hermes: compose requires an owner', () => {
   assert.throws(() => hermes.compose(/** @type {any} */ ({})), /owner/i);
 });
 
-test('hermes: directive carries the sender header, envelope line, and agent tag', () => {
+test('hermes: directive carries the sender header, canon pointer, and agent tag', () => {
   const { directive, tag } = hermes.compose({ owner: 'alice' });
   assert.ok(directive.includes(SENDER_HEADER), 'sender header present');
-  assert.ok(directive.includes(ENVELOPE_LINE), 'session-log envelope line present');
+  assert.ok(directive.includes(CANON_DIR_POINTER), 'canon dir pointer present');
+  assert.ok(directive.includes(NPX_INVOCATION), 'npx invocation present');
   assert.equal(tag, 'hermes');
   assert.ok(directive.includes('`hermes`'), 'agent tag present in directive');
   assert.ok(

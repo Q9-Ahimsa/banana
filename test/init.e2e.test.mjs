@@ -122,7 +122,7 @@ test('e2e: fresh init creates both global files plus wiring for detected harness
 
   for (const target of [join('.claude', 'CLAUDE.md'), join('.codex', 'AGENTS.md')]) {
     const text = readFileSync(join(home, target), 'utf8');
-    assert.ok(text.includes('<!-- banana:begin v1 -->'), `${target} carries the fence`);
+    assert.ok(text.includes('<!-- banana:begin v2 -->'), `${target} carries the fence`);
     assert.ok(text.includes('<!-- banana:end -->'), `${target} fence closed`);
   }
   assert.ok(!existsSync(join(home, '.pi')), 'undetected pi is not wired');

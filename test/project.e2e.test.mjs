@@ -111,7 +111,7 @@ test('e2e: fresh run creates all continuity files with required sections', async
   assert.match(seed, /APPROACH:/, 'seed documents the entry protocol');
 
   const agents = readFileSync(join(repo, 'AGENTS.md'), 'utf8');
-  assert.ok(agents.includes(fenceBegin(1)), 'AGENTS.md carries the begin marker');
+  assert.ok(agents.includes(fenceBegin(2)), 'AGENTS.md carries the begin marker');
   assert.ok(agents.includes(FENCE_END), 'AGENTS.md carries the end marker');
   assert.ok(agents.includes('test-agent'), 'wiring block carries the agent tag');
   assert.ok(!agents.includes('__AGENT_TAG__'), 'no placeholder residue');
@@ -144,7 +144,7 @@ test('e2e: existing files are never overwritten; AGENTS.md content outside the f
 
   const agents = readFileSync(join(repo, 'AGENTS.md'), 'utf8');
   assert.ok(agents.startsWith('# Repo instructions\n\nHand-written content.\n'), 'user content preserved');
-  assert.ok(agents.includes(fenceBegin(1)) && agents.includes(FENCE_END), 'fence appended');
+  assert.ok(agents.includes(fenceBegin(2)) && agents.includes(FENCE_END), 'fence appended');
 });
 
 test('e2e: a non-repo dir without --force exits non-zero and writes nothing', async (t) => {

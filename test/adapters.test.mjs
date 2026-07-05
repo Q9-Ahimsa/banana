@@ -79,7 +79,7 @@ for (const { adapter, dir, target, tag } of CASES) {
     assert.equal(report.created, true);
     assert.equal(report.target, join(home, target));
     const text = readFileSync(join(home, target), 'utf8');
-    assert.ok(text.includes(fenceBegin(1)), 'begin marker present');
+    assert.ok(text.includes(fenceBegin(2)), 'begin marker present');
     assert.ok(text.includes(FENCE_END), 'end marker present');
     assert.ok(text.includes('`alice`'), 'owner substituted');
     assert.ok(text.includes('`' + tag + '`'), 'default agent tag substituted');
