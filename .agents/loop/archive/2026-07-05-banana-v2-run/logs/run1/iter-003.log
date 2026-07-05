@@ -1,0 +1,10 @@
+**US-003 (init v2) is complete and committed** ΓÇö `b68e9e7`, gates green with typecheck clean and 125/125 tests passing.
+
+What shipped this iteration:
+
+- **Owner inference** now runs `--owner` flag ΓåÆ `git config user.name` ΓåÆ interactive prompt, with the git lookup and TTY state both injectable deps on `runInit` (production wiring in `bin/banana.mjs` uses `process.stdin.isTTY` and an `execSync` lookup that returns null on any failure).
+- **Non-TTY never hangs**: prompting is gated on `isTTY && !--yes`, so headless runs auto-accept the detected harnesses and write plan; with no inferable owner they exit 1 printing the exact non-interactive invocation, naming both `--owner` and `--yes`.
+- **Canon dir install**: init now populates `~/.agents/canon/` with all three version-marked canon files, created-or-refreshed to the bundled canon (refreshes reported per file). The legacy `~/.agents/CONTINUITY.md` write is gone; `STATE.md` remains create-if-missing. Hermes and paste-instruction paths are behaviorally unchanged.
+- Test coverage added for every acceptance criterion: zero-flag success via git-config stub (zero prompts), flag-beats-git precedence, non-TTY fail-fast, stale-canon refresh, the 2-prompt TTY path when git knows the owner, and byte-identical second run.
+
+Loop state updated: `prd.json` US-003 flipped to `passes: true`, packet T4 checked with evidence, session log appended. Five stories remain (US-004 sync, US-005 project v2, US-006 brief discovery, US-007 doctor v2, US-008 README/version) ΓÇö ending the turn for the next fresh-context iteration, which picks up **US-004 (sync command)**.

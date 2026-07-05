@@ -1,0 +1,12 @@
+**US-004 (sync command) is complete and committed.** Gates green ΓÇö typecheck clean, 133/133 tests passing (8 new).
+
+What shipped in `08e1e63`:
+
+- **`lib/sync.mjs`** ΓÇö the new command's two idempotent moves: refresh `~/.agents/canon/` byte-for-byte from the bundled canon, then re-apply the fenced wiring block to every already-wired harness file whose block is older than the current template. Skips (corrupt fence, unrecoverable identity) are reported but never overwrite the file, and exit stays 0.
+- **Identity preservation** ΓÇö the one design decision worth noting: re-rendering a template needs `owner`/`tag`, and sync recovers both from the existing block rather than guessing. Both formats ever shipped are parseable (v1's `` **Your agent tag:** `X`. Owner: `Y` `` and v2's `` you are `X`; owner: `Y` ``), verified by a renderΓåÆextract round-trip test against all three templates ΓÇö which caught a real case-sensitivity bug in the portable-directive variant ("You are" vs "you are") before it shipped.
+- **`lib/wiring.mjs`** ΓÇö new `wiringTemplateVersion()` helper: the "current" fence version is read from the template's own begin marker (no standalone constant existed). US-007's doctor stale-fence audit can reuse it directly.
+- **`bin/banana.mjs` + smoke test** ΓÇö `sync` added to COMMANDS and help; help assertion extended to five commands.
+
+Acceptance criteria all covered in `test/sync.test.mjs`: canon dir byte-equal to bundled after sync, v1 fence upgraded to v2 with user content outside the fence byte-identical, STATE.md untouched, second run reports no changes with a byte-identical tree.
+
+State updated: prd.json `US-004.passes = true`, packet T5 checked with evidence, session-log entry appended. Four stories remain (US-005 through US-008) ΓÇö next iteration picks up US-005 (project v2).

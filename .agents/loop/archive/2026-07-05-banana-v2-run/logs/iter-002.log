@@ -1,0 +1,8 @@
+**US-005 (project v2) is complete and committed as `2e4ff03`** ΓÇö quality gates green with 141/141 tests passing and typecheck clean.
+
+What changed:
+- **Shared owner resolution**: init's inference ladder (`--owner` flag ΓåÆ `git config user.name` ΓåÆ prompt only on a TTY, never under `--yes`) is now extracted into `lib/owner.mjs`, parameterized by command name so the fail-fast message prints the exact `npx` invocation for whichever command failed. init was refactored onto it with byte-identical output, so all its existing e2e assertions passed untouched.
+- **project goes topic-grain**: a non-git directory now proceeds by default, printing a "not version controlled ΓÇö initializing it as a topic workspace" note (absent inside git repos); the `--force` flag is removed and now rejects as an unknown option. `bin/banana.mjs` wires `isTTY` and a hoisted `gitUserName` closure into the project dispatch, same as init.
+- **Tests**: new `test/owner.test.mjs` (6 tests) for the extracted boundary; `test/project.e2e.test.mjs` rewritten to the v2 contract ΓÇö note present/absent, non-git creation plus idempotent re-run, git-config inference, and non-TTY fail-fast naming both flags with nothing written on failure. Also fixed the stale `--force` mention in the README command table.
+
+Loop state updated: prd.json US-005 flipped to `passes: true` with notes, packet T6 checked with evidence, session-log entry appended. Three stories remain (US-006 brief discovery, US-007 doctor v2, US-008 README inversion), so no sentinel ΓÇö ending the turn for the next iteration.

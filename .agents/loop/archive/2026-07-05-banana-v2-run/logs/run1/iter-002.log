@@ -1,0 +1,14 @@
+**US-002 is done and committed (`9c65034`) ΓÇö gates green at 120/120 tests plus clean typecheck.** The loop state is updated; US-003 (init v2) is next iteration's story.
+
+What this iteration shipped:
+
+- **Three wiring templates rewritten as thin v2 bootstrap-pointer blocks** (`templates/wiring/claude-code.md`, `agents-md.md`, `portable-directive.md`). Each block now carries only: agent identity (`__AGENT_TAG__`/`__OWNER__`), the `~/.agents/canon/` protocol-authority pointer, the canonical `npx --yes github:Q9-Ahimsa/banana <cmd>` invocation, a self-setup instruction, and the session-ritual one-liner. Fence markers bumped to `<!-- banana:begin v2 -->`; bodies are 17ΓÇô19 lines against the 30-line cap. All protocol rules (envelopes, grains, integrity) moved behind the canon pointer.
+- **`test/templates.test.mjs` extended** per the acceptance criteria: v2 markers, pointer-surface assertions, body-line ceiling, token/double-brace checks intact.
+- **Ripple fixes so the suite stays green:** fence-version assertions bumped v1ΓåÆv2 in `adapters.test.mjs`, `project.e2e.test.mjs`, and `init.e2e.test.mjs`; the hermes directive test ΓÇö which failed on first gate run because it asserted the old inline envelope line ΓÇö now asserts the v2 pointer surface instead (compose/deliver behavior untouched).
+
+Two judgment calls worth knowing about, both recorded in the session log and packet evidence:
+
+1. **Repo-slug whitelist:** the existing leak-prevention test forbade `/ahimsa/i` in `templates/`, but the packet's ASSUMED canonical invocation embeds `Q9-Ahimsa/banana`. I whitelisted the exact slug only; every other person/machine reference stays forbidden. Flagged for the T3 reviewers, since their criterion 6 ("no usernames") is in literal tension with the required npx string.
+2. **Hermes assertion retarget:** treated "hermes paths keep current behavior" as covering compose/deliver mechanics, not the directive's template-defined text ΓÇö the directive content is exactly what T2 changes.
+
+prd.json now shows US-002 `passes: true`; packet T2 is checked with evidence. Six stories remain, so no sentinel ΓÇö ending the iteration here.

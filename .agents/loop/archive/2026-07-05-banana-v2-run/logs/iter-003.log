@@ -1,0 +1,12 @@
+**US-006 (brief discovery) is complete and committed** ΓÇö commit `126af03`, gates green with 147/147 tests and a clean typecheck.
+
+What shipped this iteration:
+
+- `banana brief` with no feature arg now prints an active-slug listing (slug + date of its latest entry, newest first) to stdout and exits 0 ΓÇö slug discovery no longer needs a grep of the session log.
+- An unknown slug prints `no entries for feature 'X'` plus the same listing to **stderr** and exits 1, with stdout left empty.
+- The compiled-brief contract for a known slug is untouched ΓÇö every prior include/exclude assertion passes unmodified. Internally, `parseBriefArgs` gained an optional-feature mode (`--tag` is still required whenever a feature is given), and a new `slugListing` export plus a shared `loadSessionLog` helper carry the discovery path.
+- Verified beyond the suite with a live CLI smoke in a temp fixture: both new paths behave exactly per the packet's T7 done-when.
+
+Loop state updated: prd.json US-006 flipped to `passes: true` with notes, packet T7 checked with evidence, session-log entry `us-006.1` appended.
+
+Two stories remain (`US-007` doctor v2 audits, `US-008` README inversion + 0.2.0), so no sentinel ΓÇö ending the turn for the next fresh-context iteration.

@@ -1,0 +1,12 @@
+**US-007 (doctor v2) is complete and committed** as `0c0ae72` ΓÇö `feat: [US-007] - doctor v2 (stale-canon + stale-fence audits naming sync)`.
+
+What was built:
+
+- **`auditUpstream(home, cwd)`** in `lib/doctor.mjs`, merged into `runDoctor`'s findings alongside the untouched `auditProject` ΓÇö the four v1 audits and exit semantics are unchanged.
+- **Stale-canon audit**: flags a missing `~/.agents/canon/` dir, a missing/unmarked canon file, or a rev marker older than the kit's bundled canon. A new `canonRev` helper parses the `<!-- banana:canon rev X.Y -->` marker, with numeric major.minor comparison so a future rev 1.10 sorts after 1.2.
+- **Stale-fence audit**: compares every wired fence block (three home adapter targets plus the repo-local `AGENTS.md`) against its template's own version via the `wiringTemplateVersion` helper US-004 built ΓÇö no version constant was introduced. Every finding text names `sync` as the remediation.
+- One judgment call worth noting: the packet makes a canon-less home *itself* a finding, which conflicted with three v1 test fixtures that used empty sandbox homes and expected exit 0. I followed the packet ΓÇö those fixtures now seed the bundled canon via a new `installCanon` test helper, while the four v1 audit *assertions* remain exactly as they were and pass.
+
+Gates: `npm run check && npm test` both green ΓÇö 153/153 tests (doctor suite 14/14, six new tests). prd.json flipped, packet T8 evidence filled, session-log entry `us-007.1` appended.
+
+One story remains: **US-008 (README inversion + version 0.2.0)** ΓÇö next iteration picks it up.

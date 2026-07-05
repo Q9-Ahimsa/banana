@@ -1,0 +1,3 @@
+US-008 is done and the backlog is complete. The final story landed as commit 08e1acf: package.json is at 0.2.0, the README is inverted (27-line human section with the npx one-liner and sync story, everything below `## Agents: start here` addressed to agents with the five-command reference and canon pointer), and readme.test.mjs was rewritten to the v2 acceptance criteria. Gates green: typecheck clean, 155/155 tests pass. All 8 stories in prd.json now show `passes: true`; the remaining packet tasks (T3/T3-R review, T10 ship) are adjudicated outside this loop.
+
+`<promise>COMPLETE</promise>`
