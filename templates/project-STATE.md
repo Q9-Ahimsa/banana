@@ -1,5 +1,5 @@
 # STATE — (project)
-> Projection of LOGBOOK.md as of (date) (through (last-entry-id)). Logbook wins
+> Projection of LOGBOOK.md as of (date) (through none). Logbook wins
 > on conflict. One page, hard cap. Rebuilt whole, never patched.
 
 ## Now

@@ -61,9 +61,38 @@ Recommended default set (start here, extend deliberately):
 
 Recommended default prefixes: `WHAT: / WHY: / ref: / DONE: / NEXT: / BLOCKED: / ASSUMED:`
 
+The header block's literal shape is fixed — the kit's `project` command writes exactly this, and a
+by-hand bootstrap copies it verbatim (swap in the project name, then edit the vocabulary lines only):
+
+```markdown
+# LOGBOOK — {project}
+> Append-only chronology per the Logbook Standard v1 (shipped with this kit as
+> `STANDARD.md`). Never edit or delete an entry — corrections are new entries
+> carrying `SUPERSEDES:`. STATE.md is the projection; the logbook wins on
+> conflict.
+
+**Envelope:** `## [YYYY-MM-DD] {actor} {stream}.{n} | {TYPE} — {title}` +
+prefix lines, body ≤ ~10 lines, pointers not payloads.
+
+**TYPE vocabulary** (declared here; extend deliberately, in this block):
+SESSION · DECISION · MILESTONE · PROBLEM · FIX · INSIGHT · RESEARCH · HANDOFF · CAPTURE
+
+**Prefixes:** `WHAT:` / `WHY:` / `ref:` / `DONE:` / `NEXT:` / `BLOCKED:` /
+`ASSUMED:` / `SUPERSEDES:`
+
+**Read protocol:** STATE.md first, then `grep "^## \[" LOGBOOK.md | tail -5`.
+Grep for specifics; never read the whole file.
+
+---
+```
+
+Counter-failure: a required header block whose literal shape is never shown — every by-hand
+bootstrap invents its own format, and later agents have no fixed place to find or verify the
+project's vocabulary contract.
+
 ## 3. STATE.md — the projection
 
-One page, hard cap. Five sections, all bounded:
+One page, hard cap. Six sections, all bounded:
 
 ```markdown
 # STATE — {project}
@@ -76,6 +105,12 @@ One page, hard cap. Five sections, all bounded:
 ## Watch      ← assumptions needing validation, each with a validate-by date
 ## Dead ends  ← approaches tried and abandoned, one line each + why (or entry pointer)
 ```
+
+At first creation — a bootstrap with no logbook entries yet — the header line reads `(through none)`
+literally; the first rebuild after a real entry replaces it with that entry's id. Sections with
+nothing to report yet keep a single placeholder line describing what belongs there (the kit's
+template ships them that way) rather than being omitted, so every fresh STATE.md has the same
+six-section shape.
 
 The `Dead ends` section is non-negotiable for agent-heavy projects: without it, successive fresh-context
 sessions confidently re-attempt the same failed approaches (Anthropic long-running-agent finding).

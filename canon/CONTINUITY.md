@@ -30,8 +30,9 @@ an ops runbook) — version control is not a precondition for continuity.
    - `.agents/session.log` — task-grain journal, entries per the envelope in
      `SESSION-LOG.md` §1;
    - `STATE.md` — one-page projection per `STANDARD.md` §3;
-   - `LOGBOOK.md` — project-grain chronology per `STANDARD.md` §1;
-     lightweight workspaces may defer it and run session.log alone
+   - `LOGBOOK.md` — project-grain chronology per `STANDARD.md` §1–§2: the
+     entry envelope plus the literal header block template in §2, copied
+     verbatim; lightweight workspaces may defer it and run session.log alone
      (`SESSION-LOG.md` §6).
 3. **Enter through the ritual.** Declare a feature slug, run the session
    entry ritual (the allowlist below) — via the kit's `brief` or the direct
