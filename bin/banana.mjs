@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -56,7 +57,21 @@ if (cmd === 'init') {
       return rl.question(question);
     },
   };
-  const result = await runInit(flags, { home: homedir(), io });
+  const result = await runInit(flags, {
+    home: homedir(),
+    io,
+    isTTY: process.stdin.isTTY === true,
+    gitUserName: () => {
+      try {
+        const name = execSync('git config --get user.name', {
+          stdio: ['ignore', 'pipe', 'ignore'],
+        }).toString().trim();
+        return name || null;
+      } catch {
+        return null;
+      }
+    },
+  });
   rl?.close();
   process.exit(result.code);
 }
