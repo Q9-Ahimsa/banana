@@ -1,5 +1,5 @@
 <!-- banana:canon rev 1.2 -->
-# The Logbook Standard — v1.0 (2026-07-02)
+# The Logbook Standard — v1.2 (2026-07-05 · original v1.0, 2026-07-02)
 ### Project capture for human+agent collaboration. One standard, every project.
 
 > **The principle:** a project must be resumable by a stranger — human or agent, tomorrow or in six months —
@@ -93,8 +93,9 @@ project's vocabulary contract.
 ## 3. STATE.md — the projection
 
 One page, hard cap. Six sections, all bounded. The literal file shape — the kit's `project`
-command writes exactly this, and a by-hand bootstrap copies it verbatim (swap in the project
-name and owner):
+command writes exactly this, performing exactly two substitutions: the project name in the
+title line, and the owner's name in place of `{owner}` in the `Next` placeholder line. A
+by-hand bootstrap makes the same two substitutions and copies everything else byte-verbatim:
 
 ```markdown
 # STATE — {project}
@@ -191,8 +192,10 @@ cadence the project already has — don't invent a new meeting), check:
 - Log **actions, not beliefs** — what you did and touched, with file names, not your theory of the project.
 - Resolve an ambiguity by assumption → log it: `ASSUMED: {assumption} (confirm)`.
 - Your session-close entry (in `.agents/session.log`) is not optional, even mid-task. When a
-  mid-task close is project-worthy it promotes to the logbook as a `HANDOFF` entry: done /
-  not-verified / next-safe-action; an ordinary project-worthy close promotes as `SESSION`.
+  mid-task close is project-worthy it promotes to the logbook as a `HANDOFF` entry carrying the
+  same declared prefixes as any close-out — `DONE:` (what landed, explicitly flagging anything
+  done-but-not-verified), `NEXT: {owner} — the next safe action`, `BLOCKED:` where applicable;
+  no ad-hoc tokens. An ordinary project-worthy close promotes as `SESSION`.
 - Never reorganize, deduplicate, or "clean up" the logbook. Append-only is the entire trust model.
 - Reference artifacts by path; quote nothing over 3 lines.
 
@@ -211,13 +214,21 @@ cadence the project already has — don't invent a new meeting), check:
 
 ## 10. Versioning — delete the harness
 
-This standard is v1.0 and expects to shrink. Re-read it against each model generation: any rule a current
+Changes from v1.0, aligned with `CONTINUITY.md`'s versions: **v1.1** — the crash-recovery read
+order (§0) narrowed: headings-only for non-target streams, `ref:` pointer-following deferred out
+of the entry read. **v1.2** — literal copy-verbatim templates embedded for the `LOGBOOK.md`
+header block (§2) and `STATE.md` (§3) with zero-entry creation semantics; the session close-out
+anchored to the session layer with promotion-gated `SESSION`/`HANDOFF` logbook entries (§4, §8).
+Counter-failure (this disclosure): a document whose body moves while its version string stands
+still cannot be trusted as an audit base.
+
+This standard expects to shrink. Re-read it against each model generation: any rule a current
 model reliably does unprompted gets deleted (Karpathy VIII — "the harness that grows monotonically is a
 harness you have stopped reading"). Enforcement hooks (session-start injection, close-out gates) are
 deliberately **not** in v1 — add them only if compliance audits show politeness failing, and log that
 decision. Changes to this standard are themselves logged in its repo.
 
 ---
-*Logbook Standard v1.0 · derived from convergent evidence across GLP lab notebooks,
+*Logbook Standard v1.2 · derived from convergent evidence across GLP lab notebooks,
 ship's logs, ADR/RFC, changelogs, event sourcing, SRE postmortems, RAID logs, daybooks, and agent-native
 systems (Memory Bank, Ralph, beads, handoff protocols, ESAA, Karpathy's loop notes).*

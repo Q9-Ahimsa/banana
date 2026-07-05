@@ -40,7 +40,7 @@ an ops runbook) — version control is not a precondition for continuity.
 3. **Enter through the ritual.** Declare a feature slug, run the session
    entry ritual (the allowlist below) — via the kit's `brief` or the direct
    reads — and open your session.log entry (`APPROACH:` +
-   `STATUS: in-progress`).
+   `STATUS: in-progress`). The self-setup act itself logs with PHASE `ops`.
 4. **Close before leaving.** Final `STATUS:` + owned `NEXT:` — the close
    entry is mandatory even mid-task (`STANDARD.md` §8).
 
