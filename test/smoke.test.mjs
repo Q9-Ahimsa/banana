@@ -12,9 +12,9 @@ test('bin --version prints the package.json version and exits 0', () => {
   assert.equal(out, pkg.version);
 });
 
-test('bin --help lists all four commands', () => {
+test('bin --help lists all five commands', () => {
   const out = execFileSync(process.execPath, ['bin/banana.mjs', '--help'], { encoding: 'utf8' });
-  for (const cmd of ['init', 'project', 'brief', 'doctor']) {
+  for (const cmd of ['init', 'project', 'brief', 'doctor', 'sync']) {
     assert.match(out, new RegExp(`\\b${cmd}\\b`));
   }
 });

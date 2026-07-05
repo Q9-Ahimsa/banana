@@ -9,7 +9,7 @@ const pkg = JSON.parse(
   readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8')
 );
 
-const COMMANDS = ['init', 'project', 'brief', 'doctor'];
+const COMMANDS = ['init', 'project', 'brief', 'doctor', 'sync'];
 const [cmd] = process.argv.slice(2);
 
 if (cmd === '--version' || cmd === '-v') {
@@ -25,7 +25,8 @@ Commands:
   init      detect installed agent harnesses, wire the continuity protocol into each
   project   initialize a repo with LOGBOOK.md, STATE.md, and .agents/session.log
   brief     compile a per-intent context brief for a session (feature-scoped)
-  doctor    check wiring versions and run liveness audits`);
+  doctor    check wiring versions and run liveness audits
+  sync      refresh the kit-owned canon and re-apply stale wiring fences`);
   process.exit(cmd === undefined ? 1 : 0);
 }
 
@@ -137,6 +138,24 @@ if (cmd === 'doctor') {
     err: (/** @type {string} */ line = '') => console.error(line),
   };
   const result = await runDoctor(flags, { cwd: process.cwd(), home: homedir(), io });
+  process.exit(result.code);
+}
+
+if (cmd === 'sync') {
+  const { parseSyncArgs, runSync } = await import('../lib/sync.mjs');
+  /** @type {import('../lib/sync.mjs').SyncFlags} */
+  let flags;
+  try {
+    flags = parseSyncArgs(process.argv.slice(3));
+  } catch (error) {
+    console.error(`banana sync: ${error instanceof Error ? error.message : error}`);
+    process.exit(1);
+  }
+  const io = {
+    out: (/** @type {string} */ line = '') => console.log(line),
+    err: (/** @type {string} */ line = '') => console.error(line),
+  };
+  const result = await runSync(flags, { home: homedir(), io });
   process.exit(result.code);
 }
 
