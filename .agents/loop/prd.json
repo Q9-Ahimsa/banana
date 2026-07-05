@@ -16,7 +16,7 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -31,8 +31,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Commit 9c65034. 120/120 tests, typecheck clean. hermes directive assertion updated to v2 pointer surface (envelope line moved behind canon pointer); forbidden-pattern scan now whitelists the exact repo slug Q9-Ahimsa/banana required by the canonical npx invocation."
     },
     {
       "id": "US-003",
@@ -46,8 +46,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Commit b68e9e7. 125/125 tests, typecheck clean. Owner rungs: --owner > injectable gitUserName() > prompt only when injectable isTTY true; non-TTY (or --yes) with nothing inferable exits 1 printing the exact npx invocation naming --owner/--yes. Non-TTY also auto-accepts detection + write plan (never hangs headless). Canon now installs as ~/.agents/canon/{CONTINUITY,STANDARD,SESSION-LOG}.md created-or-refreshed; legacy ~/.agents/CONTINUITY.md write dropped; STATE.md stays create-if-missing."
     },
     {
       "id": "US-004",
@@ -61,8 +61,8 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Commit 08e1e63. 133/133 tests, typecheck clean. lib/sync.mjs: canon dir refreshed byte-for-byte (same create-or-refresh as init); fences re-applied only to already-wired files whose block version is older than the template's own marker (new wiringTemplateVersion helper in lib/wiring.mjs — doctor v2 can reuse it). Owner/tag recovered from the existing block (v1 and v2 identity-line formats both parseable); unrecoverable or corrupt blocks are skipped with a report, never overwritten. STATE.md and content outside fences byte-identical in tests; second run reports no changes with a byte-identical tree."
     },
     {
       "id": "US-005",
@@ -76,8 +76,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Commit 2e4ff03. 141/141 tests, typecheck clean. Owner resolution extracted to lib/owner.mjs (resolveOwner + nonInteractiveInvocation, command-parameterized) and shared by init and project — init output byte-identical, all init e2e assertions untouched. project: --force removed (now an unknown option), non-git dir proceeds printing a not-version-controlled note (absent in git repos), non-TTY fail-fast names --owner/--yes and prints the exact project npx invocation; bin wires isTTY + a shared gitUserName closure into both dispatches. New test/owner.test.mjs (6 tests) covers the extracted boundary; project e2e extended with non-git note, non-git idempotency, git-config inference, and non-TTY fail-fast cases."
     },
     {
       "id": "US-006",
@@ -91,8 +91,8 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Commit 126af03. 147/147 tests, typecheck clean. parseBriefArgs: feature now optional (null = discovery mode; --tag still required whenever a feature is given). New exported slugListing(entries): one line per slug with latest-entry date, newest first, slug asc on ties, plus a usage footer. runBrief: no-arg prints listing to stdout exit 0; unknown slug prints 'no entries for feature X' + listing to stderr exit 1, stdout empty; known-slug compileBrief contract untouched (all prior include/exclude assertions pass unmodified). CLI-smoked both paths in a temp fixture."
     },
     {
       "id": "US-007",
@@ -106,8 +106,8 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Commit 0c0ae72. 153/153 tests, typecheck clean. New auditUpstream(home, cwd) in lib/doctor.mjs: stale-canon (canon dir missing, canon file missing/unmarked, or rev marker older than the kit's bundled canon — numeric major.minor compare) and stale-fence (any wired block — three home adapter targets + repo-local AGENTS.md — older than its template's own version via wiringTemplateVersion); every finding text names sync. Four v1 audits and exit semantics untouched (auditProject unchanged). v1 test fixtures gained installCanon(home) seeding since a bare home is now itself a finding per packet T8; report-test fence bumped to the template-derived current version."
     },
     {
       "id": "US-008",
@@ -121,8 +121,8 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Commit 08e1acf. 155/155 tests, typecheck clean. package.json 0.2.0; README inverted: human section 27 lines (npx one-liner, agents-handle-the-rest framing, sync update story) above '## Agents: start here'; agent section carries canon pointer ~/.agents/canon/, bootstrap model, five-command table incl. sync. Four-command human tour + hot/cold daily-ritual sections removed. readme.test.mjs rewritten to v2 criteria: canonical npx invocation (--yes form), five commands, canon dir path, human-section <=40 lines, --version spawn asserting 0.2.0."
     }
   ]
 }

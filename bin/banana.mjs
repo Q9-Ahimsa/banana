@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -8,8 +9,20 @@ const pkg = JSON.parse(
   readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8')
 );
 
-const COMMANDS = ['init', 'project', 'brief', 'doctor'];
+const COMMANDS = ['init', 'project', 'brief', 'doctor', 'sync'];
 const [cmd] = process.argv.slice(2);
+
+/** Owner inference rung shared by init and project: git config user.name. */
+function gitUserName() {
+  try {
+    const name = execSync('git config --get user.name', {
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).toString().trim();
+    return name || null;
+  } catch {
+    return null;
+  }
+}
 
 if (cmd === '--version' || cmd === '-v') {
   console.log(pkg.version);
@@ -22,9 +35,10 @@ Usage: banana <command> [options]
 
 Commands:
   init      detect installed agent harnesses, wire the continuity protocol into each
-  project   initialize a repo with LOGBOOK.md, STATE.md, and .agents/session.log
-  brief     compile a per-intent context brief for a session (feature-scoped)
-  doctor    check wiring versions and run liveness audits`);
+  project   initialize a workspace (git repo or topic dir) with LOGBOOK.md, STATE.md, and .agents/session.log
+  brief     compile a per-intent context brief for a session; no feature arg lists active slugs
+  doctor    check wiring versions and run liveness audits
+  sync      refresh the kit-owned canon and re-apply stale wiring fences`);
   process.exit(cmd === undefined ? 1 : 0);
 }
 
@@ -56,7 +70,12 @@ if (cmd === 'init') {
       return rl.question(question);
     },
   };
-  const result = await runInit(flags, { home: homedir(), io });
+  const result = await runInit(flags, {
+    home: homedir(),
+    io,
+    isTTY: process.stdin.isTTY === true,
+    gitUserName,
+  });
   rl?.close();
   process.exit(result.code);
 }
@@ -84,14 +103,19 @@ if (cmd === 'project') {
       return rl.question(question);
     },
   };
-  const result = await runProject(flags, { cwd: process.cwd(), io });
+  const result = await runProject(flags, {
+    cwd: process.cwd(),
+    io,
+    isTTY: process.stdin.isTTY === true,
+    gitUserName,
+  });
   rl?.close();
   process.exit(result.code);
 }
 
 if (cmd === 'brief') {
   const { parseBriefArgs, runBrief } = await import('../lib/brief.mjs');
-  /** @type {import('../lib/brief.mjs').BriefFlags} */
+  /** @type {import('../lib/brief.mjs').BriefArgs} */
   let flags;
   try {
     flags = parseBriefArgs(process.argv.slice(3));
@@ -122,6 +146,24 @@ if (cmd === 'doctor') {
     err: (/** @type {string} */ line = '') => console.error(line),
   };
   const result = await runDoctor(flags, { cwd: process.cwd(), home: homedir(), io });
+  process.exit(result.code);
+}
+
+if (cmd === 'sync') {
+  const { parseSyncArgs, runSync } = await import('../lib/sync.mjs');
+  /** @type {import('../lib/sync.mjs').SyncFlags} */
+  let flags;
+  try {
+    flags = parseSyncArgs(process.argv.slice(3));
+  } catch (error) {
+    console.error(`banana sync: ${error instanceof Error ? error.message : error}`);
+    process.exit(1);
+  }
+  const io = {
+    out: (/** @type {string} */ line = '') => console.log(line),
+    err: (/** @type {string} */ line = '') => console.error(line),
+  };
+  const result = await runSync(flags, { home: homedir(), io });
   process.exit(result.code);
 }
 

@@ -19,8 +19,19 @@ const REQUIRED_FILES = [
 const WIRING_FILES = REQUIRED_FILES.filter((f) => f.startsWith('wiring'));
 
 // Fence markers per docs/DESIGN.md — idempotent insert-or-replace anchors.
-const FENCE_BEGIN = '<!-- banana:begin v1 -->';
+// v2 blocks are thin bootstrap pointers: protocol rules live in the canon.
+const FENCE_BEGIN = '<!-- banana:begin v2 -->';
 const FENCE_END = '<!-- banana:end -->';
+
+// The stable pointer surface every v2 wiring block must carry.
+const CANON_DIR_POINTER = '~/.agents/canon/';
+const NPX_INVOCATION = 'npx --yes github:Q9-Ahimsa/banana';
+const SELF_SETUP_RE = /self-setup/i;
+const SESSION_RITUAL_RE = /session ritual/i;
+
+// Ceiling on the block body (lines strictly between the fence markers) —
+// bootstrap pointers stay thin; protocol growth belongs in the canon.
+const MAX_BLOCK_BODY_LINES = 30;
 
 // The only documented placeholder tokens.
 const ALLOWED_TOKENS = new Set(['__OWNER__', '__AGENT_TAG__']);
@@ -44,11 +55,38 @@ test('templates/ ships all seven template files', () => {
   }
 });
 
-test('every wiring template carries both fence markers', () => {
+test('every wiring template carries both v2 fence markers', () => {
   for (const f of WIRING_FILES) {
     const text = readFileSync(join(templatesDir, f), 'utf8');
     assert.ok(text.includes(FENCE_BEGIN), `templates/${f} missing ${FENCE_BEGIN}`);
     assert.ok(text.includes(FENCE_END), `templates/${f} missing ${FENCE_END}`);
+    assert.ok(!text.includes('banana:begin v1'), `templates/${f} still carries a v1 marker`);
+  }
+});
+
+test('every wiring template is a bootstrap pointer: canon dir, npx invocation, self-setup, ritual', () => {
+  for (const f of WIRING_FILES) {
+    const text = readFileSync(join(templatesDir, f), 'utf8');
+    assert.ok(text.includes(CANON_DIR_POINTER), `templates/${f} missing canon dir pointer ${CANON_DIR_POINTER}`);
+    assert.ok(text.includes(NPX_INVOCATION), `templates/${f} missing npx invocation ${NPX_INVOCATION}`);
+    assert.match(text, SELF_SETUP_RE, `templates/${f} missing a self-setup instruction`);
+    assert.match(text, SESSION_RITUAL_RE, `templates/${f} missing the session ritual one-liner`);
+    assert.ok(text.includes('__AGENT_TAG__'), `templates/${f} missing the identity tag token`);
+    assert.ok(text.includes('__OWNER__'), `templates/${f} missing the owner token`);
+  }
+});
+
+test(`every wiring block body is ${MAX_BLOCK_BODY_LINES} lines or fewer`, () => {
+  for (const f of WIRING_FILES) {
+    const lines = readFileSync(join(templatesDir, f), 'utf8').split('\n');
+    const begin = lines.findIndex((l) => l.includes(FENCE_BEGIN));
+    const end = lines.findIndex((l) => l.includes(FENCE_END));
+    assert.ok(begin !== -1 && end > begin, `templates/${f} fence markers not found in order`);
+    const bodyLines = end - begin - 1;
+    assert.ok(
+      bodyLines <= MAX_BLOCK_BODY_LINES,
+      `templates/${f} block body is ${bodyLines} lines (max ${MAX_BLOCK_BODY_LINES})`
+    );
   }
 });
 
@@ -73,6 +111,10 @@ test('templates/ contains zero double-brace residue', () => {
 });
 
 test('templates/ contains zero machine-specific references', () => {
+  // The public repo slug is the kit's distribution coordinate — the one
+  // sanctioned occurrence of the owner's username. Everything else that
+  // identifies a person or machine stays forbidden.
+  const REPO_SLUG = 'Q9-Ahimsa/banana';
   const forbidden = [
     { name: 'Ahimsa', re: /ahimsa/i },
     { name: 'VICTUS', re: /victus/i },
@@ -80,7 +122,7 @@ test('templates/ contains zero machine-specific references', () => {
     { name: 'absolute C:/ path', re: /\bC:[\\/]/ },
   ];
   for (const f of walk(templatesDir)) {
-    const text = readFileSync(join(templatesDir, f), 'utf8');
+    const text = readFileSync(join(templatesDir, f), 'utf8').replaceAll(REPO_SLUG, '');
     for (const { name, re } of forbidden) {
       assert.ok(!re.test(text), `templates/${f} contains forbidden reference: ${name}`);
     }

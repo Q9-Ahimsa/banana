@@ -1,23 +1,19 @@
-<!-- banana:begin v1 -->
-## Continuity protocol (banana)
+<!-- banana:begin v2 -->
+## Continuity bootstrap (banana)
 
-- **Your agent tag:** `__AGENT_TAG__`. Owner: `__OWNER__`. Write your tag in
-  every entry you author — no exceptions.
-- **Authority:** `~/.agents/CONTINUITY.md` governs all shared surfaces; the
-  files are the source of truth, never any agent's private memory.
-- **Global grain:** read `~/.agents/STATE.md` at session start. At close, if
-  cross-project state changed, rebuild the page whole — never patch it.
-- **Project grain:** conforming repos carry `LOGBOOK.md` (append-only
-  chronology) + `STATE.md` (one-page projection) + `.agents/session.log`
-  (task journal). Session-log envelope:
-  `## [YYYY-MM-DD] {agent} {feature}.{n} | {PHASE} — {title}`,
-  PHASE ∈ discuss · build · refactor · debug · review · ops.
-- **Session entry:** compile your brief (`banana brief <feature> --tag
-  __AGENT_TAG__`) and read exactly that — nothing else by default. Treat it as
-  a snapshot; no mid-session re-reads of shared state.
-- **Session close:** land the plane — close your log entry with an owned
-  `NEXT: {owner} — {action}`, promote project-worthy events to the logbook,
-  rebuild stale projections.
-- **Integrity:** append-only everywhere; corrections are new entries with
-  `SUPERSEDES:`. Never edit another agent's entries.
+- **Identity:** you are `__AGENT_TAG__`; owner: `__OWNER__`. Sign every entry
+  you author with your tag.
+- **Protocol authority:** `~/.agents/canon/` — CONTINUITY.md (protocol),
+  STANDARD.md (logbook), SESSION-LOG.md (task journal). Every continuity rule
+  lives behind this pointer, not in this block; read CONTINUITY.md before your
+  first entry on this machine. On conflict, the canon wins.
+- **Kit:** `npx --yes github:Q9-Ahimsa/banana <command>` — commands: init ·
+  project · brief · doctor · sync. npx always fetches the latest kit.
+- **Self-setup:** landing in a workspace (git repo or non-code topic dir) with
+  no continuity files, initialize it yourself per the canon's agent bootstrap
+  section: run `npx --yes github:Q9-Ahimsa/banana project` from the workspace
+  root.
+- **Session ritual:** start with your brief
+  (`npx --yes github:Q9-Ahimsa/banana brief <feature> --tag __AGENT_TAG__`);
+  end by closing your log entry with an owned `NEXT:`.
 <!-- banana:end -->

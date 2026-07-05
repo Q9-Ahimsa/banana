@@ -18,6 +18,17 @@ const REQUIRED_STRINGS = [
   'Changes from v1',
 ];
 
+// v1.2 additions: agent bootstrap, upstream/sync model, topic-grain language.
+const REQUIRED_V12_STRINGS = [
+  'Agent bootstrap — landing in a bare workspace',
+  'Upstream and sync — who owns which surface',
+  'non-code topic dir',
+  'git repository or a non-code',
+];
+
+// Machine-readable canon revision marker, first line of every canon file.
+const VERSION_MARKER_RE = /<!-- banana:canon rev (\d+\.\d+) -->/;
+
 // Machine-specific residue that must never ship in the canon.
 const FORBIDDEN_PATTERNS = [
   { name: 'Ahimsa', re: /ahimsa/i },
@@ -37,6 +48,22 @@ test('canon/CONTINUITY.md carries all six v1.1 architecture elements', () => {
   const text = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
   for (const s of REQUIRED_STRINGS) {
     assert.ok(text.includes(s), `CONTINUITY.md missing required string: "${s}"`);
+  }
+});
+
+test('canon/CONTINUITY.md carries the v1.2 sections and topic-grain language', () => {
+  const text = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
+  for (const s of REQUIRED_V12_STRINGS) {
+    assert.ok(text.includes(s), `CONTINUITY.md missing v1.2 string: "${s}"`);
+  }
+});
+
+test('every canon file carries a rev 1.2 version marker', () => {
+  for (const f of REQUIRED_FILES) {
+    const text = readFileSync(join(canonDir, f), 'utf8');
+    const m = text.match(VERSION_MARKER_RE);
+    assert.ok(m, `canon/${f} has no version marker`);
+    assert.equal(m[1], '1.2', `canon/${f} marker is rev ${m?.[1]}, expected 1.2`);
   }
 });
 

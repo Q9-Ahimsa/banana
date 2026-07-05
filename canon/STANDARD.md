@@ -1,3 +1,4 @@
+<!-- banana:canon rev 1.2 -->
 # The Logbook Standard — v1.0 (2026-07-02)
 ### Project capture for human+agent collaboration. One standard, every project.
 
