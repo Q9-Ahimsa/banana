@@ -37,7 +37,7 @@
     {
       "id": "US-003",
       "title": "init v2 (owner inference, non-TTY fail-fast, canon dir install)",
-      "description": "As a colleague running one command once, I want init to infer my identity and never hang headless, so that setup is a single npx call anywhere. Implement packet T4: owner resolution is --owner flag, then git config user.name, then prompt only on a TTY (TTY state and git lookup injectable); non-TTY without an owner exits 1 naming the flags. init installs the bundled canon into the home .agents/canon/ dir, keeps STATE.md create-if-missing, wires the v2 blocks; hermes and paste paths keep current behavior.",
+      "description": "As a colleague running one command once, I want init to infer my identity and never hang headless, so that setup is one npx call anywhere. Implement packet T4: owner is --owner flag, then git config user.name, then prompt only on a TTY (TTY state and git lookup injectable); non-TTY without an owner exits 1 naming the flags. init installs the bundled canon into the home .agents/canon/ dir, keeps STATE.md create-if-missing, wires the v2 blocks; hermes and paste paths keep current behavior.",
       "acceptanceCriteria": [
         "node --test test/init.e2e.test.mjs exits 0",
         "Sandbox-HOME e2e: zero-flag init succeeds when a git-config owner stub is injected",
