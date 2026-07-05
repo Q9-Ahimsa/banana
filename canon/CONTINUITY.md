@@ -18,12 +18,12 @@ git repository or a non-code **topic directory** (research notes, a course,
 an ops runbook) — version control is not a precondition for continuity.
 
 1. **Machine context first.** Read `~/.agents/STATE.md` if it exists (global
-   grain, one page). If missing, create it at machine grain with exactly the
-   sections the "Global grain" section below defines: Active threads ·
-   Backlog (owned) · Watch · Recently closed. (`STANDARD.md` §3's six-section
-   template is project grain — its Truths/Blocked/Dead-ends sections and
-   logbook ids are project-scoped and do not apply here; only §3's page-level
-   rules carry over: one page, rebuilt whole, never patched.)
+   grain, one page). If missing, create it by copying the literal template in
+   the "Global grain" section below verbatim, filling in the owner name.
+   (`STANDARD.md` §3's six-section template is project grain — its
+   Truths/Blocked/Dead-ends sections and logbook ids are project-scoped and
+   do not apply here; only §3's page-level rules carry over: one page,
+   rebuilt whole, never patched.)
 2. **Initialize the workspace.** Preferred: run the kit's `project` command
    named in your wiring block — it creates the files below idempotently and
    proceeds in non-git topic dirs. By hand, create whichever are missing:
@@ -32,8 +32,10 @@ an ops runbook) — version control is not a precondition for continuity.
    - `STATE.md` — one-page projection per `STANDARD.md` §3;
    - `LOGBOOK.md` — project-grain chronology per `STANDARD.md` §1–§2: the
      entry envelope plus the literal header block template in §2, copied
-     verbatim; lightweight workspaces may defer it and run session.log alone
-     (`SESSION-LOG.md` §6).
+     verbatim. Create it by default; running session.log alone
+     (`SESSION-LOG.md` §6) is a deliberate deferral the workspace owner
+     decides and the record logs — never a bootstrap-time judgment call. If
+     no logged deferral decision exists, create the file.
 3. **Enter through the ritual.** Declare a feature slug, run the session
    entry ritual (the allowlist below) — via the kit's `brief` or the direct
    reads — and open your session.log entry (`APPROACH:` +
@@ -47,8 +49,28 @@ workspace self-setup deterministic, with no human in the loop.
 
 ## Global grain — `~/.agents/STATE.md`
 
-One-page cross-project projection. Sections: **Active threads · Backlog
-(owned) · Watch · Recently closed** — the same shape bootstrap step 1 creates.
+One-page cross-project projection. Its literal shape — what the kit's `init`
+writes and what bootstrap step 1 copies verbatim (sections with nothing to
+report yet keep their single placeholder line rather than being omitted):
+
+```markdown
+# GLOBAL STATE — cross-project projection
+> One page, hard cap. Rebuilt whole, never patched. Chronology lives in project
+> logbooks; this file only answers "what's live and what's queued across
+> everything." Owner: {owner}. Protocol: `~/.agents/canon/CONTINUITY.md`.
+
+## Active threads
+- (one line per in-flight project: **name** — status → pointer to its STATE.md)
+
+## Backlog (owned)
+- (queued cross-project items, each owned: `{owner} — action` or an agent tag)
+
+## Watch
+- (assumptions and deadlines needing attention, each with a validate-by date)
+
+## Recently closed (context for next session)
+- (last few finished threads, one line each, with pointers)
+```
 - **Session start:** read it — allowlist item 1 of the entry ritual (machine
   grain, so it sits outside any project brief and is read directly).
 - **Session close:** if cross-project state changed (thread opened/closed,
@@ -200,6 +222,10 @@ into a **kit-owned** directory: `~/.agents/canon/` (`CONTINUITY.md`,
   machine-readable marker, `<!-- banana:canon rev X.Y -->`. The doctor
   compares installed markers against the kit's bundled canon and flags stale
   installs; `sync` is the remediation it names.
+- **Precedence:** wired blocks, paste-adapted directives, and any other
+  summary of this protocol are pointers, not authorities — when one
+  disagrees with the canon, the canon wins. Counter-failure: a stale or
+  hand-edited block quietly forking the protocol on one machine.
 
 Counter-failure, in both directions: without a kit-owned overwrite zone,
 wired machines drift onto stale protocol with no mechanical detection;
@@ -242,14 +268,15 @@ disclosed in "Changes from v1".
    are honored read-only; new entries go to the tool-neutral
    `.agents/session.log`.
 
-**Preserved v1 practice invariants** — write-behavior guarantees carried
-unchanged through v1.1. A companion checklist, not a second enumeration of
-the numbered rules: it restates rules 2–4 in practice form, and the
-remainder (rebuild-don't-patch, pointers-not-payloads, event-triggered
-writes) are `STANDARD.md`'s write contracts: append-only + `SUPERSEDES:`
-corrections · agent attribution in every entry · owned `NEXT:` ·
-rebuild-don't-patch projections · pointers-not-payloads · event-triggered
-writes.
+**Preserved v1 practice invariants** — write-behavior guarantees whose
+mechanisms carry through v1.1 intact. A companion checklist, not a second
+enumeration of the numbered rules: it restates rules 2–3 in practice form
+plus rule 4's supersession mechanism (the mechanism is unchanged; the rule's
+*scope* was tightened in v1.1 — changes item 6), and the remainder
+(rebuild-don't-patch, pointers-not-payloads, event-triggered writes) are
+`STANDARD.md`'s write contracts: append-only + `SUPERSEDES:` corrections ·
+agent attribution in every entry · owned `NEXT:` · rebuild-don't-patch
+projections · pointers-not-payloads · event-triggered writes.
 
 ## Changes from v1
 
@@ -292,8 +319,11 @@ v1.1 adds the **pollution-control architecture**. Nothing from v1 is removed.
    predictor of a dead log.
 8. **Preserved v1 practice invariants** — restated above; append-only,
    supersession, attribution, owned NEXT, rebuild-don't-patch,
-   pointers-not-payloads, event-triggered writes all carry forward. A
-   write-behavior checklist alongside the numbered rules, as labeled there.
+   pointers-not-payloads, event-triggered writes all carry forward
+   (mechanisms intact; rule 4's scope tightening is item 6's disclosure, not
+   a mechanism change). A write-behavior checklist alongside the numbered
+   rules, as labeled there. Counter-failure: an invariant not restated at a
+   new revision reads as silently dropped.
 
 v1.2 adds the **agent-first bootstrap and upstream model**. Nothing from
 v1.1 is removed.
