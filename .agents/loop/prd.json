@@ -1,158 +1,127 @@
 {
   "project": "banana",
-  "branchName": "ralph/banana-v1",
-  "description": "Harness-neutral continuity kit CLI (banana): init/project/brief/doctor. Authoritative done-whens: .agents/goal/packet.md. Behavioral contracts (brief include/exclude, doctor audits, adapter+fence contracts, constants): docs/DESIGN.md — read both before any story. Canon v1 sources to genericize (READ-ONLY, never write outside this repo): C:/Users/VICTUS/.agents/CONTINUITY.md, C:/Users/VICTUS/.claude/skills/logbook/STANDARD.md, C:/Users/VICTUS/.claude/skills/logbook/SESSION-LOG.md, C:/Users/VICTUS/.claude/skills/logbook/portable/session-log-directive.md.",
+  "branchName": "ralph/banana-v2",
+  "description": "banana v2 — agent-first inversion of the continuity kit. The real user is the agents: wiring blocks become thin stable bootstrap pointers at a living canon; a sync command propagates canon updates; init/project gain owner inference and non-TTY fail-fast; canon moves to a kit-owned <home>/.agents/canon/ dir. Authoritative done-whens: .agents/goal/packet.md — read Goal + ASSUMED lines + the matching task before any story. Packet tasks T3/T3-R (qualitative REVIEW) and T10 (ship) are adjudicated OUTSIDE this loop — never attempt them. Do not touch: any path outside this repo except OS temp dirs; no npm publish; no network calls. Existing behavioral contracts (brief include/exclude, doctor v1 audits, adapter + fence contracts): docs/DESIGN.md — v2 changes extend these, they do not silently break them.",
   "qualityGates": "npm run check && npm test",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Canon v1.1 under canon/",
-      "description": "As a kit user, I want the continuity protocol docs shipped genericized and upgraded to v1.1, so that the kit installs a canon free of machine-specific references. Write canon/CONTINUITY.md from the v1 source extended with the six architecture elements in docs/DESIGN.md (allowlist entry ritual, hot/cold tiering, headings-not-bodies, 48h ghost rule, BEGIN/WORK/CLOSE lifecycle, Changes-from-v1 section); copy STANDARD.md and SESSION-LOG.md with machine-specific references removed.",
+      "title": "Canon rev 1.2 (bootstrap + upstream/sync sections, version markers)",
+      "description": "As an agent landing in a workspace with zero prior context, I want the canon to carry an agent bootstrap section, so that I can self-initialize any workspace (git repo or non-code topic dir) from the canon alone. Extend canon/ per packet T1: bootstrap section (which files to create, entry envelope, session ritual), upstream/sync section (canon dir is kit-owned and overwritable by sync; STATE.md, logs, logbooks are user-owned and never overwritten by the kit), an HTML-comment version marker line containing 1.2 in each canon file, and the changes-from-v1 section extended with the v1.2 additions.",
       "acceptanceCriteria": [
-        "test/canon.test.mjs exists and `node --test test/canon.test.mjs` exits 0",
-        "The test asserts canon/CONTINUITY.md contains all six required section/rule strings per docs/DESIGN.md",
+        "node --test test/canon.test.mjs exits 0",
+        "The test asserts the bootstrap section heading, the upstream/sync section heading, a version marker containing '1.2' in each canon file, and workspace/topic (non-git) language",
+        "The test asserts all prior v1.1 required strings are still present",
         "The test asserts zero occurrences of 'Ahimsa', 'VICTUS', 'hermes.exe', or absolute C:/ paths across canon/",
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-002",
-      "title": "Templates under templates/",
-      "description": "As a kit user, I want file templates for everything init and project write, so that generated files are consistent. Create templates/: global-STATE.md, project-STATE.md, LOGBOOK-header.md, session-log-seed.md, and wiring/claude-code.md, wiring/agents-md.md, wiring/portable-directive.md. Wiring templates carry the banana fence markers; placeholders use only __OWNER__ and __AGENT_TAG__.",
+      "title": "Wiring templates v2 (thin bootstrap-pointer blocks, v2 fences)",
+      "description": "As an agent reading a wired instruction file, I want the fenced block to be a thin stable bootstrap pointer, so that protocol updates propagate via the canon instead of re-wiring. Rewrite templates/wiring/claude-code.md, agents-md.md, portable-directive.md per packet T2: agent identity (tag), pointer to <home>/.agents/canon/ as protocol authority, the canonical invocation string 'npx --yes github:Q9-Ahimsa/banana', the self-setup instruction (initialize any workspace lacking continuity files per the canon bootstrap section), and the session ritual one-liner. Bump fence markers to v2 ('<!-- banana:begin v2 -->'). Protocol rules live behind the pointer, not in the block.",
       "acceptanceCriteria": [
-        "test/templates.test.mjs exists and `node --test test/templates.test.mjs` exits 0",
-        "The test asserts every wiring template contains both fence markers from docs/DESIGN.md",
-        "The test asserts only the two documented placeholder tokens appear and there is zero double-brace residue in templates/",
+        "node --test test/templates.test.mjs exits 0",
+        "The test asserts every wiring template contains both v2 fence markers, the canon dir pointer, the npx invocation string, and a self-setup instruction",
+        "The test asserts each wiring block body is 30 lines or fewer",
+        "The test asserts only __OWNER__/__AGENT_TAG__ tokens appear and there is zero double-brace residue in templates/",
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Harness detection lib/detect.mjs",
-      "description": "As the init and doctor commands, I want a detection module with an injectable home root, so that harness discovery is testable without touching the real HOME. Detect claude-code (.claude dir or claude on PATH), pi (.pi), codex (.codex), hermes (home dir or binary on PATH); return a structured report.",
+      "title": "init v2 (owner inference, non-TTY fail-fast, canon dir install)",
+      "description": "As a colleague running one command once, I want init to infer my identity and never hang headless, so that setup is a single npx call in any environment. Per packet T4: owner resolution order --owner flag, then git config --get user.name, then interactive prompt only when stdin is a TTY (TTY state and the git-config lookup injectable for tests); non-TTY with no inferable owner exits 1 printing the exact non-interactive invocation naming --owner and --yes. init installs canon files into <home>/.agents/canon/ (created or refreshed to the bundled canon), keeps <home>/.agents/STATE.md create-if-missing, wires adapters with the v2 blocks; hermes compose/deliver and paste-instruction paths keep their current behavior.",
       "acceptanceCriteria": [
-        "test/detect.test.mjs exists and `node --test test/detect.test.mjs` exits 0 against fixture fake-home trees",
-        "Fixtures cover present and absent cases for each of the four harnesses",
+        "node --test test/init.e2e.test.mjs exits 0",
+        "Sandbox-HOME e2e: zero-flag init succeeds when a git-config owner stub is injected",
+        "Non-TTY init with no owner exits 1 and the output names --owner and --yes",
+        "Canon dir populated with version-marked files; STATE.md preserved when pre-existing; second run byte-identical tree",
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Fenced-write engine lib/fence.mjs",
-      "description": "As every file-wiring adapter, I want insert-or-replace of a version-marked block, so that wiring is idempotent and never clobbers user content. Create the target file if missing; preserve all content outside the fence byte-for-byte; replace an older-version block in place.",
+      "title": "sync command (canon refresh + fence re-apply)",
+      "description": "As a machine wired last month, I want one command that pulls the current canon and re-fences stale blocks, so that whatever the upstream updates propagates everywhere. Per packet T5: sync copies the kit's bundled canon over <home>/.agents/canon/, re-applies the fenced block to every already-wired harness file whose block version is older than current, reports each change, exits 0; it never touches user-owned surfaces (STATE.md, session logs, logbooks). No network code — npx fetching the latest kit IS the transport.",
       "acceptanceCriteria": [
-        "test/fence.test.mjs exists and `node --test test/fence.test.mjs` exits 0",
-        "The test proves applying twice yields a byte-identical file",
-        "The test proves user content outside the fence is unchanged and a version bump replaces the old block in place",
+        "node --test test/sync.test.mjs exits 0",
+        "Sandbox with stale canon + a v1 fence block: after sync the canon dir is byte-equal to the kit's bundled canon and the fence block reads v2 with user content outside the fence byte-identical",
+        "STATE.md untouched by sync",
+        "A second sync run reports no changes and the tree is byte-identical",
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-005",
-      "title": "File-wiring adapters (claude-code, pi, codex)",
-      "description": "As the init command, I want one adapter per file-wired harness, so that wiring targets are explicit and auditable. adapters/claude-code.mjs writes the fenced block into <home>/.claude/CLAUDE.md, adapters/pi.mjs into <home>/.pi/agent/AGENTS.md, adapters/codex.mjs into <home>/.codex/AGENTS.md; each exposes detect/wire/describe and writes only via lib/fence.mjs.",
+      "title": "project v2 (topic-grain: non-git proceeds, shared owner inference)",
+      "description": "As an agent initializing a workspace that may not be a code project, I want project to proceed in a non-git dir, so that topics get continuity too. Per packet T6: non-git dir proceeds by default printing a not-version-controlled note; the --force flag is removed; owner resolution shares init's inference order and non-TTY fail-fast; created files and the AGENTS.md fence content follow the v2 templates.",
       "acceptanceCriteria": [
-        "test/adapters.test.mjs exists and `node --test test/adapters.test.mjs` exits 0",
-        "Each adapter wires a sandbox home and a second run is byte-identical",
-        "A path-audit assertion proves no writes outside each adapter's declared target file",
+        "node --test test/project.e2e.test.mjs exits 0",
+        "Non-git temp dir: exit 0, files created, note present in output; git temp repo: exit 0, note absent",
+        "Non-TTY with no inferable owner exits 1 naming the flags",
+        "Re-run idempotent",
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-006",
-      "title": "Hermes write-through adapter",
-      "description": "As a kit user with a memory-bearing agent, I want directives delivered through the agent rather than written at its files, so that no other agent's memory is mutated directly. adapters/hermes.mjs: detect/describe plus compose() building the directive text (agent-to-agent sender header, protocol summary, agent tag hermes) and the one-shot command string; delivery only behind an explicit --deliver flag; never writes files under the hermes home.",
+      "title": "brief discovery (no-arg listing, unknown-slug listing)",
+      "description": "As an agent starting a session without knowing the active slugs, I want brief with no argument to list them, so that slug discovery needs no grep. Per packet T7: no feature arg prints the active-slug listing (slug + date of its latest entry) and exits 0; an unknown slug prints the same listing to stderr and exits 1; the compiled-brief contract for a known slug is unchanged.",
       "acceptanceCriteria": [
-        "test/hermes.test.mjs exists and `node --test test/hermes.test.mjs` exits 0",
-        "The test asserts the composed directive contains the sender header and the session-log envelope line",
-        "The test asserts running the adapter against a sandbox hermes home leaves its file tree byte-identical",
+        "node --test test/brief.test.mjs exits 0",
+        "Fixture logs: no-arg run lists both fixture slugs with dates and exits 0",
+        "Unknown-slug run exits 1 and stderr carries the listing",
+        "All prior include/exclude assertions still pass",
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-007",
-      "title": "init command",
-      "description": "As a new user, I want one command that wires my whole machine, so that setup is a single npx call. Non-interactive flags (--owner, --tag, --harnesses, --yes) with interactive fallback capped at 3 prompts (owner, confirm detected harnesses, confirm write plan); creates <home>/.agents/CONTINUITY.md + STATE.md from canon/templates; runs selected adapters; prints paste instructions for undetected or manual-only harnesses. Home root injectable for tests.",
+      "title": "doctor v2 (stale-canon + stale-fence audits naming sync)",
+      "description": "As a maintainer, I want doctor to detect a stale canon or stale fence blocks, so that drift from upstream is caught mechanically. Per packet T8: two new audits — canon dir missing or any canon file's version marker older than the kit's bundled canon; any wired fence block at a version older than current — each finding names sync as the remediation. The existing four audits and exit semantics are unchanged.",
       "acceptanceCriteria": [
-        "test/init.e2e.test.mjs exists and `node --test test/init.e2e.test.mjs` exits 0",
-        "Sandbox-HOME e2e: fresh init creates both global files plus wiring for detected harnesses",
-        "A second init run exits 0 with a byte-identical tree",
+        "node --test test/doctor.test.mjs exits 0",
+        "Stale-canon and stale-fence fixtures each flagged with exit 1 and the finding text contains 'sync'",
+        "Current-canon fixture adds no finding",
+        "The four v1 audit assertions still pass",
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-008",
-      "title": "project command",
-      "description": "As a project owner, I want one command that initializes a repo for continuity, so that every project starts conformant. Inside a git repo: create LOGBOOK.md (header block + declared TYPE vocabulary), STATE.md (all six sections: Now/Truths/Next/Blocked/Watch/Dead ends), .agents/session.log seed, and append the fenced AGENTS.md wiring block; refuse to run outside a git repo unless --force.",
+      "title": "README inversion + version 0.2.0",
+      "description": "As a colleague seeing banana for the first time, I want one screen that says run this and your agents handle the rest, so that adoption needs no protocol reading. Per packet T9: package.json to 0.2.0; README human section is one screen (npx one-liner, agents-handle-the-rest framing, the sync update story), everything below addressed to agents (five-command reference including sync, canon pointer, bootstrap model); the four-command human tour and human-facing daily-ritual sections are removed.",
       "acceptanceCriteria": [
-        "test/project.e2e.test.mjs exists and `node --test test/project.e2e.test.mjs` exits 0",
-        "Temp-repo e2e: files created with required sections; re-run idempotent",
-        "A non-repo dir without --force exits non-zero",
+        "node --test test/readme.test.mjs exits 0",
+        "README contains the npx one-liner, all five command names, and the canon dir path",
+        "The human section (content above the first agent-addressed heading) is 40 lines or fewer",
+        "node bin/banana.mjs --version prints 0.2.0",
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-009",
-      "title": "brief command",
-      "description": "As a session starting work, I want a per-intent compiled brief instead of reading shared files, so that I get continuity without context pollution. `banana brief <feature> --tag <agent>` writes the brief to stdout, implementing the include/exclude table in docs/DESIGN.md exactly. Deterministic text processing only — no LLM calls.",
-      "acceptanceCriteria": [
-        "test/brief.test.mjs exists and `node --test test/brief.test.mjs` exits 0 against fixture logs",
-        "Target-feature APPROACH text present in output; other-feature APPROACH text absent",
-        "Ghost entry flagged; each brief section carries a ref line",
-        "Typecheck passes"
-      ],
-      "priority": 9,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-010",
-      "title": "doctor command",
-      "description": "As a maintainer, I want wiring checks and liveness audits in one command, so that a dead log is detected mechanically. Report detected harnesses + fence block versions; audit per docs/DESIGN.md: in-progress entries older than 48h, unowned NEXT lines, STATE.md 'as of' older than newest LOGBOOK entry date, any continuity file over 700 lines; exit 0 clean / 1 findings; --verify prints (never executes) per-harness headless recital commands.",
-      "acceptanceCriteria": [
-        "test/doctor.test.mjs exists and `node --test test/doctor.test.mjs` exits 0",
-        "Seeded-violation fixture: all four audit types flagged and doctor exits 1; clean fixture exits 0",
-        "Typecheck passes"
-      ],
-      "priority": 10,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-011",
-      "title": "README quickstart",
-      "description": "As a colleague seeing banana for the first time, I want the README to explain and install it in one screen, so that adoption needs no walkthrough. First line says what banana does; include the npx one-liner (npx github:Q9-Ahimsa/banana), four-command tour, per-harness wiring table (what gets written where), manual paste path for unsupported tools, and the hot/cold + brief mental model in one short section.",
-      "acceptanceCriteria": [
-        "test/readme.test.mjs exists and `node --test test/readme.test.mjs` exits 0",
-        "README.md contains the npx github:Q9-Ahimsa/banana command, all four command names, and one section per shipped adapter",
-        "Typecheck passes"
-      ],
-      "priority": 11,
-      "passes": true,
+      "passes": false,
       "notes": ""
     }
   ]
