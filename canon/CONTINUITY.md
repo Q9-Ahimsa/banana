@@ -29,7 +29,8 @@ an ops runbook) — version control is not a precondition for continuity.
    proceeds in non-git topic dirs. By hand, create whichever are missing:
    - `.agents/session.log` — task-grain journal, entries per the envelope in
      `SESSION-LOG.md` §1;
-   - `STATE.md` — one-page projection per `STANDARD.md` §3;
+   - `STATE.md` — copied verbatim from the literal template in
+     `STANDARD.md` §3;
    - `LOGBOOK.md` — project-grain chronology per `STANDARD.md` §1–§2: the
      entry envelope plus the literal header block template in §2, copied
      verbatim. Create it by default; running session.log alone

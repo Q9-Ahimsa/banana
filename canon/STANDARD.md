@@ -92,25 +92,38 @@ project's vocabulary contract.
 
 ## 3. STATE.md — the projection
 
-One page, hard cap. Six sections, all bounded:
+One page, hard cap. Six sections, all bounded. The literal file shape — the kit's `project`
+command writes exactly this, and a by-hand bootstrap copies it verbatim (swap in the project
+name and owner):
 
 ```markdown
 # STATE — {project}
-> Projection of LOGBOOK.md as of {date} (through {last-entry-id}). Logbook wins on conflict.
+> Projection of LOGBOOK.md as of (date) (through none). Logbook wins
+> on conflict. One page, hard cap. Rebuilt whole, never patched.
 
-## Now        ← current focus, 1–3 lines
-## Truths     ← decisions in force, one line each + logbook id (pointers, not rationale)
-## Next       ← owned actions: {owner} — {action}. Unowned items are not allowed here.
-## Blocked    ← what, on whom/what, since when
-## Watch      ← assumptions needing validation, each with a validate-by date
-## Dead ends  ← approaches tried and abandoned, one line each + why (or entry pointer)
+## Now
+- (current focus, 1–3 lines)
+
+## Truths
+- (decisions in force, one line each + logbook id — pointers, not rationale)
+
+## Next
+- {owner} — (owned actions only; unowned items are not allowed here)
+
+## Blocked
+- (what, on whom/what, since when)
+
+## Watch
+- (assumptions needing validation, each with a validate-by date)
+
+## Dead ends
+- (approaches tried and abandoned, one line each + why, or an entry pointer)
 ```
 
 At first creation — a bootstrap with no logbook entries yet — the header line reads `(through none)`
-literally; the first rebuild after a real entry replaces it with that entry's id. Sections with
-nothing to report yet keep a single placeholder line describing what belongs there (the kit's
-template ships them that way) rather than being omitted, so every fresh STATE.md has the same
-six-section shape.
+literally; the first rebuild after a real entry replaces `(date)` and `none` with the real date and
+that entry's id. Sections with nothing to report yet keep their single placeholder line, as shown,
+rather than being omitted, so every fresh STATE.md has the same six-section shape.
 
 The `Dead ends` section is non-negotiable for agent-heavy projects: without it, successive fresh-context
 sessions confidently re-attempt the same failed approaches (Anthropic long-running-agent finding).
@@ -125,8 +138,11 @@ sessions confidently re-attempt the same failed approaches (Anthropic long-runni
 Write an entry **when something happens**, not on a timer (scheduled logging is the #1 abandonment cause):
 
 1. A decision is made → `DECISION` (with why, or a pointer to it)
-2. A work session ends → `SESSION` close-out with `DONE:` / `NEXT: {owner}` / `BLOCKED:` — **mandatory,
-   never skipped** ("land the plane"). If a session produced nothing, one line saying so.
+2. A work session ends → close-out — **mandatory, never skipped** ("land the plane"). It always
+   lands in the session layer (`.agents/session.log`, per `SESSION-LOG.md` §3); it appears here in
+   LOGBOOK.md as a `SESSION` entry with `DONE:` / `NEXT: {owner}` / `BLOCKED:` only when the
+   session is project-worthy per the promotion rule (`SESSION-LOG.md` §6). If a session produced
+   nothing, one line in session.log saying so.
 3. Something broke or surprised → `PROBLEM` (+ later `FIX`, referencing it)
 4. A milestone is reached, research lands, an artifact ships → log it with pointers
 5. Context is about to be lost (compaction, handoff, end of day) → capture before it evaporates
@@ -173,8 +189,9 @@ cadence the project already has — don't invent a new meeting), check:
   Grep for specifics; never read the full corpus.
 - Log **actions, not beliefs** — what you did and touched, with file names, not your theory of the project.
 - Resolve an ambiguity by assumption → log it: `ASSUMED: {assumption} (confirm)`.
-- Your session-close entry is not optional, even mid-task (that's a `HANDOFF` entry: done / not-verified /
-  next-safe-action).
+- Your session-close entry (in `.agents/session.log`) is not optional, even mid-task. When a
+  mid-task close is project-worthy it promotes to the logbook as a `HANDOFF` entry: done /
+  not-verified / next-safe-action; an ordinary project-worthy close promotes as `SESSION`.
 - Never reorganize, deduplicate, or "clean up" the logbook. Append-only is the entire trust model.
 - Reference artifacts by path; quote nothing over 3 lines.
 
