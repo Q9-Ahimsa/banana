@@ -139,8 +139,12 @@ inputs; byte-verbatim copying with named substitutions is what makes self-setup 
 The `Dead ends` section is non-negotiable for agent-heavy projects: without it, successive fresh-context
 sessions confidently re-attempt the same failed approaches (Anthropic long-running-agent finding).
 
-- Rebuilt (not patched) whenever it smells stale: replay recent logbook entries, rewrite the file.
-  Cheap by design — it's disposable (Ralph's plan rule).
+- Rebuilt (not patched), never edited in place. Operational test: rebuild at session CLOSE
+  exactly when the session promoted an entry to LOGBOOK.md — a promotion makes the projection
+  stale by construction (its `(through ...)` id no longer matches the newest entry); no
+  promotion, no rebuild, no judgment call. The doctor's stale-state audit (`as of` older than
+  the newest logbook entry) backstops any miss between sessions. Rebuild = replay recent logbook
+  entries, rewrite the file. Cheap by design — it's disposable (Ralph's plan rule).
 - The `Watch` section is the RAID/ADR import: every assumption carries a date it must be confirmed or
   killed by. An assumption without a validation date is a future incident.
 

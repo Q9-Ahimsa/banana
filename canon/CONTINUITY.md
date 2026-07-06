@@ -237,7 +237,9 @@ for a single log entry.)
   session's own stream tail.
 - **CLOSE** — land the plane: close the entry with an owned `NEXT:`, promote
   project-worthy events to the logbook (operational test: `SESSION-LOG.md`
-  §6's promotion rule), rebuild stale projections. Conflicts with
+  §6's promotion rule), rebuild stale projections (project STATE.md: rebuild
+  exactly when this session promoted — `STANDARD.md` §3's test; global
+  STATE.md: rebuild when cross-project state changed). Conflicts with
   concurrently-landed work reconcile here, not mid-flight.
 
 Counter-failure: mutable shared files changing under a session mid-task.
