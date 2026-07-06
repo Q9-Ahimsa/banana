@@ -234,8 +234,9 @@ for a single log entry.)
   resume check (`SESSION-LOG.md` §4) — the only sanctioned re-read of the
   session's own stream tail.
 - **CLOSE** — land the plane: close the entry with an owned `NEXT:`, promote
-  project-worthy events to the logbook, rebuild stale projections. Conflicts
-  with concurrently-landed work reconcile here, not mid-flight.
+  project-worthy events to the logbook (operational test: `SESSION-LOG.md`
+  §6's promotion rule), rebuild stale projections. Conflicts with
+  concurrently-landed work reconcile here, not mid-flight.
 
 Counter-failure: mutable shared files changing under a session mid-task.
 

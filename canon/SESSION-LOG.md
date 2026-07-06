@@ -119,7 +119,15 @@ defeats the envelope greps in §4.
 
 **Promotion rule**: a session that produces a project-level event — `DECISION`, milestone, a
 `PROBLEM` with lasting relevance — gets a `LOGBOOK.md` entry too, `ref:` back to the session id.
-Lightweight projects run session.log alone; full-standard projects use both.
+Operational test — promote exactly when the session's entries carry any of: a `DECISION:` line;
+a `PROBLEM:` with no same-session `FIX:` (still live at close = lasting by construction); or a
+final `STATUS: complete` that finishes the feature itself (no open `NEXT:` remains on that
+feature's stream). Any hit makes promotion mandatory; no hit means the session stays in
+session.log only — neither direction is a judgment call. "Lightweight" is not a judgment either:
+a project is lightweight exactly when the LOGBOOK-deferral decision is in its record (the
+`defer LOGBOOK.md` test in `CONTINUITY.md`'s bootstrap); with no deferral it is full-standard.
+Counter-failure (the test): an untested judgment call at a mandatory lifecycle step — two agents
+closing identical sessions diverge on whether project history exists.
 
 ## 7. Multi-agent
 
@@ -135,4 +143,4 @@ active file lean (same threshold as the Logbook Standard, same reason — oversi
 getting read).
 
 ---
-*Session Log v2.1 · companion to `STANDARD.md` (Logbook Standard v1.2) — same integrity rules (append-only, supersession, ≤10-line bodies, pointers not payloads), applied at task grain. Changes from v2.0: concurrency guard (§3), locate-then-read-span resume mechanics (§4), counter-failure disclosures (§1, §4, §5). Counter-failure (this disclosure): a moving body under a frozen version string breaks auditability.*
+*Session Log v2.1 · companion to `STANDARD.md` (Logbook Standard v1.2) — same integrity rules (append-only, supersession, ≤10-line bodies, pointers not payloads), applied at task grain. Changes from v2.0: concurrency guard (§3), locate-then-read-span resume mechanics (§4), operational promotion test (§6), counter-failure disclosures (§1, §4, §5, §6). Counter-failure (this disclosure): a moving body under a frozen version string breaks auditability.*
