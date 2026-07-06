@@ -19,7 +19,10 @@ an ops runbook) — version control is not a precondition for continuity.
 
 1. **Machine context first.** Read `~/.agents/STATE.md` if it exists (global
    grain, one page). If missing, create it by copying the literal template in
-   the "Global grain" section below verbatim, filling in the owner name.
+   the "Global grain" section below verbatim, performing exactly one
+   substitution: the owner's name in place of `{owner}` in the header line.
+   The `{owner}` inside the Backlog placeholder text is example content —
+   leave it as written.
    (`STANDARD.md` §3's six-section template is project grain — its
    Truths/Blocked/Dead-ends sections and logbook ids are project-scoped and
    do not apply here; only §3's page-level rules carry over: one page,
@@ -54,6 +57,12 @@ an ops runbook) — version control is not a precondition for continuity.
    entry, one phase.
 4. **Close before leaving.** Final `STATUS:` + owned `NEXT:` — the close
    entry is mandatory even mid-task (`STANDARD.md` §8).
+
+In a version-controlled workspace the continuity files are part of the shared
+record: track and commit them; never add them to `.gitignore`. (The kit never
+commits — committing is the agent's own close-out action.) Counter-failure:
+an untracked record is invisible to every other clone — continuity that dies
+at the machine boundary.
 
 Counter-failure: an agent landing cold either invents ad-hoc record-keeping
 or keeps none — either way the next session inherits nothing. Bootstrap makes
