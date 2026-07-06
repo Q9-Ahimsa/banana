@@ -24,8 +24,9 @@ shared by all agents. Spec: `SESSION-LOG.md` (shipped alongside this standard); 
 non-conforming agent configs ships as a wiring template with this kit. Session entries promote to
 LOGBOOK.md when project-worthy.
 
-**Crash-recovery read order** (session start, any agent): `STATE.md` → last 3–5 logbook entries (bodies
-for the session's own declared stream within that same 3–5 window; headings suffice for other streams,
+**Crash-recovery read order** (session start, any agent): `STATE.md` → the last 5 logbook entries
+(`tail -5` — up to 5 when the file is shorter; bodies
+for the session's own declared stream within that same 5-entry window; headings suffice for other streams,
 per `CONTINUITY.md`'s headings-not-bodies rule) → `ref:` pointers carried, not read: following one is a
 later on-demand read of immutable closed history, not part of the entry read (per `CONTINUITY.md`'s
 entry ritual and WORK rule). Never read the whole logbook (grep it instead); never skip STATE.md. A

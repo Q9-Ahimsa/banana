@@ -117,7 +117,7 @@ Every non-trivial project carries:
   lines. Corrections are new entries with `SUPERSEDES:`, never edits.
 - **`STATE.md`** — one-page projection (Now / Truths / Next / Blocked / Watch /
   Dead ends). Rebuilt from the logbook, never patched. Logbook wins on conflict.
-- **Entry reads:** project `STATE.md` + the last 3–5 logbook headings
+- **Entry reads:** project `STATE.md` + the last 5 logbook headings
   (e.g. `grep "^## \[" LOGBOOK.md | tail -5`, which returns up to the last 5) —
   allowlist items 2–3 of the entry ritual, delivered via the compiled brief by
   default or read directly in the no-kit fallback. Write a close entry before
@@ -167,14 +167,16 @@ set — nothing else by default:
 
 1. global `STATE.md` (hot; machine grain, one page by hard cap, read directly);
 2. project `STATE.md`, verbatim (hot; one page by hard cap);
-3. headings of the last 3–5 entries in `LOGBOOK.md` and `.agents/session.log`
+3. headings of the last 5 entries (`tail -5` — up to 5 when the file is
+   shorter; one fixed count, not a judgment range) in `LOGBOOK.md` and
+   `.agents/session.log`
    (awareness of recent and parallel work). Entries belonging to the declared
    feature's own stream are exempt from the headings-only limit — item 4
    carries their bodies; all other streams stay headings-only (per the
    headings-not-bodies rule below);
 4. the declared feature's own entries, bodies included: its `session.log`
    entries (newest first, capped at the last 10) and its `LOGBOOK.md` stream
-   entries within item 3's 3–5-entry window (the same window `STANDARD.md`'s
+   entries within item 3's 5-entry window (the same window `STANDARD.md`'s
    crash-recovery order reads — one cap, stated in both documents);
 5. `NEXT:` lines owned by this session's agent tag or unowned, drawn only from
    the surfaces items 2–4 already expose;
@@ -342,8 +344,10 @@ state (item 5); every other v1 behavior carries forward.
 2. **Closed allowlist entry ritual** — the session-start read set is
    enumerated in this document (six items, each bounded) and compiled into a
    per-intent brief. The grain sections' v1 direct-read instructions are
-   hereby redefined as inputs to this single ritual; the no-kit fallback reads
-   the same surfaces v1 prescribed, in the same order, plus the v1.1 ghost
+   hereby redefined as inputs to this single ritual; the no-kit fallback
+   reads the same surfaces v1 prescribed, in the same order — with the two
+   narrowings this list discloses (non-target streams headings-only, item 3;
+   pointer-following deferred out of entry, below) — plus the v1.1 ghost
    flags. The crash-recovery sequence's "follow pointers" step is deferred
    out of entry: `ref:` pointers are carried, and followed only on demand as
    reads of immutable closed history. Session entry (item 4's capped
