@@ -43,8 +43,12 @@ an ops runbook) — version control is not a precondition for continuity.
      string `defer LOGBOOK.md`. Operational test:
      `grep "DECISION:.*defer LOGBOOK.md" .agents/session.log` — a match
      means deferred; no match (or no session.log at all) means create the
-     file. The mere absence of `LOGBOOK.md` is never itself evidence of
-     deferral.
+     file. Record-then-test: an owner's live deferral instruction is written
+     first — create `.agents/session.log` (first in this list), append the
+     `DECISION:` line, then run the test, which now matches. Absent any
+     owner instruction there is nothing to record and bootstrap stays fully
+     no-human-in-the-loop. The mere absence of `LOGBOOK.md` is never itself
+     evidence of deferral.
 3. **Enter through the ritual.** Declare your feature slug first. Then close
    out the self-setup act as its own dedicated entry — fixed slug
    `bootstrap`, heading
