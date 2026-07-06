@@ -271,7 +271,8 @@ this protocol exists to protect.
 
 ## Rules that keep this working
 
-All six rules carry forward from v1; rule 3 is clarified, rule 4 is
+All six rules carry forward from v1; rule 2's scope is restated for v1.2's
+kit-owned canon directory (item 10), rule 3 is clarified, rule 4 is
 tightened, and rule 5 gained its read-scope parenthetical (binding "what you
 are shown" to the v1.1 entry ritual and its sanctioned re-reads) — each
 disclosed in "Changes from v1".
