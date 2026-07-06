@@ -59,7 +59,7 @@ logs SHIP and REGRESSION.
 Recommended default set (start here, extend deliberately):
 `SESSION · DECISION · MILESTONE · PROBLEM · FIX · INSIGHT · RESEARCH · HANDOFF · CAPTURE`
 
-Recommended default prefixes: `WHAT: / WHY: / ref: / DONE: / NEXT: / BLOCKED: / ASSUMED:`
+Recommended default prefixes: `WHAT: / WHY: / ref: / DONE: / NEXT: / BLOCKED: / ASSUMED: / SUPERSEDES:`
 
 The header block's literal shape is fixed — the kit's `project` command writes exactly this, and a
 by-hand bootstrap copies it verbatim, swapping in only the project name (always the workspace
