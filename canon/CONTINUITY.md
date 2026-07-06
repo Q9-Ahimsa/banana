@@ -42,11 +42,12 @@ an ops runbook) — version control is not a precondition for continuity.
      means deferred; no match (or no session.log at all) means create the
      file. The mere absence of `LOGBOOK.md` is never itself evidence of
      deferral.
-3. **Enter through the ritual.** First close out the self-setup act as its
-   own dedicated entry — fixed slug `bootstrap`, heading
+3. **Enter through the ritual.** Declare your feature slug first. Then close
+   out the self-setup act as its own dedicated entry — fixed slug
+   `bootstrap`, heading
    `## [YYYY-MM-DD] {agent} bootstrap.1 | ops — workspace self-setup`,
-   closed immediately with `STATUS: complete` and a `NEXT:` naming the
-   declared feature. Then declare your feature slug, run the session entry
+   closed immediately with `STATUS: complete` and
+   `NEXT: {your tag} — {declared feature slug}`. Then run the session entry
    ritual (the allowlist below) — via the kit's `brief` or the direct reads —
    and open the feature's own entry (`APPROACH:` + `STATUS: in-progress`)
    with its own PHASE. Never fold self-setup into the feature's entry: one
