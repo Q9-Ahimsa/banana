@@ -204,7 +204,9 @@ cadence the project already has — don't invent a new meeting), check:
   mid-task close is project-worthy it promotes to the logbook as a `HANDOFF` entry carrying the
   same declared prefixes as any close-out — `DONE:` (what landed, explicitly flagging anything
   done-but-not-verified), `NEXT: {owner} — the next safe action`, `BLOCKED:` where applicable;
-  no ad-hoc tokens. An ordinary project-worthy close promotes as `SESSION`.
+  no ad-hoc tokens. An ordinary project-worthy close promotes as `SESSION`. Counter-failure:
+  §4 item 2's — an unconditional logbook mandate floods the chronology, an ungated skip loses
+  the handoff; the promotion rule is the boundary.
 - Never reorganize, deduplicate, or "clean up" the logbook. Append-only is the entire trust model.
 - Reference artifacts by path; quote nothing over 3 lines.
 

@@ -37,10 +37,15 @@ an ops runbook) — version control is not a precondition for continuity.
      (`SESSION-LOG.md` §6) is a deliberate deferral the workspace owner
      decides and the record logs — never a bootstrap-time judgment call. If
      no logged deferral decision exists, create the file.
-3. **Enter through the ritual.** Declare a feature slug, run the session
-   entry ritual (the allowlist below) — via the kit's `brief` or the direct
-   reads — and open your session.log entry (`APPROACH:` +
-   `STATUS: in-progress`). The self-setup act itself logs with PHASE `ops`.
+3. **Enter through the ritual.** First close out the self-setup act as its
+   own dedicated entry — fixed slug `bootstrap`, heading
+   `## [YYYY-MM-DD] {agent} bootstrap.1 | ops — workspace self-setup`,
+   closed immediately with `STATUS: complete` and a `NEXT:` naming the
+   declared feature. Then declare your feature slug, run the session entry
+   ritual (the allowlist below) — via the kit's `brief` or the direct reads —
+   and open the feature's own entry (`APPROACH:` + `STATUS: in-progress`)
+   with its own PHASE. Never fold self-setup into the feature's entry: one
+   entry, one phase.
 4. **Close before leaving.** Final `STATUS:` + owned `NEXT:` — the close
    entry is mandatory even mid-task (`STANDARD.md` §8).
 
