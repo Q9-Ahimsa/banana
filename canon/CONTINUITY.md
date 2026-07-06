@@ -35,8 +35,13 @@ an ops runbook) — version control is not a precondition for continuity.
      entry envelope plus the literal header block template in §2, copied
      verbatim. Create it by default; running session.log alone
      (`SESSION-LOG.md` §6) is a deliberate deferral the workspace owner
-     decides and the record logs — never a bootstrap-time judgment call. If
-     no logged deferral decision exists, create the file.
+     decides — never a bootstrap-time judgment call — recorded in
+     `.agents/session.log` as a `DECISION:` line containing the literal
+     string `defer LOGBOOK.md`. Operational test:
+     `grep "DECISION:.*defer LOGBOOK.md" .agents/session.log` — a match
+     means deferred; no match (or no session.log at all) means create the
+     file. The mere absence of `LOGBOOK.md` is never itself evidence of
+     deferral.
 3. **Enter through the ritual.** First close out the self-setup act as its
    own dedicated entry — fixed slug `bootstrap`, heading
    `## [YYYY-MM-DD] {agent} bootstrap.1 | ops — workspace self-setup`,
