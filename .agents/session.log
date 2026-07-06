@@ -276,3 +276,11 @@ VALIDATED: npm run check && npm test — typecheck clean, 155/155 pass
 COMMITTED: feat: [US-008] - README inversion + version 0.2.0 (08e1acf)
 STATUS: complete
 NEXT: user — all 8 PRD stories pass; packet T3/T3-R (qualitative review) and T10 (ship: gh repo create + cold npx smoke) are adjudicated outside this loop
+
+## [2026-07-06] claude banana-v2.5 | review — T3/T3-R adversarial blind review: pass after 21 rounds
+APPROACH: 2 fresh blind reviewers per round (artifacts + criteria only, refute-framed), fix sustained findings same-round, re-stage, repeat. 40 verdicts total across 21 rounds.
+VALIDATED: round 21 both reviewers VERDICT: NOT SUSTAINED on all 6 criteria — pass per arm protocol. Gates green at every fix commit (155/155 + typecheck).
+INSIGHT: the review converged by converting every judgment call into an operational test (grep-able tokens, fixed counts, mechanical triggers) and embedding literal copy-verbatim templates — determinism was the recurring failure axis, not correctness.
+FILES: canon/, templates/, lib/project.mjs, test/project.e2e.test.mjs, .agents/goal/packet.md (T3+T3-R closed with evidence)
+STATUS: complete
+NEXT: ahimsa — T10 ship: run gh repo create, then claude cold-smokes npx
