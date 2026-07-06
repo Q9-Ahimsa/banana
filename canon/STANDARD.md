@@ -62,7 +62,8 @@ Recommended default set (start here, extend deliberately):
 Recommended default prefixes: `WHAT: / WHY: / ref: / DONE: / NEXT: / BLOCKED: / ASSUMED:`
 
 The header block's literal shape is fixed — the kit's `project` command writes exactly this, and a
-by-hand bootstrap copies it verbatim, swapping in only the project name. Every other line —
+by-hand bootstrap copies it verbatim, swapping in only the project name (always the workspace
+directory's basename — the same rule §3 states for `STATE.md`). Every other line —
 including the default vocabulary — is kept byte-verbatim at bootstrap; vocabulary edits are later
 deliberate extensions made in this block (§2's "extend deliberately"), never bootstrap-time choices:
 
@@ -95,9 +96,10 @@ project's vocabulary contract.
 ## 3. STATE.md — the projection
 
 One page, hard cap. Six sections, all bounded. The literal file shape — the kit's `project`
-command writes exactly this, performing exactly two substitutions: the project name in the
-title line, and the owner's name in place of `{owner}` in the `Next` placeholder line. A
-by-hand bootstrap makes the same two substitutions and copies everything else byte-verbatim:
+command writes exactly this, performing exactly two substitutions: the project name — always
+the workspace directory's basename — in the title line, and the owner's name in place of
+`{owner}` in the `Next` placeholder line. A by-hand bootstrap makes the same two substitutions
+(same basename rule) and copies everything else byte-verbatim:
 
 ```markdown
 # STATE — {project}
@@ -127,7 +129,9 @@ At first creation the header line is copied byte-verbatim — `(date)` and `none
 placeholder text, never filled at bootstrap time; the first rebuild after a real logbook entry
 replaces both with the real date and that entry's id. Sections with nothing to report yet keep
 their single placeholder line, as shown, rather than being omitted, so every fresh STATE.md has
-the same six-section shape.
+the same six-section shape. Counter-failure: any bootstrap-time judgment call — which fields to
+fill, which sections to keep — makes two agents produce byte-different files from identical
+inputs; byte-verbatim copying with named substitutions is what makes self-setup deterministic.
 
 The `Dead ends` section is non-negotiable for agent-heavy projects: without it, successive fresh-context
 sessions confidently re-attempt the same failed approaches (Anthropic long-running-agent finding).
@@ -146,7 +150,10 @@ Write an entry **when something happens**, not on a timer (scheduled logging is 
    lands in the session layer (`.agents/session.log`, per `SESSION-LOG.md` §3); it appears here in
    LOGBOOK.md as a `SESSION` entry with `DONE:` / `NEXT: {owner}` / `BLOCKED:` only when the
    session is project-worthy per the promotion rule (`SESSION-LOG.md` §6). If a session produced
-   nothing, one line in session.log saying so.
+   nothing, one line in session.log saying so. Counter-failure (the gate): an unconditional
+   logbook mandate floods the chronology with routine session noise until nobody reads it, while
+   an ungated skip leaves project-worthy events unrecorded — the promotion rule is the boundary
+   between the two.
 3. Something broke or surprised → `PROBLEM` (+ later `FIX`, referencing it)
 4. A milestone is reached, research lands, an artifact ships → log it with pointers
 5. Context is about to be lost (compaction, handoff, end of day) → capture before it evaporates

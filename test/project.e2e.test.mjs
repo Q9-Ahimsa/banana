@@ -8,7 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { basename, join, relative } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import { parseProjectArgs, runProject } from '../lib/project.mjs';
@@ -101,8 +101,11 @@ test('e2e: fresh run in a git repo creates all continuity files, no note', async
   const result = await runProject(FLAGS, { cwd: repo, io: scripted.io });
   assert.equal(result.code, 0);
 
+  const projectName = basename(repo);
   const logbook = readFileSync(join(repo, 'LOGBOOK.md'), 'utf8');
   assert.match(logbook, /^# LOGBOOK/, 'LOGBOOK.md header block');
+  assert.ok(logbook.includes(`# LOGBOOK — ${projectName}`), 'title carries the dir basename');
+  assert.ok(!logbook.includes('(project)'), 'no project-name placeholder residue');
   assert.match(logbook, /TYPE vocabulary/, 'declared TYPE vocabulary');
   assert.match(logbook, /SESSION · DECISION · MILESTONE/, 'TYPE vocabulary entries');
   assert.match(logbook, /\{actor\} \{stream\}\.\{n\}/, 'envelope spec');
@@ -111,6 +114,8 @@ test('e2e: fresh run in a git repo creates all continuity files, no note', async
   for (const section of ['## Now', '## Truths', '## Next', '## Blocked', '## Watch', '## Dead ends']) {
     assert.ok(state.includes(section), `STATE.md must contain '${section}'`);
   }
+  assert.ok(state.includes(`# STATE — ${projectName}`), 'STATE.md title carries the dir basename');
+  assert.ok(!state.includes('(project)'), 'no project-name placeholder residue in STATE.md');
   assert.ok(state.includes('Test Owner'), 'STATE.md carries the owner');
   assert.ok(!state.includes('__OWNER__'), 'no placeholder residue');
 
