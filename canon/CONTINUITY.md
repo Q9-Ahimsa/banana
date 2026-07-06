@@ -284,6 +284,10 @@ disclosed in "Changes from v1".
    about project state, the files win (memory may be stale the moment someone
    else writes an entry).
 2. **Append-only everywhere** except STATE pages (which are rebuilt whole).
+   Scope: this rule governs the record — the user-owned surfaces (session
+   logs, logbooks, STATE pages). The kit-owned `~/.agents/canon/` directory
+   is protocol documentation, not record: it is version-marked and
+   sync-overwritable per "Upstream and sync" (v1.2, changes item 10).
 3. **NEXT is always owned at write time** — every handoff names who acts: a
    human tag (e.g. `human`), an agent tag, or `joint`. An unowned `NEXT:`
    found in the record is a defect, not a category: briefs and the doctor
@@ -382,8 +386,10 @@ v1.1 is removed.
    Counter-failure: cold landings producing ad-hoc or absent record-keeping.
 10. **Upstream/sync surface ownership** — `~/.agents/canon/` is kit-owned and
     sync-overwritable; STATE pages, session logs, and logbooks are user-owned
-    and never overwritten by the kit. Counter-failure: stale-protocol drift
-    on wired machines, and updaters trampling user record surfaces.
+    and never overwritten by the kit. Rule 2's append-only scope is restated
+    accordingly: it governs the record, and the kit-owned canon directory
+    sits outside it. Counter-failure: stale-protocol drift on wired machines,
+    and updaters trampling user record surfaces.
 11. **Version markers** — every canon file opens with
     `<!-- banana:canon rev X.Y -->`, giving the doctor and `sync` a
     mechanical staleness check. Counter-failure: undetectable canon drift.
