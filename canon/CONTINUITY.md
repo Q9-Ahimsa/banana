@@ -50,15 +50,22 @@ an ops runbook) — version control is not a precondition for continuity.
      no-human-in-the-loop. The mere absence of `LOGBOOK.md` is never itself
      evidence of deferral.
 3. **Enter through the ritual.** Declare your feature slug first. Then close
-   out the self-setup act as its own dedicated entry — fixed slug
-   `bootstrap`, heading
-   `## [YYYY-MM-DD] {agent} bootstrap.1 | ops — workspace self-setup`,
-   closed immediately with `STATUS: complete` and
-   `NEXT: {your tag} — {declared feature slug}`. Then run the session entry
-   ritual (the allowlist below) — via the kit's `brief` or the direct reads —
-   and open the feature's own entry (`APPROACH:` + `STATUS: in-progress`)
-   with its own PHASE. Never fold self-setup into the feature's entry: one
-   entry, one phase.
+   out the self-setup act as its own dedicated entry, written in one append —
+   `SESSION-LOG.md` §3's Start and Close steps collapse into a single write
+   for this one-shot act. Its complete literal shape:
+
+   ```markdown
+   ## [YYYY-MM-DD] {agent} bootstrap.1 | ops — workspace self-setup
+   APPROACH: initialize continuity files per canon bootstrap.
+   FILES: {the files created in step 2}
+   STATUS: complete
+   NEXT: {your tag} — {declared feature slug}
+   ```
+
+   Then run the session entry ritual (the allowlist below) — via the kit's
+   `brief` or the direct reads — and open the feature's own entry
+   (`APPROACH:` + `STATUS: in-progress`) with its own PHASE. Never fold
+   self-setup into the feature's entry: one entry, one phase.
 4. **Close before leaving.** Final `STATUS:` + owned `NEXT:` — the close
    entry is mandatory even mid-task (`STANDARD.md` §8).
 
@@ -318,9 +325,10 @@ writes.
 
 v1.1 adds the **pollution-control architecture**. No v1 surface or record is
 removed. One v1 write permission is revoked — editing your own closed entries,
-rule 4's tightening, disclosed in item 6 — and two v1 *read* behaviors are
-deliberately narrowed, disclosed in items 2–3; every other v1 behavior
-carries forward.
+rule 4's tightening, disclosed in item 6 — and three v1 *read* behaviors are
+deliberately narrowed or newly bounded: the entry read-set (item 2),
+non-target stream depth (item 3), and mid-session re-reads of mutable shared
+state (item 5); every other v1 behavior carries forward.
 
 1. **Hot/cold surface tiering** — projections are hot (auto-loaded, one page);
    chronology and entry bodies are cold (grep-on-demand only). The tiering
