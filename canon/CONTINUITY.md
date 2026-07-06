@@ -289,7 +289,10 @@ disclosed in "Changes from v1".
    but act only on what the user asked for in *this* session plus items
    whose `NEXT:` names you or is unowned. Another agent's or session's
    in-flight work is context to reference, never backlog to re-plan — name
-   intersections, don't grab them.
+   intersections, don't grab them. Counter-failure (the parenthetical):
+   without the binding, "read all shared state you are shown" reads as
+   license to browse the record at will — reintroducing the pollution the
+   entry ritual exists to prevent.
 6. Legacy session logs living inside tool-specific configuration directories
    are honored read-only; new entries go to the tool-neutral
    `.agents/session.log`.
