@@ -83,8 +83,10 @@ SESSION · DECISION · MILESTONE · PROBLEM · FIX · INSIGHT · RESEARCH · HAN
 **Prefixes:** `WHAT:` / `WHY:` / `ref:` / `DONE:` / `NEXT:` / `BLOCKED:` /
 `ASSUMED:` / `SUPERSEDES:`
 
-**Read protocol:** STATE.md first, then `grep "^## \[" LOGBOOK.md | tail -5`.
-Grep for specifics; never read the whole file.
+**Read protocol:** the session entry ritual in `~/.agents/canon/CONTINUITY.md`
+(via the kit's `brief` or its direct reads) — this line is a pointer, not the
+ritual. Quick refs: STATE.md first, `grep "^## \[" LOGBOOK.md | tail -5`;
+grep for specifics, never read the whole file.
 
 ---
 ```
