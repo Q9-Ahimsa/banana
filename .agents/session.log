@@ -284,3 +284,13 @@ INSIGHT: the review converged by converting every judgment call into an operatio
 FILES: canon/, templates/, lib/project.mjs, test/project.e2e.test.mjs, .agents/goal/packet.md (T3+T3-R closed with evidence)
 STATUS: complete
 NEXT: ahimsa — T10 ship: run gh repo create, then claude cold-smokes npx
+
+## [2026-07-08] claude banana-v2.6 | ops — T10 ship: repo live, cold npx smoke passed; packet complete 10/10
+APPROACH: user authorized repo creation directly; gh repo create + push, then cold-cache smoke of the published bin from a scratch dir.
+DECISION: done-when literal (`npx ... --version` → 0.2.0) is unsatisfiable in any shell — npm reserves --version/-v/--help globally and prints its own version before the bin runs. Corrected the probe, not the code: bin handles --version (bin/banana.mjs:27), package is 0.2.0; real usage is subcommands (not npm flags), which pass through.
+VALIDATED: npm exec --yes -- github:Q9-Ahimsa/banana --version → 0.2.0 exit 0 (cold, scratch dir; `--` passes flag past npm). npx --yes github:Q9-Ahimsa/banana doctor (PowerShell) → runs, 4 harnesses detected, exit 0. Full gate: npm run check PASS, npm test 155/155.
+INSIGHT: the Bash-tool Git Bash `npx` shim is broken here (delegates to `npm` bare → "Unknown command"); `npm exec` and PowerShell `npx` both work. Local-shell quirk, not a repo defect. Also: github install warns on missing .npmignore (cosmetic).
+FILES: .agents/goal/packet.md (T9 back-filled, T10 closed with evidence + finding)
+ref: https://github.com/Q9-Ahimsa/banana
+STATUS: complete
+NEXT: ahimsa — banana shipped; optional polish backlog: add `.npmignore`, consider a `version` subcommand so a flag-free version probe exists
