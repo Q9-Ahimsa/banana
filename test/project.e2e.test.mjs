@@ -220,3 +220,17 @@ test('non-TTY: no inferable owner exits non-zero naming --owner and --yes, write
   assert.ok(output.includes('--yes'), 'failure names --yes');
   assert.deepEqual([...snapshot(repo).keys()], [], 'no files written');
 });
+
+test('e2e: a filesystem error mid-run fails gracefully instead of throwing', async (t) => {
+  const repo = repoSandbox(t);
+  // Occupy .agents with a plain file so mkdirSync(agentsDir, ...) throws
+  // instead of creating the directory — the audit's reproduction scenario.
+  writeFileSync(join(repo, '.agents'), 'not a directory');
+  const scripted = scriptedIo();
+  const result = await runProject(FLAGS, { cwd: repo, io: scripted.io });
+  assert.equal(result.code, 1, 'returns a failure code instead of throwing');
+  assert.ok(
+    scripted.lines.some((line) => line.startsWith('banana project:')),
+    'graceful "banana project: <message>" line printed, not a raw stack trace',
+  );
+});
