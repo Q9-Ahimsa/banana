@@ -7,10 +7,11 @@
 
 A harness-neutral continuity kit. It installs a file-based coordination protocol shared by every
 AI agent (Claude Code, Pi, Codex, Hermes, …) and human on a machine, so that work survives session
-death and no agent's private memory becomes load-bearing. Four commands: `init` (machine wiring),
-`project` (repo init), `brief` (per-intent context compiler), `doctor` (audits).
+death and no agent's private memory becomes load-bearing. Five commands: `init` (machine wiring),
+`project` (repo init), `brief` (per-intent context compiler), `doctor` (audits), `sync` (propagates
+upstream canon and wiring changes).
 
-## The architecture being shipped (canon v1.1)
+## The architecture being shipped (canon v1.2)
 
 The protocol's v1 lives at the canon source paths listed in prd.json. v1.1 adds the
 **pollution-control architecture**:
@@ -39,6 +40,29 @@ The protocol's v1 lives at the canon source paths listed in prd.json. v1.1 adds 
 
 Canon v1.1 must carry a "Changes from v1" section listing exactly the additions above.
 
+### v1.2 additions
+
+v1.2 adds the **agent-first bootstrap and upstream model** on top of v1.1; nothing from v1.1 is
+removed. Mirrors canon's "Changes from v1" items 9-12 (`canon/CONTINUITY.md`):
+
+9. **Agent bootstrap section.** A zero-context agent self-initializes any bare workspace (git repo
+   or non-code topic dir) from the canon alone: which files to create, the entry envelope, the
+   session ritual. Counter-failure: cold landings producing ad-hoc or absent record-keeping.
+10. **Upstream/sync surface ownership.** `~/.agents/canon/` is kit-owned and sync-overwritable
+    (`sync` refreshes it freely); STATE pages, session logs, and logbooks are user-owned and never
+    overwritten by the kit — created only if missing. Counter-failure: stale-protocol drift on
+    wired machines, and updaters trampling user record surfaces.
+11. **Version markers.** Every canon file opens with a machine-readable marker,
+    `<!-- banana:canon rev X.Y -->`, giving `doctor` and `sync` a mechanical staleness check.
+    Counter-failure: undetectable canon drift.
+12. **Topic-grain workspaces.** A workspace needing continuity may be a git repository or a
+    non-code topic directory (research notes, a course, an ops runbook) — the protocol and the
+    kit's `project` command apply to both. Counter-failure: continuity gated on version control,
+    leaving non-code work recordless.
+
+Canon v1.2 carries these as part of the same "Changes from v1" section, numbered 9-12 following
+v1.1's items 1-8.
+
 ## `brief` — behavioral contract
 
 `banana brief <feature> --tag <agent>` writes a brief to stdout, compiled from the project's
@@ -58,17 +82,25 @@ record, not a replacement for it). Deterministic only — no LLM calls, pure tex
 ## `doctor` — audit contract
 
 Reports: detected harnesses; fence-block versions found in wired files. Audits (exit 1 if any hit):
-in-progress entries older than 48h · unowned `NEXT:` lines · project STATE.md "as of" older than
-the newest LOGBOOK entry date · any continuity file over 700 lines. `--verify` prints (never
-executes) per-harness headless recital commands.
+
+- **Project liveness (v1.1):** in-progress entries older than 48h · unowned `NEXT:` lines ·
+  project STATE.md "as of" older than the newest LOGBOOK entry date · any continuity file over 700
+  lines.
+- **Upstream staleness (v1.2):** `stale-canon` — the home canon dir (`~/.agents/canon/`) is missing,
+  or an installed canon file's version marker is older than the kit's bundled canon · `stale-fence`
+  — any wired fence block (home adapters plus the project's `AGENTS.md`) is older than its
+  template's current version. Both findings name `sync` as the remediation.
+
+`--verify` prints (never executes) per-harness headless recital commands.
 
 ## Adapter contract
 
 Each adapter module exposes `detect(home)`, `describe()`, and either `wire(home, opts)` (file
 adapters) or `compose(opts)` (write-through adapters). File adapters write ONLY via `lib/fence.mjs`
-(insert-or-replace a version-marked block, `<!-- banana:begin v1 -->` … `<!-- banana:end -->`,
+(insert-or-replace a version-marked block, `<!-- banana:begin vN -->` … `<!-- banana:end -->`,
 creating the file if missing, preserving everything outside the fence byte-for-byte — idempotency
-is THE contract: second run must be byte-identical). The hermes adapter never writes files: it
+is THE contract: second run must be byte-identical). Every shipped wiring template
+(`templates/wiring/*.md`) is currently fenced at `v2`. The hermes adapter never writes files: it
 composes a directive (sender header + protocol summary + agent tag) and the one-shot command
 string; delivery only behind an explicit `--deliver` flag. Rationale: another agent's memory is
 written through the agent, never at its files.

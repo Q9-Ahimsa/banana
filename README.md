@@ -54,7 +54,7 @@ always fetches the latest kit, so no update mechanism ships in it.
 | Command | What it does |
 |---|---|
 | `banana init` | detect installed harnesses, install the canon into `~/.agents/canon/`, wire the bootstrap block into each instruction file. Non-interactive: `--owner`, `--tag`, `--harnesses`, `--yes` |
-| `banana project` | initialize the current workspace (git repo or non-code topic dir) with `LOGBOOK.md`, `STATE.md`, and `.agents/session.log` |
+| `banana project` | initialize the current workspace (git repo or non-code topic dir) with `LOGBOOK.md`, `STATE.md`, `.agents/session.log`, and a wired `AGENTS.md` continuity block |
 | `banana brief <feature> --tag <agent>` | compile a per-intent context brief — feature-scoped, deterministic, no LLM calls. No feature arg lists the active slugs |
 | `banana doctor` | audit wiring versions, canon staleness, and log liveness; stale findings name `sync` as the remediation. `--verify` prints per-harness recital commands |
 | `banana sync` | refresh the kit-owned canon and re-apply any wiring fence older than current |
