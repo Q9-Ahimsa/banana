@@ -39,6 +39,36 @@ function maybeSubHelp(argv, usage) {
   }
 }
 
+/** Plain stdout/stderr io for the non-interactive commands (brief, doctor, sync). */
+function makeIo() {
+  return {
+    out: (/** @type {string} */ line = '') => console.log(line),
+    err: (/** @type {string} */ line = '') => console.error(line),
+  };
+}
+
+/**
+ * Interactive io for commands that may prompt (init, project): out/err plus a
+ * lazily-created readline prompt. Returns { io, close }; call close() once the
+ * command returns to release the readline handle (a no-op if it never prompted).
+ */
+function makeInteractiveIo() {
+  /** @type {import('node:readline/promises').Interface | null} */
+  let rl = null;
+  const io = {
+    out: (/** @type {string} */ line = '') => console.log(line),
+    err: (/** @type {string} */ line = '') => console.error(line),
+    prompt: async (/** @type {string} */ question) => {
+      if (rl === null) {
+        const { createInterface } = await import('node:readline/promises');
+        rl = createInterface({ input: process.stdin, output: process.stdout });
+      }
+      return rl.question(question);
+    },
+  };
+  return { io, close: () => rl?.close() };
+}
+
 if (cmd === '--version' || cmd === '-v' || cmd === 'version') {
   console.log(pkg.version);
   process.exit(0);
@@ -81,26 +111,14 @@ if (cmd === 'init') {
     console.error(`banana init: ${error instanceof Error ? error.message : error}`);
     process.exit(1);
   }
-  /** @type {import('node:readline/promises').Interface | null} */
-  let rl = null;
-  const io = {
-    out: (/** @type {string} */ line = '') => console.log(line),
-    err: (/** @type {string} */ line = '') => console.error(line),
-    prompt: async (/** @type {string} */ question) => {
-      if (rl === null) {
-        const { createInterface } = await import('node:readline/promises');
-        rl = createInterface({ input: process.stdin, output: process.stdout });
-      }
-      return rl.question(question);
-    },
-  };
+  const { io, close } = makeInteractiveIo();
   const result = await runInit(flags, {
     home: homedir(),
     io,
     isTTY: process.stdin.isTTY === true,
     gitUserName,
   });
-  rl?.close();
+  close();
   process.exit(result.code);
 }
 
@@ -116,26 +134,14 @@ if (cmd === 'project') {
     console.error(`banana project: ${error instanceof Error ? error.message : error}`);
     process.exit(1);
   }
-  /** @type {import('node:readline/promises').Interface | null} */
-  let rl = null;
-  const io = {
-    out: (/** @type {string} */ line = '') => console.log(line),
-    err: (/** @type {string} */ line = '') => console.error(line),
-    prompt: async (/** @type {string} */ question) => {
-      if (rl === null) {
-        const { createInterface } = await import('node:readline/promises');
-        rl = createInterface({ input: process.stdin, output: process.stdout });
-      }
-      return rl.question(question);
-    },
-  };
+  const { io, close } = makeInteractiveIo();
   const result = await runProject(flags, {
     cwd: process.cwd(),
     io,
     isTTY: process.stdin.isTTY === true,
     gitUserName,
   });
-  rl?.close();
+  close();
   process.exit(result.code);
 }
 
@@ -154,10 +160,7 @@ if (cmd === 'brief') {
     console.error(`banana brief: ${error instanceof Error ? error.message : error}`);
     process.exit(1);
   }
-  const io = {
-    out: (/** @type {string} */ line = '') => console.log(line),
-    err: (/** @type {string} */ line = '') => console.error(line),
-  };
+  const io = makeIo();
   const result = await runBrief(flags, { cwd: process.cwd(), io });
   process.exit(result.code);
 }
@@ -174,10 +177,7 @@ if (cmd === 'doctor') {
     console.error(`banana doctor: ${error instanceof Error ? error.message : error}`);
     process.exit(1);
   }
-  const io = {
-    out: (/** @type {string} */ line = '') => console.log(line),
-    err: (/** @type {string} */ line = '') => console.error(line),
-  };
+  const io = makeIo();
   const result = await runDoctor(flags, { cwd: process.cwd(), home: homedir(), io });
   process.exit(result.code);
 }
@@ -194,10 +194,7 @@ if (cmd === 'sync') {
     console.error(`banana sync: ${error instanceof Error ? error.message : error}`);
     process.exit(1);
   }
-  const io = {
-    out: (/** @type {string} */ line = '') => console.log(line),
-    err: (/** @type {string} */ line = '') => console.error(line),
-  };
+  const io = makeIo();
   const result = await runSync(flags, { home: homedir(), io });
   process.exit(result.code);
 }
