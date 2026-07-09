@@ -372,6 +372,21 @@ test('stale fence: repo-local AGENTS.md audited too', async (t) => {
   assert.ok(output.includes(join(project, 'AGENTS.md')), 'finding names the project file');
 });
 
+test('corrupt fence: dangling begin marker (no end) does not throw, surfaced via fenceStatus', async (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  mkdirSync(join(home, '.claude'), { recursive: true });
+  writeFileSync(join(home, '.claude', 'CLAUDE.md'), '<!-- banana:begin v2 -->\nno end marker here\n');
+
+  const captured = capturedIo();
+  const result = await runDoctor({ verify: false }, { cwd: project, home, io: captured.io, now: NOW, env: ENV });
+  assert.equal(result.code, 0, 'a corrupt fence alone is a report state, not an audit finding');
+  const output = captured.text();
+  assert.ok(output.includes('corrupt fence'), 'corrupt fence state surfaced in the wiring report');
+  assert.ok(output.includes('CLAUDE.md'), 'finding names the corrupt file');
+});
+
 test('auditUpstream: current canon + current fences add no finding; both drifts typed', (t) => {
   const cwd = sandbox(t);
   const currentHome = sandbox(t);

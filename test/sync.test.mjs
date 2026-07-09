@@ -199,6 +199,20 @@ test('e2e: a wired file whose block identity is unrecoverable is skipped, not br
   assert.ok(errLines.join('\n').includes('skipped'), 'skip reported');
 });
 
+test('e2e: a corrupt fence (dangling begin marker, no matching end) is skipped, not thrown', async (t) => {
+  const home = sandbox(t);
+  const claudeMd = join(home, '.claude', 'CLAUDE.md');
+  mkdirSync(dirname(claudeMd), { recursive: true });
+  const content = '<!-- banana:begin v2 -->\nno end marker here\n';
+  writeFileSync(claudeMd, content);
+  const { io, errLines } = collectedIo();
+
+  const result = await runSync(parseSyncArgs([]), { home, io });
+  assert.equal(result.code, 0, 'a corrupt fence is a skip, not a failure');
+  assert.equal(readFileSync(claudeMd, 'utf8'), content, 'corrupt file left byte-identical');
+  assert.ok(errLines.join('\n').includes('skipped'), 'skip reported');
+});
+
 test('e2e: a file without a banana fence is not touched', async (t) => {
   const home = sandbox(t);
   const claudeMd = join(home, '.claude', 'CLAUDE.md');

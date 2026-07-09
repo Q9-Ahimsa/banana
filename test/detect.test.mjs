@@ -129,6 +129,29 @@ test('home-dir wins over PATH when both are present', () => {
   assert.equal(h.via, 'home-dir');
 });
 
+// opts.env is what every existing test above injects — but bin never passes
+// it (see bin/banana.mjs), so production always takes detect()'s default-env
+// fallback branch. That branch is untested unless we mutate process.env and
+// call detect() with opts omitted entirely, so it's covered here in isolation
+// with save/restore around the mutation.
+test('detect: opts.env omitted falls back to the real process.env.PATH/PATHEXT', () => {
+  const originalPath = process.env.PATH;
+  const originalPathExt = process.env.PATHEXT;
+  try {
+    const env = makeEnv(['claude']);
+    process.env.PATH = env.PATH;
+    const report = detect(makeHome());
+    const h = entry(report, 'claude-code');
+    assert.equal(h.detected, true, 'claude-code detected via the process.env.PATH fallback');
+    assert.equal(h.via, 'path');
+  } finally {
+    if (originalPath === undefined) delete process.env.PATH;
+    else process.env.PATH = originalPath;
+    if (originalPathExt === undefined) delete process.env.PATHEXT;
+    else process.env.PATHEXT = originalPathExt;
+  }
+});
+
 test('findOnPath: locates a binary across PATH entries and misses cleanly', () => {
   const env = makeEnv(['claude']);
   const found = findOnPath('claude', env);
