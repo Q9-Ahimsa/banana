@@ -339,3 +339,21 @@ test('e2e: --deliver runs the injected delivery command', async (t) => {
   assert.equal(result.hermes?.delivered, true);
   assert.deepEqual(ran, [result.hermes?.command], 'exactly the composed command ran');
 });
+
+test('e2e: a filesystem error mid-run fails gracefully instead of throwing', async (t) => {
+  const home = sandbox(t);
+  // Occupy .agents with a plain file so mkdirSync(canonDir, ...) throws ENOTDIR
+  // instead of creating the directory — the audit's reproduction scenario.
+  writeFileSync(join(home, '.agents'), 'not a directory');
+  const { io, lines } = scriptedIo();
+  const result = await runInit(parseInitArgs(['--owner', 'alice', '--yes']), {
+    home,
+    env: NO_PATH,
+    io,
+  });
+  assert.equal(result.code, 1, 'returns a failure code instead of throwing');
+  assert.ok(
+    lines.some((line) => line.startsWith('banana init:')),
+    'graceful "banana init: <message>" line printed, not a raw stack trace',
+  );
+});

@@ -15,6 +15,7 @@ import * as claudeCode from '../adapters/claude-code.mjs';
 import * as pi from '../adapters/pi.mjs';
 import * as codex from '../adapters/codex.mjs';
 import { fenceBegin, FENCE_END } from '../lib/fence.mjs';
+import { renderWiringTemplate } from '../lib/wiring.mjs';
 
 const CASES = [
   { adapter: claudeCode, dir: '.claude', target: join('.claude', 'CLAUDE.md'), tag: 'claude' },
@@ -124,3 +125,10 @@ for (const { adapter, dir, target, tag } of CASES) {
     }
   });
 }
+
+test('renderWiringTemplate: requires an agent tag', () => {
+  assert.throws(
+    () => renderWiringTemplate('claude-code.md', { owner: 'alice', tag: '' }),
+    /agent tag/i,
+  );
+});
