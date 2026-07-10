@@ -306,3 +306,15 @@ FILES: bin/banana.mjs, lib/init.mjs, lib/project.mjs, package.json, docs/DESIGN.
 ref: https://github.com/Q9-Ahimsa/banana/pull/1
 STATUS: complete
 NEXT: ahimsa - review + merge draft PR #1; talk-shop items: io-factory refactor, npm-name scoping
+
+## [2026-07-09] claude banana-v2.8 | ops — hardening PR #1 merged (blind review passed) + registry rename to banana-brain
+APPROACH: continue banana-v2.7's NEXT — adjudicate the blind pre-merge review, merge if clean, then action the one open talk-shop item (npm registry name).
+REVIEW: banana-premerge-review workflow, 18 subagents across 5 lenses (correctness/packaging/tests/regression/mergeability), each finding independently verified. Verdict passed=true, zero confirmed merge-blockers; every finding severity "nice" (verifiers confirming correctness, not defects). Hand-checked the machine verdict: grep "blocks_merge":true = 0 across 31 occurrences.
+MERGE: PR #1 marked ready -> squash-merged to main as 62973d9 -> feature branch deleted -> local main fast-forwarded. Post-merge cold-smoke: npx --yes github:Q9-Ahimsa/banana version -> 0.2.0 exit 0.
+RENAME: package.json name banana -> banana-brain (npm registry name; `banana` was taken on npm). Repo path (github:Q9-Ahimsa/banana) and bin command (`banana`) intentionally unchanged — registry name only, so the npx-github invocation and every usage string stay as-is. README unaffected (it invokes via the repo path, not the registry name).
+WHILE-HERE: fixed pre-existing package-lock.json drift — root name+version were still banana/0.1.0; now banana-brain/0.2.0 to match package.json.
+VALIDATED: npm run check clean (builds as banana-brain@0.2.0), npm test 175/175. No test asserts the registry name; package.test.mjs checks files/deps/pack-contents, all name-independent.
+FILES: package.json, package-lock.json, .agents/session.log
+ref: branch worktree-rename-registry-banana-brain
+STATUS: complete (pending PR review+merge)
+NEXT: ahimsa - merge the registry-rename PR; open talk-shop decision: also rebrand bin command `banana` + GitHub repo to banana-brain for full identity coherence, or keep command/repo `banana` and only publish as banana-brain
