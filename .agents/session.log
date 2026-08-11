@@ -318,3 +318,34 @@ FILES: package.json, package-lock.json, .agents/session.log
 ref: branch worktree-rename-registry-banana-brain
 STATUS: complete (pending PR review+merge)
 NEXT: ahimsa - merge the registry-rename PR; open talk-shop decision: also rebrand bin command `banana` + GitHub repo to banana-brain for full identity coherence, or keep command/repo `banana` and only publish as banana-brain
+
+## [2026-08-11] testagent cli.1 | discuss — CLI enhancement strategy settled (from PumpAndDump-anchored session)
+APPROACH: post-compaction strategy discussion with ahimsa; no code touched. Recorded here because the record follows the project, not the session anchor.
+DECISION: identity ratified — banana = protocol + mechanical CLI; markdown stays canonical, no JSON/SQLite datastore. Four moves: (1) canon amendment STATE rebuild-whole -> rebuild-on-close w/ dirty-marker line, edited in repo canon/STANDARD.md and deployed; (2) `banana log` stub/append/close envelope stamping w/ PHASE validation + owned-NEXT enforcement; (3) `banana brief` as computed projection digest; (4) `banana state lint` (PASS/WARN/FAIL, mechanical invariants only) + cached local shim with sync as explicit updater. Route = mattpocock engineering flow in a fresh session anchored in this repo: /setup-matt-pocock-skills -> /grill-with-docs -> /to-spec -> /to-tickets -> /implement per ticket.
+INSIGHT: verified repo is upstream of the ~/.agents/ install (canon/ + templates/ identical to installed copies) — "global changes" are repo work + a deployment story; sync's contract to already-installed sites is a grill item, not a blocker. Parked post-CLI (sequence-locked): compress CLAUDE.md bootstrap block to pointer, optional banana skill as Claude-side wrapper (logbook skill would fold in).
+FILES: none in-repo — handoff at C:\Users\VICTUS\AppData\Local\Temp\banana-cli-handoff.md (full design, grill agenda, hard constraints, ticket sketch); pointer-grain in testagent memory project_banana-efficiency.
+STATUS: complete
+NEXT: testagent — open the fresh session here: read the handoff, then /setup-matt-pocock-skills -> /grill-with-docs (ahimsa rulings due: rebuild-on-close, shim freshness trade, log verbs, sync deployment contract, tracker + doc-layout choices)
+
+## [2026-08-11] testagent cli.2 | ops — matt-flow setup: tracker, labels, domain-docs scaffolded
+APPROACH: continue cli.1 NEXT — fresh session anchored in this repo; read the Temp handoff, ran /setup-matt-pocock-skills (explore -> confirm -> write).
+DECISION: two open forks from the handoff grill agenda (item 5) settled here, deliberately: (a) issue tracker = GitHub Issues (public repo, gh CLI, native issue-dependency blocking edges fit the ticket chain; .scratch/ rejected — no blocking links, public-repo privacy moot); (b) doc layout = single-context (root CONTEXT.md + docs/adr/), with the coexistence delineation written into docs/agents/domain.md: matt-flow artifacts = build-process docs, .agents/ + LOGBOOK/STATE = continuity record, protocol decisions terminate in canon text (ADR = why-record only). Triage labels = the five canonical defaults, identity-mapped.
+FILES: AGENTS.md (new "## Agent skills" section), docs/agents/issue-tracker.md, docs/agents/triage-labels.md, docs/agents/domain.md
+VALIDATED: markdown-only change, no code touched; docs/agents/ contents match skill seed templates + one deliberate coexistence section.
+STATUS: complete (uncommitted — commit with the first grill/spec artifacts or on request)
+NEXT: testagent — /grill-with-docs with ahimsa: work the handoff grill agenda (rebuild-on-close + dirty marker, shim freshness trade, log verb shapes, sync deployment contract); rulings land as ADRs + canon-text edits
+
+## [2026-08-11] testagent cli.3 | discuss — grill closed: all four moves ratified, mechanisms settled
+APPROACH: /grill-with-docs (grilling + domain-modeling) over the handoff agenda, 4 rounds; background fact pass over canon/lib/templates grounded the later rounds.
+DECISION: (1) canon amendment ratified — mid-arc surgical STATE patches legal w/ dirty-marker line; close rebuild iff promotion OR marker standing (extends the existing judgment-free trigger); lazy repair (opener owes nothing, doctor/lint WARN while marker stands). (2) shim ratified — local install on PATH, sync = explicit updater; skew surfaced not prevented (kit version in every brief + doctor best-effort remote check, never blocking); mandatory sync-at-start rejected. (3) log verbs = stub/append/close/supersede — supersede writes a NEW entry w/ mechanical link, auto-copied target title, required reason, typo guard; one-shot = stub+close composition. (4) brief v2 = tighten in place — 5 sections kept, feature section compresses to last-close + open entries full (older closed = headings only), adds kit-version + dirty-status lines; global STATE stays out; fast path not gate. (5) deployed-header migration = one rollout sweep + lint WARN backstop; sync never touches user-owned files (DESIGN invariant held).
+INSIGHT: handoff's canon/wiring/ pointer was wrong — the "npx always fetches latest" text lives in templates/wiring/*.md (3 files); the bootstrap-text amendment deploys via the existing fence version bump + sync re-application, no new machinery. Canon already rebuilds-at-close keyed to promotion; the amendment extends that trigger, it doesn't invent one.
+FILES: CONTEXT.md (new, 6 terms), docs/adr/0001-state-rebuild-on-close.md, docs/adr/0002-local-shim-sync-as-updater.md
+STATUS: complete
+NEXT: testagent — /to-spec: turn the settled model into the spec (ticket spine: canon amendment -> log -> brief v2 -> lint -> shim + sync/doctor remote -> rollout sweep + wiring text)
+
+## [2026-08-11] testagent cli.4 | discuss — /to-spec: spec published as GitHub issue #3
+APPROACH: continue cli.3 NEXT — synthesized the settled model (cli.3 rulings, ADR-0001/0002, DESIGN contracts, existing test architecture) into the matt-flow spec; seams checked with ahimsa before writing.
+DECISION: (a) test seams confirmed — reuse the lib parse/run seam w/ injected deps (doctor gains injectable fetch, sync gains injectable exec, joining the existing gitUserName pattern); bin e2e stays dispatch-only; canon/template content tests carry protocol text. (b) shim mechanism ratified — npm install -g from GitHub (no registry publish; npx github: remains the cold-bootstrap path); sync spawns the update first, then reads canon/templates from disk post-update so a single run propagates fresh content.
+FILES: .agents/session.log only — spec at https://github.com/Q9-Ahimsa/banana/issues/3 (ready-for-agent); triage labels created in the tracker (needs-triage, needs-info, ready-for-agent, ready-for-human; wontfix pre-existed).
+STATUS: complete
+NEXT: testagent — /to-tickets: split #3 along the spine (canon amendment -> log -> brief v2 -> state lint -> shim + sync/doctor remote -> rollout sweep + wiring v3) with GitHub native blocking edges

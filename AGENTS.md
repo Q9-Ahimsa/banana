@@ -10,3 +10,17 @@
   lib/fence.mjs; tests use sandbox temp dirs only (node:fs mkdtempSync + os.tmpdir).
 - tsconfig include list covers bin/, lib/, adapters/, test/ — new source dirs must be added there
   or `npm run check` silently skips them.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues (Q9-Ahimsa/banana) via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary — the five canonical label strings used as-is. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` at repo root + `docs/adr/`. See `docs/agents/domain.md`.

@@ -1,0 +1,25 @@
+# CONTEXT.md — banana
+
+> Build-process glossary for developing banana. Banana's own *protocol* vocabulary is
+> defined by the canon (`canon/*.md`) — on any conflict, canon wins. Terms land here
+> the moment a design session resolves them.
+
+## Terms
+
+- **Kit** — the installable distribution of banana: CLI, canon, templates. Distinct
+  from the canon it carries; the kit is a vehicle, the canon is the authority.
+- **Rebuild-on-close** — the STATE maintenance discipline: surgical section patches
+  are allowed mid-arc; one mandatory full rebuild happens at session close. Replaces
+  the older "rebuilt whole, never patched" rule.
+- **Dirty marker** — the visible line a patched STATE carries until its next full
+  rebuild. Announces to any reader that the log is the authority right now. A crashed
+  session leaves it standing, so a skipped close is self-announcing.
+- **Brief** — the computed session-start digest for one feature in one project.
+  Fast path, never a gate: raw file reads remain legal, and machine-grain global
+  state is deliberately excluded.
+- **Supersede** — correcting the record by writing a *new* entry that names the entry
+  it replaces and why. The record is never edited; a correction is content, added.
+- **Shim** — the once-installed local copy of the kit that makes `banana` instant and
+  offline-safe. It never updates itself; **sync** is the explicit updater, and drift
+  between machines is surfaced (version in every brief, doctor's best-effort remote
+  check), never silently prevented.
