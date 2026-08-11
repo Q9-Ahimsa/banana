@@ -349,3 +349,21 @@ DECISION: (a) test seams confirmed — reuse the lib parse/run seam w/ injected 
 FILES: .agents/session.log only — spec at https://github.com/Q9-Ahimsa/banana/issues/3 (ready-for-agent); triage labels created in the tracker (needs-triage, needs-info, ready-for-agent, ready-for-human; wontfix pre-existed).
 STATUS: complete
 NEXT: testagent — /to-tickets: split #3 along the spine (canon amendment -> log -> brief v2 -> state lint -> shim + sync/doctor remote -> rollout sweep + wiring v3) with GitHub native blocking edges
+
+## [2026-08-11] testagent cli.5 | discuss — /to-tickets: spec #3 split into 8 tickets (#4-#11) with native blocking edges
+APPROACH: continue cli.4 NEXT — same session (ticketing = synthesis over held context; fresh contexts start at /implement per ticket). Breakdown quizzed with ahimsa before publishing: granularity + edges approved, standalone prefactor ratified.
+DECISION: one prefactor surfaced and ratified — session-log envelope parsing single-sourced into a shared module BEFORE anything stamps it (stamper/reader drift risk in a protocol tool). Edges are genuine gates, not build order: #4 prefactor, #5 canon amendment, #6 shim+sync all frontier (no blockers); #7 log <- 4; #8 brief v2 <- 4,5; #9 state lint <- 4,5; #10 wiring v3 <- 6,7,9 (text must never advertise commands/semantics that don't exist); #11 rollout sweep <- 10 (transitively everything). 9 blocked_by edges via GitHub native dependencies API, verified live post-write (counts 1/2/2/3/1).
+FILES: none in-repo — tickets at github.com/Q9-Ahimsa/banana/issues/4-11, all ready-for-agent; spec #3 untouched per skill contract.
+STATUS: complete
+NEXT: testagent — /implement the frontier in fresh sessions, recommended order #4 -> #5 -> #7 -> #8 -> #9 -> #6 -> #10 -> #11 (each: /clear, fetch ticket, /tdd, close with /code-review)
+
+## [2026-08-11] testagent cli.6 | build — #4 prefactor: single-source session-log envelope parsing
+APPROACH: continue cli.5 NEXT — /implement frontier ticket #4 in a fresh session. TDD at the ratified seam: grammar tests first, then extract parsing from lib/brief.mjs into a shared module; characterization = existing brief suite byte-identical.
+STATUS: in-progress
+FILES: lib/sessionlog.mjs (new — grammar single-source: ENVELOPE_RE, parseSessionLog, loadSessionLog, nextOwner, isOpen, isGhost, entriesForFeature, latestEntryDates), lib/brief.mjs (consumes + re-exports; moved code deleted), lib/doctor.mjs (imports sessionlog.mjs, uses sessionLogPath), test/sessionlog.test.mjs (new, 17 grammar tests), test/brief.test.mjs (appended byte-golden characterization, captured pre-refactor)
+VALIDATED: tsc --checkJs clean; 193/193 tests (175 pre-existing unchanged + 18 new); golden brief output byte-identical across the extraction (1772 bytes)
+PROBLEM: two-axis review (standards + spec sub-agents) converged on 3 findings — brief.mjs re-export shim = middle man serving only one test import (dead surface, verified no external consumer); inline feature-membership predicate at runBrief duplicating entriesForFeature; ENVELOPE_RE export speculative (stamper lands inside the module).
+FIX: re-export deleted, brief.test.mjs repointed to sessionlog.mjs (4 subsumed grammar tests dropped — new suite covers them stricter); runBrief routes through entriesForFeature; ENVELOPE_RE private w/ indented-heading case folded into malformed tests; slugListing byte-golden added (spec-axis strengthening). Declined: extracting the others-filter (presentation selection, not grouping).
+VALIDATED: tsc clean; 189/189 full suite (delta from 193 = -4 subsumed -1 regex test +1 listing golden); compileBrief golden pinned from pre-refactor bytes passes post-refactor — spec reviewer independently confirmed against a clean git-archive HEAD extract.
+STATUS: complete
+NEXT: testagent — /implement #5 (canon amendment rebuild-on-close, next frontier; then #7 per cli.5 order)

@@ -4,16 +4,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import {
-  parseBriefArgs,
-  parseSessionLog,
-  nextOwner,
-  isGhost,
-  slugListing,
-  compileBrief,
-  runBrief,
-  GHOST_THRESHOLD_HOURS,
-} from '../lib/brief.mjs';
+import { parseBriefArgs, slugListing, compileBrief, runBrief } from '../lib/brief.mjs';
+import { parseSessionLog } from '../lib/sessionlog.mjs';
 
 /** @type {string[]} */
 const tempDirs = [];
@@ -130,44 +122,8 @@ test('parseBriefArgs: rejects missing tag with a feature, unknown options', () =
   assert.throws(() => parseBriefArgs(['auth', 'extra', '--tag', 'claude']), /unexpected/);
 });
 
-// --- session-log parsing ---
-
-test('parseSessionLog: envelope fields, bodies, status, NEXT lines', () => {
-  const entries = parseSessionLog(SESSION_LOG);
-  assert.equal(entries.length, 9);
-  const a1 = entries.find((e) => e.feature === 'auth' && e.n === 1);
-  assert.ok(a1);
-  assert.equal(a1.date, '2026-07-01');
-  assert.equal(a1.agent, 'claude');
-  assert.equal(a1.phase, 'build');
-  assert.equal(a1.title, 'JWT refresh flow');
-  assert.equal(a1.status, 'complete');
-  assert.deepEqual(a1.nextLines, ['NEXT: claude — wire refresh into login flow']);
-  assert.ok(a1.body.some((line) => line.includes('TARGET_MARK_A1')));
-});
-
-test('parseSessionLog: tolerates CRLF line endings', () => {
-  const entries = parseSessionLog(SESSION_LOG.replaceAll('\n', '\r\n'));
-  assert.equal(entries.length, 9);
-  assert.equal(entries[0].status, 'complete');
-});
-
-test('nextOwner: owned vs unowned NEXT lines', () => {
-  assert.equal(nextOwner('NEXT: claude — wire refresh into login flow'), 'claude');
-  assert.equal(nextOwner('NEXT: decide rounding policy'), null);
-});
-
-test('isGhost: in-progress older than 48h only', () => {
-  assert.equal(GHOST_THRESHOLD_HOURS, 48);
-  const entries = parseSessionLog(SESSION_LOG);
-  const ghost = entries.find((e) => e.feature === 'auth' && e.n === 2);
-  const fresh = entries.find((e) => e.feature === 'auth' && e.n === 3);
-  const complete = entries.find((e) => e.feature === 'billing' && e.n === 1);
-  assert.ok(ghost && fresh && complete);
-  assert.equal(isGhost(ghost, NOW), true);
-  assert.equal(isGhost(fresh, NOW), false);
-  assert.equal(isGhost(complete, NOW), false);
-});
+// Session-log grammar tests (parseSessionLog, nextOwner, isGhost) live in
+// test/sessionlog.test.mjs with the module — this file pins brief behavior.
 
 // --- include/exclude contract ---
 
@@ -353,6 +309,75 @@ test('runBrief: no feature arg with missing session.log still exits 1', async ()
   const result = await runBrief({ feature: null, tag: null }, { cwd: dir, io, now: NOW });
   assert.equal(result.code, 1);
   assert.match(errLines.join('\n'), /session\.log/);
+});
+
+// --- characterization: full output pinned byte-for-byte ---
+
+// Captured from the pre-extraction implementation (ticket #4). Any diff here is
+// a behavior change and must be a conscious act (brief v2 will be one).
+const GOLDEN_BRIEF = `# brief — auth (agent: claude)
+> Snapshot for one session (BEGIN). Do not re-read shared state mid-flight;
+> your own open log entry is the cohesion anchor. Refs point into the record.
+
+## Project state
+ref: STATE.md
+# STATE — fixture project
+> Projection of LOGBOOK.md as of 2026-07-03. STATE_VERBATIM_MARKER
+
+## Now
+- shipping the auth rework
+
+## Feature history — auth (full bodies)
+ref: .agents/session.log
+## [2026-07-01] claude auth.1 | build — JWT refresh flow
+APPROACH: Rotate refresh tokens on use TARGET_MARK_A1.
+FILES: src/auth/refresh.ts
+STATUS: complete
+NEXT: claude — wire refresh into login flow
+
+## [2026-07-01] human auth.2 | debug — token clock skew
+[GHOST — in-progress since 2026-07-01, older than 48h; close as abandoned via a SUPERSEDES entry]
+APPROACH: Investigate skew between issuer and gateway TARGET_MARK_A2.
+STATUS: in-progress
+
+## [2026-07-04] claude auth.3 | build — rotation edge cases
+APPROACH: Cover replay-after-rotate TARGET_MARK_A3.
+STATUS: in-progress
+
+## Other work in flight — headings only (last 5)
+ref: .agents/session.log
+- [2026-07-01] codex billing.2 | build — tax rules
+- [2026-07-02] codex billing.3 | build — currency rounding
+- [2026-07-02] human docs.1 | build — quickstart draft
+- [2026-07-03] human docs.2 | review — quickstart edit
+- [2026-07-03] codex infra.1 | ops — CI cache warmup
+
+## Handoffs — NEXT for claude or unowned
+ref: .agents/session.log
+- auth.1: NEXT: claude — wire refresh into login flow
+- billing.2: NEXT: claude — review the tax table
+- billing.3: NEXT: decide rounding policy
+
+## Ghosts — in-progress older than 48h
+ref: .agents/session.log
+- [GHOST] auth.2 (2026-07-01) — token clock skew — next session in this project closes it as abandoned via SUPERSEDES
+`;
+
+test('brief: characterization — fixture output is byte-identical to the pinned golden', () => {
+  assert.equal(fixtureBrief(), GOLDEN_BRIEF);
+});
+
+test('slugListing: characterization — fixture listing is byte-identical to the pinned golden', () => {
+  assert.equal(
+    slugListing(parseSessionLog(SESSION_LOG)),
+    `active features — slug + last entry (.agents/session.log):
+- auth — 2026-07-04
+- docs — 2026-07-03
+- infra — 2026-07-03
+- billing — 2026-07-02
+
+usage: banana brief <feature> --tag <agent>`
+  );
 });
 
 test('runBrief: missing session.log exits non-zero with a pointer to banana project', async () => {
