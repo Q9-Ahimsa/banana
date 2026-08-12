@@ -34,7 +34,7 @@ const VERSION_MARKER_RE = /<!-- banana:canon rev (\d+\.\d+) -->/;
 const EXPECTED_REVS = {
   'CONTINUITY.md': '1.3',
   'STANDARD.md': '1.3',
-  'SESSION-LOG.md': '1.2',
+  'SESSION-LOG.md': '1.3',
 };
 
 // ADR 0001 (rebuild-on-close): the canonical dirty-marker line, byte-exact.
@@ -134,6 +134,18 @@ test('CONTINUITY.md project grain is amended; global grain keeps rebuild-whole',
   assert.ok(
     text.includes('> One page, hard cap. Rebuilt whole, never patched. Chronology lives in project'),
     'CONTINUITY.md global template header must keep rebuild-whole (out of amendment scope)'
+  );
+});
+
+test('SESSION-LOG.md cites its companion standard without a version pin', () => {
+  const text = readFileSync(join(canonDir, 'SESSION-LOG.md'), 'utf8');
+  assert.ok(
+    text.includes('companion to `STANDARD.md` (the Logbook Standard)'),
+    'SESSION-LOG.md footer missing the version-agnostic companion citation'
+  );
+  assert.ok(
+    !/Logbook Standard v\d/.test(text),
+    'SESSION-LOG.md still pins a Logbook Standard version'
   );
 });
 

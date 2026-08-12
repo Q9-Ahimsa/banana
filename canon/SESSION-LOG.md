@@ -1,5 +1,5 @@
-<!-- banana:canon rev 1.2 -->
-# Session Log — v2.1 (2026-07-05 · original v2.0, 2026-07-02)
+<!-- banana:canon rev 1.3 -->
+# Session Log — v2.2 (2026-08-12 · original v2.0, 2026-07-02)
 ### The fine-grained work journal. One file, every agent, every project.
 
 Session log is the **daybook**: what an agent did, task by task, in a work session — so the next
@@ -143,4 +143,4 @@ active file lean (same threshold as the Logbook Standard, same reason — oversi
 getting read).
 
 ---
-*Session Log v2.1 · companion to `STANDARD.md` (Logbook Standard v1.2) — same integrity rules (append-only, supersession, ≤10-line bodies, pointers not payloads), applied at task grain. Changes from v2.0: concurrency guard (§3), locate-then-read-span resume mechanics (§4), operational promotion test (§6), counter-failure disclosures (§1, §4, §5, §6). Counter-failure (this disclosure): a moving body under a frozen version string breaks auditability.*
+*Session Log v2.2 · companion to `STANDARD.md` (the Logbook Standard) — same integrity rules (append-only, supersession, ≤10-line bodies, pointers not payloads), applied at task grain. Changes from v2.0: concurrency guard (§3), locate-then-read-span resume mechanics (§4), operational promotion test (§6), counter-failure disclosures (§1, §4, §5, §6). Changes from v2.1: the companion citation drops its version pin (editorial — the Logbook Standard versions independently; no protocol change). Counter-failure (this disclosure): a moving body under a frozen version string breaks auditability.*
