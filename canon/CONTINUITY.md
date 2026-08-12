@@ -1,5 +1,5 @@
-<!-- banana:canon rev 1.2 -->
-# CONTINUITY — cross-harness protocol (canonical) — v1.2
+<!-- banana:canon rev 1.3 -->
+# CONTINUITY — cross-harness protocol (canonical) — v1.3
 
 Any agent working on this machine or its repos follows this. The record is
 **file-based and harness-neutral**: no agent's private memory is the source of
@@ -24,9 +24,9 @@ an ops runbook) — version control is not a precondition for continuity.
    The `{owner}` inside the Backlog placeholder text is example content —
    leave it as written.
    (`STANDARD.md` §3's six-section template is project grain — its
-   Truths/Blocked/Dead-ends sections and logbook ids are project-scoped and
-   do not apply here; only §3's page-level rules carry over: one page,
-   rebuilt whole, never patched.)
+   Truths/Blocked/Dead-ends sections, logbook ids, and rebuild-on-close
+   discipline are project-scoped and do not apply here; this global page
+   keeps its own header's rules: one page, rebuilt whole, never patched.)
 2. **Initialize the workspace.** Preferred: run the kit's `project` command
    named in your wiring block — it creates the files below idempotently and
    proceeds in non-git topic dirs. By hand, create whichever are missing:
@@ -116,7 +116,9 @@ Every non-trivial project carries:
   `## [YYYY-MM-DD] {actor} {stream}.{n} | {TYPE} — {title}` + `WHAT:`/`WHY:`
   lines. Corrections are new entries with `SUPERSEDES:`, never edits.
 - **`STATE.md`** — one-page projection (Now / Truths / Next / Blocked / Watch /
-  Dead ends). Rebuilt from the logbook, never patched. Logbook wins on conflict.
+  Dead ends). Rebuilt from the logbook at session close; mid-arc section
+  patches are legal, each ensuring the dirty-marker line (`STANDARD.md` §3).
+  Logbook wins on conflict.
 - **Entry reads:** project `STATE.md` + the last 5 logbook headings
   (e.g. `grep "^## \[" LOGBOOK.md | tail -5`, which returns up to the last 5) —
   allowlist items 2–3 of the entry ritual, delivered via the compiled brief by
@@ -238,8 +240,9 @@ for a single log entry.)
 - **CLOSE** — land the plane: close the entry with an owned `NEXT:`, promote
   project-worthy events to the logbook (operational test: `SESSION-LOG.md`
   §6's promotion rule), rebuild stale projections (project STATE.md: rebuild
-  exactly when this session promoted — `STANDARD.md` §3's test; global
-  STATE.md: rebuild when cross-project state changed). Conflicts with
+  exactly when this session promoted or the dirty marker stands —
+  `STANDARD.md` §3's two-trigger test; global STATE.md: rebuild when
+  cross-project state changed). Conflicts with
   concurrently-landed work reconcile here, not mid-flight.
 
 Counter-failure: mutable shared files changing under a session mid-task.
@@ -277,7 +280,8 @@ this protocol exists to protect.
 ## Rules that keep this working
 
 All six rules carry forward from v1; rule 2's scope is restated for v1.2's
-kit-owned canon directory (item 10), rule 3 is clarified, rule 4 is
+kit-owned canon directory (item 10) and its STATE-page parenthetical amended
+for v1.3's rebuild-on-close (item 13), rule 3 is clarified, rule 4 is
 tightened, and rule 5 gained its read-scope parenthetical (binding "what you
 are shown" to the v1.1 entry ritual and its sanctioned re-reads) — each
 disclosed in "Changes from v1".
@@ -289,7 +293,8 @@ disclosed in "Changes from v1".
    matters to another agent, it goes in STATE/LOGBOOK/session.log; on conflict
    about project state, the files win (memory may be stale the moment someone
    else writes an entry).
-2. **Append-only everywhere** except STATE pages (which are rebuilt whole).
+2. **Append-only everywhere** except STATE pages (projections — the global
+   page rebuilt whole, project pages per `STANDARD.md` §3's rebuild-on-close).
    Scope: this rule governs the record — the user-owned surfaces (session
    logs, logbooks, STATE pages). The kit-owned `~/.agents/canon/` directory
    is protocol documentation, not record: it is version-marked and
@@ -325,11 +330,11 @@ rule 4's supersession mechanism (the mechanism is unchanged; the rule's
 *scope* was tightened in v1.1 — changes item 6), the entry-attribution
 mandate from this document's preamble ("never omit the tag") and
 `STANDARD.md` §1 ("every entry is attributed — no exceptions"), and the
-remainder (rebuild-don't-patch, pointers-not-payloads, event-triggered
-writes) are `STANDARD.md`'s write contracts: append-only + `SUPERSEDES:`
-corrections · agent attribution in every entry · owned `NEXT:` ·
-rebuild-don't-patch projections · pointers-not-payloads · event-triggered
-writes.
+remainder (rebuild-on-close — v1.3's amendment of v1's rebuild-don't-patch,
+item 13 — pointers-not-payloads, event-triggered writes) are `STANDARD.md`'s
+write contracts: append-only + `SUPERSEDES:` corrections · agent attribution
+in every entry · owned `NEXT:` · rebuild-on-close projections ·
+pointers-not-payloads · event-triggered writes.
 
 ## Changes from v1
 
@@ -405,3 +410,17 @@ v1.1 is removed.
     repository or a non-code topic directory; the protocol and the kit's
     `project` command apply to both. Counter-failure: continuity gated on
     version control, leaving non-code work recordless.
+
+v1.3 amends the **project-STATE maintenance discipline** (ADR 0001 in the
+kit repo, aligned with `STANDARD.md` v1.3). Nothing else changes.
+
+13. **Rebuild-on-close** — project STATE pages only: mid-arc surgical section
+    patches are legal, each ensuring the dirty-marker line
+    (`> ⚠ patched since last rebuild — log is authority`) as the final line
+    of the header block; the close-time rebuild's judgment-free trigger
+    extends to promotion OR standing marker, and the rebuild removes the
+    marker. Recovery is lazy: a standing marker obliges nothing at open —
+    the log is authority while it stands, and the doctor and `state lint`
+    WARN meanwhile. The global page is unchanged: rebuilt whole, never
+    patched. Counter-failure: the per-touch rebuild cost drove silent
+    rebuild-skipping — loud staleness (the marker) replaces silent staleness.

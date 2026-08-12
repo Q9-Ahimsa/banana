@@ -128,3 +128,29 @@ test('templates/ contains zero machine-specific references', () => {
     }
   }
 });
+
+// ADR 0001: the project-STATE header teaches rebuild-on-close; the global
+// page keeps rebuild-whole — the amendment is project-grain only.
+test('project-STATE.md header teaches rebuild-on-close, retired rule absent', () => {
+  const text = readFileSync(join(templatesDir, 'project-STATE.md'), 'utf8');
+  assert.ok(
+    text.includes('Rebuilt at session close; mid-arc'),
+    'project-STATE.md header missing the rebuild-on-close rule'
+  );
+  assert.ok(
+    text.includes('section patches are legal and must carry the dirty-marker line.'),
+    'project-STATE.md header missing the dirty-marker requirement'
+  );
+  assert.ok(
+    !/rebuilt whole, never patched/i.test(text),
+    'project-STATE.md still carries the retired rebuild-whole rule'
+  );
+});
+
+test('global-STATE.md header keeps the rebuild-whole rule', () => {
+  const text = readFileSync(join(templatesDir, 'global-STATE.md'), 'utf8');
+  assert.ok(
+    text.includes('Rebuilt whole, never patched.'),
+    'global-STATE.md header must keep rebuild-whole — the amendment is project-grain only'
+  );
+});

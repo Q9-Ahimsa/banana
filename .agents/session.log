@@ -367,3 +367,11 @@ FIX: re-export deleted, brief.test.mjs repointed to sessionlog.mjs (4 subsumed g
 VALIDATED: tsc clean; 189/189 full suite (delta from 193 = -4 subsumed -1 regex test +1 listing golden); compileBrief golden pinned from pre-refactor bytes passes post-refactor — spec reviewer independently confirmed against a clean git-archive HEAD extract.
 STATUS: complete
 NEXT: testagent — /implement #5 (canon amendment rebuild-on-close, next frontier; then #7 per cli.5 order)
+
+## [2026-08-12] testagent cli.7 | build — #5 canon amendment: rebuild-on-close with dirty marker (ADR 0001)
+APPROACH: continue cli.6 NEXT — /implement frontier ticket #5. Protocol-text TDD: content tests first (amended text present, retired rule absent, per-file rev map), then amend STANDARD.md rev 1.2->1.3 + CONTINUITY.md project-grain statements rev 1.2->1.3 + project-STATE template header; global grain untouched per spec out-of-scope. Doctor stale-state message drops the retired parenthetical (while-here).
+STATUS: in-progress
+FILES: canon/STANDARD.md (rev 1.3 — §3 template header, rebuild-on-close discipline + two-trigger close test, §9 table row, §10 v1.3 disclosure, footer), canon/CONTINUITY.md (rev 1.3 — bootstrap parenthetical, project-grain STATE bullet, CLOSE trigger, rules preamble, rule 2, invariants para, changes item 13), templates/project-STATE.md (header), lib/doctor.mjs (stale-state message drops retired parenthetical), docs/DESIGN.md (v1.3 mirror section — review finding), test/canon.test.mjs (per-file rev map + amendment + template-agreement tests), test/templates.test.mjs (+2 header tests)
+VALIDATED: TDD red confirmed (5 new assertions failed pre-edit); tsc clean; 194/194 full suite (was 189). Two-axis review: spec 0 findings (all 7 AC verified incl. stale-canon audit firing on rev bump alone); standards 1 hard — canon present-tense "doctor and state lint WARN" ahead of implementation — adjudicated: kept deliberately (canon-first ticket chain: #9 blocked-by #5 consumes the definition; deployment gated at #11), DESIGN.md v1.3 mirror added naming enforcement as forthcoming, doctor-side marker-WARN ownership gap flagged as comment on #9. Declined: ADR "state-lint" naming tweak (why-record prose, not a command ref).
+STATUS: complete
+NEXT: testagent — /implement #7 (banana log, next frontier per cli.5 order #7 -> #8 -> #9 -> #6 -> #10 -> #11)

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
 const canonDir = fileURLToPath(new URL('../canon', import.meta.url));
+const templatesDir = fileURLToPath(new URL('../templates', import.meta.url));
 
 const REQUIRED_FILES = ['CONTINUITY.md', 'STANDARD.md', 'SESSION-LOG.md'];
 
@@ -29,6 +30,20 @@ const REQUIRED_V12_STRINGS = [
 // Machine-readable canon revision marker, first line of every canon file.
 const VERSION_MARKER_RE = /<!-- banana:canon rev (\d+\.\d+) -->/;
 
+// Per-file revisions — a file's marker bumps when its protocol text changes.
+const EXPECTED_REVS = {
+  'CONTINUITY.md': '1.3',
+  'STANDARD.md': '1.3',
+  'SESSION-LOG.md': '1.2',
+};
+
+// ADR 0001 (rebuild-on-close): the canonical dirty-marker line, byte-exact.
+const DIRTY_MARKER_LINE = '> ⚠ patched since last rebuild — log is authority';
+
+// The retired project-STATE rule. (The global page keeps rebuild-whole by
+// design — the amendment is project-grain only.)
+const RETIRED_HEADER_RE = /rebuilt whole, never patched/i;
+
 // Machine-specific residue that must never ship in the canon.
 const FORBIDDEN_PATTERNS = [
   { name: 'Ahimsa', re: /ahimsa/i },
@@ -36,6 +51,11 @@ const FORBIDDEN_PATTERNS = [
   { name: 'hermes.exe', re: /hermes\.exe/i },
   { name: 'absolute C:/ path', re: /\bC:[\\/]/ },
 ];
+
+/** Collapse runs of whitespace so assertions survive source-line wrapping. */
+function flatten(text) {
+  return text.replace(/\s+/g, ' ');
+}
 
 test('canon/ ships all three protocol docs', () => {
   const files = readdirSync(canonDir);
@@ -58,12 +78,76 @@ test('canon/CONTINUITY.md carries the v1.2 sections and topic-grain language', (
   }
 });
 
-test('every canon file carries a rev 1.2 version marker', () => {
-  for (const f of REQUIRED_FILES) {
+test('every canon file carries its expected version marker', () => {
+  for (const [f, rev] of Object.entries(EXPECTED_REVS)) {
     const text = readFileSync(join(canonDir, f), 'utf8');
     const m = text.match(VERSION_MARKER_RE);
     assert.ok(m, `canon/${f} has no version marker`);
-    assert.equal(m[1], '1.2', `canon/${f} marker is rev ${m?.[1]}, expected 1.2`);
+    assert.equal(m[1], rev, `canon/${f} marker is rev ${m?.[1]}, expected ${rev}`);
+  }
+});
+
+test('STANDARD.md carries the v1.3 rebuild-on-close amendment (ADR 0001)', () => {
+  const text = readFileSync(join(canonDir, 'STANDARD.md'), 'utf8');
+  const flat = flatten(text);
+  assert.ok(
+    text.includes(DIRTY_MARKER_LINE),
+    'STANDARD.md missing the canonical dirty-marker line'
+  );
+  assert.ok(
+    flat.includes('Rebuild-on-close'),
+    'STANDARD.md missing the rebuild-on-close discipline'
+  );
+  assert.ok(
+    flat.includes('OR the dirty marker is standing'),
+    'STANDARD.md missing the extended close-time trigger'
+  );
+  assert.ok(
+    flat.includes('a standing marker obliges nothing at session open'),
+    'STANDARD.md missing the lazy-repair rule'
+  );
+  assert.ok(
+    !RETIRED_HEADER_RE.test(text),
+    'STANDARD.md still carries the retired rebuild-whole rule'
+  );
+  assert.ok(
+    !/rebuild-don.t-patch/i.test(text),
+    'STANDARD.md still references rebuild-don\'t-patch'
+  );
+});
+
+test('CONTINUITY.md project grain is amended; global grain keeps rebuild-whole', () => {
+  const text = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
+  const flat = flatten(text);
+  assert.ok(
+    flat.includes('Rebuilt from the logbook at session close'),
+    'CONTINUITY.md project grain not amended to rebuild-on-close'
+  );
+  assert.ok(
+    text.includes(DIRTY_MARKER_LINE),
+    'CONTINUITY.md missing the canonical dirty-marker line'
+  );
+  assert.ok(
+    !flat.includes('Rebuilt from the logbook, never patched'),
+    'CONTINUITY.md still carries the retired project-STATE rule'
+  );
+  assert.ok(
+    text.includes('> One page, hard cap. Rebuilt whole, never patched. Chronology lives in project'),
+    'CONTINUITY.md global template header must keep rebuild-whole (out of amendment scope)'
+  );
+});
+
+test('canon §3 embedded template header matches templates/project-STATE.md', () => {
+  const standard = readFileSync(join(canonDir, 'STANDARD.md'), 'utf8');
+  const template = readFileSync(join(templatesDir, 'project-STATE.md'), 'utf8');
+  const HEADER_LINES = [
+    '> Projection of LOGBOOK.md as of (date) (through none). Logbook wins',
+    '> on conflict. One page, hard cap. Rebuilt at session close; mid-arc',
+    '> section patches are legal and must carry the dirty-marker line.',
+  ];
+  for (const line of HEADER_LINES) {
+    assert.ok(standard.includes(line), `STANDARD.md §3 template missing header line: "${line}"`);
+    assert.ok(template.includes(line), `templates/project-STATE.md missing header line: "${line}"`);
   }
 });
 

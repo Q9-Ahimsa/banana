@@ -11,7 +11,7 @@ death and no agent's private memory becomes load-bearing. Five commands: `init` 
 `project` (repo init), `brief` (per-intent context compiler), `doctor` (audits), `sync` (propagates
 upstream canon and wiring changes).
 
-## The architecture being shipped (canon v1.2)
+## The architecture being shipped (canon v1.3)
 
 The protocol's v1 lives at the canon source paths listed in prd.json. v1.1 adds the
 **pollution-control architecture**:
@@ -62,6 +62,21 @@ removed. Mirrors canon's "Changes from v1" items 9-12 (`canon/CONTINUITY.md`):
 
 Canon v1.2 carries these as part of the same "Changes from v1" section, numbered 9-12 following
 v1.1's items 1-8.
+
+### v1.3 additions
+
+v1.3 amends the **project-STATE maintenance discipline** (ADR 0001,
+`docs/adr/0001-state-rebuild-on-close.md`); nothing from v1.2 is removed. Mirrors canon's
+"Changes from v1" item 13 (`canon/CONTINUITY.md`):
+
+13. **Rebuild-on-close.** Project STATE pages only: mid-arc surgical section patches are legal,
+    each ensuring the dirty-marker line (`> ⚠ patched since last rebuild — log is authority`) as
+    the final line of the header block; the close-time rebuild's judgment-free trigger extends to
+    promotion OR standing marker, and the rebuild removes the marker. Recovery is lazy: a standing
+    marker obliges nothing at open. The global page is unchanged (rebuilt whole, never patched).
+    Enforcement — doctor and `state lint` WARN on a standing marker — ships with the state-lint
+    work, not this amendment. Counter-failure: per-touch rebuild cost driving silent
+    rebuild-skipping; loud staleness (the marker) replaces silent staleness.
 
 ## `brief` — behavioral contract
 

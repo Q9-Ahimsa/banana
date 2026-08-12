@@ -1,6 +1,7 @@
 # STATE — (project)
 > Projection of LOGBOOK.md as of (date) (through none). Logbook wins
-> on conflict. One page, hard cap. Rebuilt whole, never patched.
+> on conflict. One page, hard cap. Rebuilt at session close; mid-arc
+> section patches are legal and must carry the dirty-marker line.
 
 ## Now
 - (current focus, 1–3 lines)

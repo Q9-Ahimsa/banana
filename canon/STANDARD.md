@@ -1,5 +1,5 @@
-<!-- banana:canon rev 1.2 -->
-# The Logbook Standard — v1.2 (2026-07-05 · original v1.0, 2026-07-02)
+<!-- banana:canon rev 1.3 -->
+# The Logbook Standard — v1.3 (2026-08-12 · original v1.0, 2026-07-02)
 ### Project capture for human+agent collaboration. One standard, every project.
 
 > **The principle:** a project must be resumable by a stranger — human or agent, tomorrow or in six months —
@@ -107,7 +107,8 @@ the workspace directory's basename — in the title line, and the owner's name i
 ```markdown
 # STATE — {project}
 > Projection of LOGBOOK.md as of (date) (through none). Logbook wins
-> on conflict. One page, hard cap. Rebuilt whole, never patched.
+> on conflict. One page, hard cap. Rebuilt at session close; mid-arc
+> section patches are legal and must carry the dirty-marker line.
 
 ## Now
 - (current focus, 1–3 lines)
@@ -139,12 +140,23 @@ inputs; byte-verbatim copying with named substitutions is what makes self-setup 
 The `Dead ends` section is non-negotiable for agent-heavy projects: without it, successive fresh-context
 sessions confidently re-attempt the same failed approaches (Anthropic long-running-agent finding).
 
-- Rebuilt (not patched), never edited in place. Operational test: rebuild at session CLOSE
-  exactly when the session promoted an entry to LOGBOOK.md — a promotion makes the projection
-  stale by construction (its `(through ...)` id no longer matches the newest entry); no
-  promotion, no rebuild, no judgment call. The doctor's stale-state audit (`as of` older than
-  the newest logbook entry) backstops any miss between sessions. Rebuild = replay recent logbook
-  entries, rewrite the file. Cheap by design — it's disposable (Ralph's plan rule).
+- **Rebuild-on-close** (v1.3 amendment, ADR 0001 in the kit repo). Mid-arc, surgical
+  section patches are legal; every patch ensures the dirty-marker line stands as the final
+  line of the header block, added byte-exact if absent:
+  `> ⚠ patched since last rebuild — log is authority`.
+  While the marker stands, the log is authority — the line announces exactly that to any
+  reader, and a patched section may sit beside a stale one until the next rebuild. Recovery
+  is lazy: a standing marker obliges nothing at session open; the opener's own close clears
+  it. A skipped or crashed close is self-announcing — the marker survives it — and the
+  doctor and `state lint` WARN while it stands.
+- Operational test at session CLOSE — judgment-free, two mechanical triggers: rebuild
+  exactly when the session promoted an entry to LOGBOOK.md (a promotion makes the
+  projection stale by construction — its `(through ...)` id no longer matches the newest
+  entry) OR the dirty marker is standing. No promotion and no marker: no rebuild, no
+  judgment call. The rebuild rewrites the whole page and removes the marker. The doctor's
+  stale-state audit (`as of` older than the newest logbook entry) backstops any miss
+  between sessions. Rebuild = replay recent logbook entries, rewrite the file. Cheap by
+  design — it's disposable (Ralph's plan rule).
 - The `Watch` section is the RAID/ADR import: every assumption carries a date it must be confirmed or
   killed by. An assumption without a validation date is a future incident.
 
@@ -222,7 +234,7 @@ cadence the project already has — don't invent a new meeting), check:
 | Failure | Signature | Counter |
 |---|---|---|
 | Transcript dump | Long quoted content in entries | No-duplication rule, ≤10-line bodies |
-| Stale projection | STATE.md contradicts recent entries | Rebuild-don't-patch; freshness audit |
+| Stale projection | STATE.md contradicts recent entries | Close-time rebuild + dirty marker; freshness audit |
 | Update theater | Entries written, NEXT items never move | Pickup-rate audit; owners on everything |
 | Kickoff-and-abandon | Dense week 1, silence by week 3 | Event-triggered writes; session-close mandate |
 | Vocabulary sprawl | New TYPE invented per entry | Extend vocabulary deliberately, in the header block |
@@ -237,6 +249,10 @@ order (§0) narrowed: headings-only for non-target streams, `ref:` pointer-follo
 of the entry read. **v1.2** — literal copy-verbatim templates embedded for the `LOGBOOK.md`
 header block (§2) and `STATE.md` (§3) with zero-entry creation semantics; the session close-out
 anchored to the session layer with promotion-gated `SESSION`/`HANDOFF` logbook entries (§4, §8).
+**v1.3** — STATE maintenance amended to rebuild-on-close (§3, ADR 0001 in the kit repo):
+mid-arc surgical section patches become legal, each ensuring the dirty-marker line; the
+close-time rebuild's judgment-free trigger extends to promotion OR standing marker; recovery
+is lazy — a standing marker obliges nothing at open, and audits WARN while it stands.
 Counter-failure (this disclosure): a document whose body moves while its version string stands
 still cannot be trusted as an audit base.
 
@@ -247,6 +263,6 @@ deliberately **not** in v1 — add them only if compliance audits show politenes
 decision. Changes to this standard are themselves logged in its repo.
 
 ---
-*Logbook Standard v1.2 · derived from convergent evidence across GLP lab notebooks,
+*Logbook Standard v1.3 · derived from convergent evidence across GLP lab notebooks,
 ship's logs, ADR/RFC, changelogs, event sourcing, SRE postmortems, RAID logs, daybooks, and agent-native
 systems (Memory Bank, Ralph, beads, handoff protocols, ESAA, Karpathy's loop notes).*
