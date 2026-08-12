@@ -184,6 +184,57 @@ test('brief: ghost entry flagged, fresh in-progress entry not flagged', () => {
   assert.match(brief, /abandoned/); // closure instruction rides with the flag
 });
 
+// Supersession-aware ghosts (canon §7 amendment): a continuation/abandon
+// supersede retires the entry it points at, so brief's two ghost surfaces
+// (the inline [GHOST] flag in feature history, and the Ghosts section) must
+// both stop flagging it. A non-superseded ghost in the same feature is the
+// regression pair — it must keep flagging at both surfaces.
+const SUPERSEDE_GHOST_LOG = `# Session log — task-grain work journal (Session Log v2)
+> Append-only. Envelope: \`## [YYYY-MM-DD] {agent} {feature}.{n} | {PHASE} — {title}\`
+
+## [2026-07-01] claude auth.2 | debug — token clock skew
+APPROACH: Investigate skew between issuer and gateway SUPERSEDED_MARK.
+STATUS: in-progress
+
+## [2026-07-01] claude auth.5 | debug — a second stale investigation
+APPROACH: Investigate a different skew NOT_SUPERSEDED_MARK.
+STATUS: in-progress
+
+## [2026-07-04] testagent auth.6 | debug — clock skew continuation
+SUPERSEDES: auth.2 (continuation — closes the entry left open above)
+STATUS: complete
+NEXT: testagent — done
+`;
+
+test('brief: superseded ghost stops flagging at both ghost surfaces; non-superseded ghost still flags (regression)', () => {
+  const dir = makeProject({ log: SUPERSEDE_GHOST_LOG });
+  const brief = compileBrief({ feature: 'auth', tag: 'claude' }, { cwd: dir, now: NOW });
+  const lines = brief.split('\n');
+
+  // Surface 1: inline [GHOST] flag in feature history.
+  const auth2At = lines.findIndex((l) => l.includes('auth.2'));
+  const auth5At = lines.findIndex((l) => l.includes('auth.5'));
+  assert.ok(auth2At !== -1 && auth5At !== -1, 'both entries present in feature history');
+  assert.ok(!lines[auth2At + 1].includes('GHOST'), 'superseded auth.2 not flagged inline');
+  assert.ok(lines[auth5At + 1].includes('GHOST'), 'non-superseded auth.5 still flagged inline (regression)');
+
+  // Surface 2: the Ghosts section.
+  const ghostsSection = lines.slice(lines.indexOf('## Ghosts — in-progress older than 48h'));
+  assert.ok(
+    !ghostsSection.some((l) => l.includes('[GHOST] auth.2')),
+    'superseded auth.2 absent from Ghosts section'
+  );
+  assert.ok(
+    ghostsSection.some((l) => l.includes('[GHOST] auth.5')),
+    'non-superseded auth.5 present in Ghosts section (regression)'
+  );
+
+  // Sanity: both entries' bodies still render (supersession hides the ghost
+  // flag, not the entry itself).
+  assert.match(brief, /SUPERSEDED_MARK/);
+  assert.match(brief, /NOT_SUPERSEDED_MARK/);
+});
+
 test('brief: every section header carries a ref line naming its source file', () => {
   const brief = fixtureBrief();
   const lines = brief.split('\n');

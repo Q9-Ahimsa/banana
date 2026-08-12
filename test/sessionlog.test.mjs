@@ -6,10 +6,22 @@ import { join } from 'node:path';
 
 import {
   SESSION_LOG_REF,
+  SESSION_ARCHIVE_DIR_REF,
   GHOST_THRESHOLD_HOURS,
+  ROTATION_LINES,
+  PHASES,
+  STATUSES,
+  TERMINAL_STATUSES,
   sessionLogPath,
   loadSessionLog,
+  loadSessionHistory,
   parseSessionLog,
+  formatEnvelope,
+  formatLocalDate,
+  isHeadingLine,
+  countLines,
+  nextN,
+  supersededIds,
   nextOwner,
   isOpen,
   isGhost,
@@ -207,4 +219,220 @@ test('loadSessionLog: missing log throws with a pointer to banana project', () =
   tempDirs.push(dir);
   assert.throws(() => loadSessionLog(dir), /banana project/);
   assert.throws(() => loadSessionLog(dir), /session\.log/);
+});
+
+// --- BOM handling (parseSessionLog) ---
+
+test('parseSessionLog: strips a leading UTF-8 BOM without losing the first entry', () => {
+  const withBom = '\uFEFF' + LOG;
+  const entries = parseSessionLog(withBom);
+  assert.equal(entries.length, 3);
+  assert.equal(entries[0].feature, 'auth');
+  assert.equal(entries[0].n, 1);
+  assert.equal(entries[0].heading, '## [2026-07-01] claude auth.1 | build — JWT refresh flow');
+});
+
+test('parseSessionLog: no BOM is a no-op (does not eat real content)', () => {
+  const entries = parseSessionLog(LOG);
+  assert.equal(entries.length, 3);
+});
+
+// --- grammar vocabulary constants ---
+
+test('PHASES / STATUSES / TERMINAL_STATUSES: exact vocabularies', () => {
+  assert.deepEqual(PHASES, ['discuss', 'build', 'refactor', 'debug', 'review', 'ops']);
+  assert.deepEqual(STATUSES, ['in-progress', 'complete', 'blocked', 'abandoned']);
+  assert.deepEqual(TERMINAL_STATUSES, ['complete', 'blocked', 'abandoned']);
+});
+
+// --- formatEnvelope: the single heading-format site ---
+
+test('formatEnvelope: composes the canonical heading line', () => {
+  const line = formatEnvelope({
+    date: '2026-08-12',
+    agent: 'testagent',
+    feature: 'cli',
+    n: 7,
+    phase: 'build',
+    title: 'log stamper seam',
+  });
+  assert.equal(line, '## [2026-08-12] testagent cli.7 | build — log stamper seam');
+});
+
+test('formatEnvelope -> parseSessionLog: round-trip property for exotic-but-legal titles', () => {
+  const exoticTitles = [
+    'plain title',
+    'title with an em-dash — inside it',
+    'title, with; punctuation! and (parens)',
+    'title with a pipe | character',
+    'ünïcödé tïtlé wïth áccénts',
+    'trailing spaces do not exist here but tabs\tdo',
+    'a very long title '.repeat(4).trim(),
+  ];
+  for (const title of exoticTitles) {
+    const fields = {
+      date: '2026-08-12',
+      agent: 'claude',
+      feature: 'roundtrip',
+      n: 3,
+      phase: 'review',
+      title,
+    };
+    const heading = formatEnvelope(fields);
+    const [entry] = parseSessionLog(`${heading}\nSTATUS: complete\n`);
+    assert.ok(entry, `must parse heading for title: ${title}`);
+    assert.equal(entry.date, fields.date);
+    assert.equal(entry.agent, fields.agent);
+    assert.equal(entry.feature, fields.feature);
+    assert.equal(entry.n, fields.n);
+    assert.equal(entry.phase, fields.phase);
+    assert.equal(entry.title, fields.title);
+  }
+});
+
+// --- ROTATION_LINES / countLines: the log-command rotation seam ---
+
+test('ROTATION_LINES / countLines: exported from the seam, log-command rotation math', () => {
+  assert.equal(ROTATION_LINES, 700);
+  assert.equal(SESSION_ARCHIVE_DIR_REF, '.agents/sessions');
+  assert.equal(countLines('a\nb\nc\n'), 3);
+  assert.equal(countLines('a\nb\nc'), 3);
+  assert.equal(countLines(''), 0);
+  assert.equal(countLines('a\r\nb\r\n'), 2);
+});
+
+// --- isHeadingLine: the grep unit ---
+
+test('isHeadingLine: matches any /^## \\[/ line, including malformed ones', () => {
+  assert.equal(isHeadingLine('## [2026-07-01] claude auth.1 | build — JWT refresh flow'), true);
+  assert.equal(isHeadingLine('## [2026-07-01] claude auth.9 | build - hyphen not em-dash'), true);
+  assert.equal(isHeadingLine('  ## [2026-07-01] indented'), false);
+  assert.equal(isHeadingLine('### deeper heading'), false);
+  assert.equal(isHeadingLine('APPROACH: not a heading'), false);
+  assert.equal(isHeadingLine(''), false);
+});
+
+// --- formatLocalDate: TZ-independent local calendar day ---
+
+test('formatLocalDate: zero-padded YYYY-MM-DD from local date getters', () => {
+  const nowMs = new Date(2026, 7, 12, 23, 59).getTime(); // month is 0-indexed: August
+  assert.equal(formatLocalDate(nowMs), '2026-08-12');
+});
+
+test('formatLocalDate: zero-pads single-digit month and day', () => {
+  const nowMs = new Date(2026, 0, 5, 0, 0).getTime(); // Jan 5
+  assert.equal(formatLocalDate(nowMs), '2026-01-05');
+});
+
+// --- supersededIds: correction and continuation forms ---
+
+test('supersededIds: parses SUPERSEDES body lines into feature.n strings', () => {
+  const entries = parseSessionLog(
+    '## [2026-08-01] claude cli.5 | build — correction\n' +
+      'SUPERSEDES: cli.4 (ghost, >48h)\n' +
+      'STATUS: abandoned\n' +
+      'NEXT: claude — re-scope\n' +
+      '\n' +
+      '## [2026-08-02] claude auth.9 | build — continuation\n' +
+      'SUPERSEDES: auth.8 (continuation — closes the entry left open above)\n' +
+      'STATUS: in-progress\n'
+  );
+  const ids = supersededIds(entries);
+  assert.equal(ids.size, 2);
+  assert.ok(ids.has('cli.4'));
+  assert.ok(ids.has('auth.8'));
+});
+
+test('supersededIds: entries without SUPERSEDES contribute nothing', () => {
+  const ids = supersededIds(parseSessionLog(LOG));
+  assert.equal(ids.size, 0);
+});
+
+test('supersededIds: cross-feature supersede is recorded verbatim (no feature filtering)', () => {
+  const entries = parseSessionLog(
+    '## [2026-08-01] claude banana.2 | ops — cross-feature correction\n' +
+      'SUPERSEDES: continuity-kit.1 (renamed project)\n' +
+      'STATUS: complete\n' +
+      'NEXT: claude — none\n'
+  );
+  assert.deepEqual([...supersededIds(entries)], ['continuity-kit.1']);
+});
+
+// --- nextN / loadSessionHistory: archive-aware n computation ---
+
+test('loadSessionHistory: active required (throws loadSessionLog message), archives best-effort empty when dir missing', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'banana-sessionlog-'));
+  tempDirs.push(dir);
+  mkdirSync(join(dir, '.agents'), { recursive: true });
+  writeFileSync(sessionLogPath(dir), LOG);
+  const history = loadSessionHistory(dir);
+  assert.equal(history.active.length, 3);
+  assert.deepEqual(history.archives, []);
+});
+
+test('loadSessionHistory: missing active log throws (same as loadSessionLog)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'banana-sessionlog-'));
+  tempDirs.push(dir);
+  assert.throws(() => loadSessionHistory(dir), /banana project/);
+});
+
+test('loadSessionHistory: reads .agents/sessions/*.log archives, keyed with entries', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'banana-sessionlog-'));
+  tempDirs.push(dir);
+  mkdirSync(join(dir, '.agents', 'sessions'), { recursive: true });
+  writeFileSync(sessionLogPath(dir), LOG);
+  writeFileSync(
+    join(dir, '.agents', 'sessions', '2026-Q2.log'),
+    '## [2026-04-01] claude auth.0 | build — pre-history\nSTATUS: complete\nNEXT: claude — n/a\n'
+  );
+  const history = loadSessionHistory(dir);
+  assert.equal(history.archives.length, 1);
+  assert.equal(history.archives[0].entries.length, 1);
+  assert.equal(history.archives[0].entries[0].n, 0);
+  assert.match(history.archives[0].file, /2026-Q2\.log$/);
+});
+
+test('nextN: max(n)+1 over the active log for a feature', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'banana-sessionlog-'));
+  tempDirs.push(dir);
+  mkdirSync(join(dir, '.agents'), { recursive: true });
+  writeFileSync(sessionLogPath(dir), LOG);
+  assert.equal(nextN(dir, 'auth'), 3);
+  assert.equal(nextN(dir, 'billing'), 2);
+});
+
+test('nextN: unknown feature starts at 1', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'banana-sessionlog-'));
+  tempDirs.push(dir);
+  mkdirSync(join(dir, '.agents'), { recursive: true });
+  writeFileSync(sessionLogPath(dir), LOG);
+  assert.equal(nextN(dir, 'nope'), 1);
+});
+
+test('nextN: gaps are not filled (1,2,5 -> 6)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'banana-sessionlog-'));
+  tempDirs.push(dir);
+  mkdirSync(join(dir, '.agents'), { recursive: true });
+  writeFileSync(
+    sessionLogPath(dir),
+    '## [2026-08-01] claude gappy.1 | build — one\nSTATUS: complete\nNEXT: claude — x\n\n' +
+      '## [2026-08-02] claude gappy.2 | build — two\nSTATUS: complete\nNEXT: claude — x\n\n' +
+      '## [2026-08-03] claude gappy.5 | build — five\nSTATUS: in-progress\n'
+  );
+  assert.equal(nextN(dir, 'gappy'), 6);
+});
+
+test('nextN: archive-aware — archive n beats a lower active max', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'banana-sessionlog-'));
+  tempDirs.push(dir);
+  mkdirSync(join(dir, '.agents', 'sessions'), { recursive: true });
+  writeFileSync(
+    sessionLogPath(dir),
+    '## [2026-08-01] claude cli.1 | build — active only\nSTATUS: complete\nNEXT: claude — x\n'
+  );
+  writeFileSync(
+    join(dir, '.agents', 'sessions', '2026-Q1.log'),
+    '## [2026-02-01] claude cli.9 | build — archived\nSTATUS: complete\nNEXT: claude — x\n'
+  );
+  assert.equal(nextN(dir, 'cli'), 10);
 });

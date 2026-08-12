@@ -23,3 +23,8 @@
   offline-safe. It never updates itself; **sync** is the explicit updater, and drift
   between machines is surfaced (version in every brief, doctor's best-effort remote
   check), never silently prevented.
+- **Continuation entry** — the canon §3 answer to a heading landing below your open entry:
+  a new entry (same feature, next `n`, copied phase/title) whose first body line
+  `SUPERSEDES:` the one left open above. Born open for checkpoints, born closed for closes.
+  Distinct from a correction supersede: it continues the same work rather than fixing the
+  record. `banana log` writes it automatically (ADR 0003).

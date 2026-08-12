@@ -10,8 +10,8 @@ const binPath = fileURLToPath(new URL('../bin/banana.mjs', import.meta.url));
 // The canonical invocation per the v2 wiring templates (templates.test.mjs NPX_INVOCATION).
 const NPX_COMMAND = 'npx --yes github:Q9-Ahimsa/banana';
 
-// The five commands per bin/banana.mjs COMMANDS.
-const COMMANDS = ['init', 'project', 'brief', 'doctor', 'sync'];
+// The six commands per bin/banana.mjs COMMANDS.
+const COMMANDS = ['init', 'project', 'brief', 'doctor', 'sync', 'log'];
 
 // The kit-owned canon dir the wiring blocks point at.
 const CANON_DIR_POINTER = '~/.agents/canon/';
@@ -30,7 +30,7 @@ test('README.md carries the canonical npx one-liner', () => {
   assert.ok(text.includes(NPX_COMMAND), `README.md missing install command: "${NPX_COMMAND}"`);
 });
 
-test('README.md names all five commands', () => {
+test('README.md names all six commands', () => {
   const text = readFileSync(readmePath, 'utf8');
   for (const cmd of COMMANDS) {
     assert.ok(

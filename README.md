@@ -46,7 +46,7 @@ workspace (git repo or non-code topic dir) that lacks continuity files, set
 it up yourself: read the canon's agent bootstrap section, then run
 `banana project` from the workspace root.
 
-### The five commands
+### The six commands
 
 Canonical invocation: `npx --yes github:Q9-Ahimsa/banana <command>` — npx
 always fetches the latest kit, so no update mechanism ships in it.
@@ -58,6 +58,7 @@ always fetches the latest kit, so no update mechanism ships in it.
 | `banana brief <feature> --tag <agent>` | compile a per-intent context brief — feature-scoped, deterministic, no LLM calls. No feature arg lists the active slugs |
 | `banana doctor` | audit wiring versions, canon staleness, and log liveness; stale findings name `sync` as the remediation. `--verify` prints per-harness recital commands |
 | `banana sync` | refresh the kit-owned canon and re-apply any wiring fence older than current |
+| `banana log stub\|append\|close\|supersede` | stamp session-log entries — the envelope (heading, STATUS/NEXT composition, concurrency-guard continuation) is computed, never hand-typed. `banana log <verb> --help` for usage |
 
 Every write is a fenced, version-marked block (`<!-- banana:begin v2 -->` …
 `<!-- banana:end -->`): re-running is idempotent, and content outside the

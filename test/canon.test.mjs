@@ -32,9 +32,9 @@ const VERSION_MARKER_RE = /<!-- banana:canon rev (\d+\.\d+) -->/;
 
 // Per-file revisions — a file's marker bumps when its protocol text changes.
 const EXPECTED_REVS = {
-  'CONTINUITY.md': '1.3',
+  'CONTINUITY.md': '1.4',
   'STANDARD.md': '1.3',
-  'SESSION-LOG.md': '1.3',
+  'SESSION-LOG.md': '1.4',
 };
 
 // ADR 0001 (rebuild-on-close): the canonical dirty-marker line, byte-exact.
@@ -137,6 +137,18 @@ test('CONTINUITY.md project grain is amended; global grain keeps rebuild-whole',
   );
 });
 
+test('CONTINUITY.md carries the v1.4 supersession-aware ghost amendment (ADR 0003)', () => {
+  const text = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
+  assert.ok(
+    text.includes('retired from ghost surfaces'),
+    'CONTINUITY.md missing the supersession-aware ghost retirement text'
+  );
+  assert.ok(
+    text.includes('— v1.4'),
+    'CONTINUITY.md title not bumped to v1.4'
+  );
+});
+
 test('SESSION-LOG.md cites its companion standard without a version pin', () => {
   const text = readFileSync(join(canonDir, 'SESSION-LOG.md'), 'utf8');
   assert.ok(
@@ -146,6 +158,18 @@ test('SESSION-LOG.md cites its companion standard without a version pin', () => 
   assert.ok(
     !/Logbook Standard v\d/.test(text),
     'SESSION-LOG.md still pins a Logbook Standard version'
+  );
+});
+
+test('SESSION-LOG.md carries the v2.3 continuation-shape amendment (ADR 0003)', () => {
+  const text = readFileSync(join(canonDir, 'SESSION-LOG.md'), 'utf8');
+  assert.ok(
+    text.includes('A kit command that stamps entries writes exactly this shape.'),
+    'SESSION-LOG.md missing the pinned continuation-entry shape text'
+  );
+  assert.ok(
+    text.includes('# Session Log — v2.3'),
+    'SESSION-LOG.md title not bumped to v2.3'
   );
 });
 

@@ -1,5 +1,5 @@
-<!-- banana:canon rev 1.3 -->
-# Session Log — v2.2 (2026-08-12 · original v2.0, 2026-07-02)
+<!-- banana:canon rev 1.4 -->
+# Session Log — v2.3 (2026-08-12 · original v2.0, 2026-07-02)
 ### The fine-grained work journal. One file, every agent, every project.
 
 Session log is the **daybook**: what an agent did, task by task, in a work session — so the next
@@ -68,8 +68,15 @@ NEXT: human — review token TTL choice (15m access / 7d refresh)
    yours, do not append bare lines — they would attach to the wrong heading. Open a continuation
    entry instead: same feature, next `n`, first body line
    `SUPERSEDES: {feature}.{n} (continuation — closes the entry left open above)`, then your
-   checkpoint/close lines. Counter-failure: close lines orphaned under a stranger's heading, and
-   a finished task stranded as a forever-in-progress ghost.
+   checkpoint/close lines. The continuation entry's shape is fixed (tool and hand author produce
+   the same bytes): heading date = the continuing writer's today, agent = the continuing
+   writer's tag, same feature, next `n`, phase and title copied from the entry left open above.
+   A continuation opened for checkpoint lines writes `STATUS: in-progress` immediately after its
+   `SUPERSEDES:` line (it is itself an open entry; without the line it would be unappendable and
+   unclosable); a continuation opened for close lines carries the close lines directly.
+   A kit command that stamps entries writes exactly this shape. Counter-failure: close lines
+   orphaned under a stranger's heading, and a finished task stranded as a forever-in-progress
+   ghost.
 3. **Close** — append final `STATUS:` + `NEXT: {owner} — {action}`. Once closed, immutable.
 4. **Correct** — never edit a closed entry. A new entry with `SUPERSEDES: {feature}.{n}` fixes it;
    the original stays.
@@ -143,4 +150,4 @@ active file lean (same threshold as the Logbook Standard, same reason — oversi
 getting read).
 
 ---
-*Session Log v2.2 · companion to `STANDARD.md` (the Logbook Standard) — same integrity rules (append-only, supersession, ≤10-line bodies, pointers not payloads), applied at task grain. Changes from v2.0: concurrency guard (§3), locate-then-read-span resume mechanics (§4), operational promotion test (§6), counter-failure disclosures (§1, §4, §5, §6). Changes from v2.1: the companion citation drops its version pin (editorial — the Logbook Standard versions independently; no protocol change). Counter-failure (this disclosure): a moving body under a frozen version string breaks auditability.*
+*Session Log v2.3 · companion to `STANDARD.md` (the Logbook Standard) — same integrity rules (append-only, supersession, ≤10-line bodies, pointers not payloads), applied at task grain. Changes from v2.0: concurrency guard (§3), locate-then-read-span resume mechanics (§4), operational promotion test (§6), counter-failure disclosures (§1, §4, §5, §6). Changes from v2.1: the companion citation drops its version pin (editorial — the Logbook Standard versions independently; no protocol change). Changes from v2.2: the continuation entry's shape is pinned (§3) — fields, open-continuation STATUS, tool parity. Counter-failure (this disclosure): a moving body under a frozen version string breaks auditability.*

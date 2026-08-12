@@ -9,8 +9,99 @@ const pkg = JSON.parse(
   readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8')
 );
 
-const COMMANDS = ['init', 'project', 'brief', 'doctor', 'sync'];
+const COMMANDS = ['init', 'project', 'brief', 'doctor', 'sync', 'log'];
 const [cmd] = process.argv.slice(2);
+
+// --- `log` usage text ---------------------------------------------------
+// Verb-specific usage strings for `banana log`. Kept in bin.mjs (not
+// lib/log.mjs) because they are presentation, not grammar — lib/log.mjs owns
+// zero help text, only orchestration (contract: docs/DESIGN.md `log` write
+// contract, ticket #7 final implementation contract §9).
+
+const LOG_USAGE = `Usage: banana log <stub|append|close|supersede> [options]
+
+Stamp session-log entries so the envelope grammar (heading format,
+STATUS/NEXT composition, concurrency-guard continuation) is never
+hand-typed.
+
+  stub       open a new entry for a feature
+  append     add checkpoint body lines to your open entry
+  close      write a terminal STATUS + owned NEXT to your open entry
+  supersede  correct or retire a specific {feature}.{n} entry
+
+Run \`banana log <verb> --help\` for verb-specific usage and examples.
+
+Exit codes: 0 ok, 1 usage, 2 state`;
+
+const LOG_STUB_USAGE = `Usage: banana log stub <feature> --tag <agent> --phase <phase> --title <text> --approach <text>
+                [--body <line>]... [--blocked <text>] [--status <s> [--next-owner <o>] --next <text>]
+                [--dry-run] [--quiet] [--no-continue]
+
+Open a new entry for <feature>. --status defaults to in-progress; a terminal
+--status (complete|blocked|abandoned) requires an owned --next.
+
+PowerShell:
+  banana log stub corpo --tag testagent --phase build --title "Today loop" --approach "ship the smallest vertical slice"
+
+POSIX:
+  banana log stub corpo --tag testagent --phase build --title "Today loop" --approach 'ship the smallest vertical slice'
+
+Exit codes: 0 ok, 1 usage, 2 state`;
+
+const LOG_APPEND_USAGE = `Usage: banana log append <feature> --tag <agent> (--body <line>)... | --body -
+                [--dry-run] [--quiet] [--no-continue]
+
+Add checkpoint body lines to your own open entry for <feature>. \`--body -\`
+reads stdin to EOF and must be the only --body flag.
+
+PowerShell:
+  banana log append corpo --tag testagent --body "FILES: lib/today.mjs" --body "VALIDATED: 12 tests green"
+
+POSIX:
+  banana log append corpo --tag testagent --body 'FILES: lib/today.mjs' --body 'VALIDATED: 12 tests green'
+
+Exit codes: 0 ok, 1 usage, 2 state`;
+
+const LOG_CLOSE_USAGE = `Usage: banana log close <feature> --tag <agent> --status <complete|blocked|abandoned>
+                [--blocked <text>] [--next-owner <o>] --next <text>
+                [--dry-run] [--quiet] [--no-continue]
+
+Write a terminal STATUS + owned NEXT to your own open entry for <feature>.
+Closed entries are immutable; corrections go through \`banana log supersede\`.
+
+PowerShell:
+  banana log close corpo --tag testagent --status complete --next-owner ahimsa --next "review the shipped loop"
+
+POSIX:
+  banana log close corpo --tag testagent --status complete --next-owner ahimsa --next 'review the shipped loop'
+
+Exit codes: 0 ok, 1 usage, 2 state`;
+
+const LOG_SUPERSEDE_USAGE = `Usage: banana log supersede <feature>.<n> --tag <agent> --reason <text> --status <s>
+                [--next-owner <o>] [--next <text>] [--title <text>] [--phase <p>]
+                [--feature <slug>] [--body <line>]... [--dry-run] [--quiet]
+
+Correct or retire a specific {feature}.{n} entry; the new entry SUPERSEDES it.
+Not tag-restricted to the target's author — closing another agent's ghost is
+canon-sanctioned.
+
+Ghost-close example:
+  banana log supersede cli.4 --tag testagent --reason "ghost, >48h" --status abandoned --next-owner testagent --next "re-scope and reopen"
+
+PowerShell:
+  banana log supersede cli.4 --tag testagent --reason "ghost, >48h" --status abandoned --next-owner testagent --next "re-scope and reopen"
+
+POSIX:
+  banana log supersede cli.4 --tag testagent --reason 'ghost, >48h' --status abandoned --next-owner testagent --next 're-scope and reopen'
+
+Exit codes: 0 ok, 1 usage, 2 state`;
+
+const LOG_VERB_USAGE = {
+  stub: LOG_STUB_USAGE,
+  append: LOG_APPEND_USAGE,
+  close: LOG_CLOSE_USAGE,
+  supersede: LOG_SUPERSEDE_USAGE,
+};
 
 /** Owner inference rung shared by init and project: git config user.name. */
 function gitUserName() {
@@ -39,11 +130,17 @@ function maybeSubHelp(argv, usage) {
   }
 }
 
-/** Plain stdout/stderr io for the non-interactive commands (brief, doctor, sync). */
+/** Plain stdout/stderr io for the non-interactive commands (brief, doctor, sync, log). */
 function makeIo() {
   return {
     out: (/** @type {string} */ line = '') => console.log(line),
     err: (/** @type {string} */ line = '') => console.error(line),
+    // Raw stdout sink for lib/log.mjs's `--dry-run` byte-exactness seam
+    // (io.write ?? io.out): console.log adds its own trailing newline on
+    // top of the already-\n-terminated composed entry text, so dry-run
+    // stdout would carry one byte more than a real run ever appends to
+    // disk. process.stdout.write() writes exactly the given string.
+    write: (/** @type {string} */ text) => process.stdout.write(text),
   };
 }
 
@@ -84,6 +181,7 @@ Commands:
   brief     compile a per-intent context brief for a session; no feature arg lists active slugs
   doctor    check wiring versions and run liveness audits
   sync      refresh the kit-owned canon and re-apply stale wiring fences
+  log       stamp session-log entries: stub / append / close / supersede (envelope computed, never hand-typed)
 
 Tip: under npx, run the bare 'version' subcommand (not --version/-v) to check
 the version — npm reserves those flags globally and they never reach this
@@ -199,8 +297,59 @@ if (cmd === 'sync') {
   process.exit(result.code);
 }
 
+if (cmd === 'log') {
+  const argv = process.argv.slice(3);
+  // POSITIONAL help detection only — argv[0] (the verb slot) or argv[1] (the
+  // verb's first slot). Deliberately NOT maybeSubHelp/argv.includes: a value
+  // like `--title "--help"` must never trigger silent help/no-write data
+  // loss (contract §2, flag parsing).
+  if (argv.length === 0) {
+    console.error(LOG_USAGE);
+    process.exit(1);
+  }
+  if (argv[0] === '--help' || argv[0] === '-h') {
+    console.log(LOG_USAGE);
+    process.exit(0);
+  }
+  if (Object.hasOwn(LOG_VERB_USAGE, argv[0]) && (argv[1] === '--help' || argv[1] === '-h')) {
+    console.log(LOG_VERB_USAGE[argv[0]]);
+    process.exit(0);
+  }
+  const { parseLogArgs, runLog } = await import('../lib/log.mjs');
+  /** @type {import('../lib/log.mjs').LogFlags} */
+  let flags;
+  try {
+    flags = parseLogArgs(argv);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    // parseLogArgs' own parse-shape errors are already self-identifying
+    // ("banana log append: missing <feature>", "banana log supersede:
+    // missing ... target", "banana log append requires --body ..." — see
+    // buildFlags in lib/log.mjs) — prepending the generic "banana log: "
+    // prefix on top of those doubles the phrase into a confusing
+    // "banana log: banana log append: missing <feature>". Only add the
+    // prefix when the message doesn't already carry it.
+    console.error(/^banana log\b/.test(message) ? message : `banana log: ${message}`);
+    process.exit(1);
+  }
+  const io = makeIo();
+  /** Read process.stdin to EOF as utf8 — only invoked for `--body -`. */
+  const readStdin = () =>
+    new Promise((resolve, reject) => {
+      let data = '';
+      process.stdin.setEncoding('utf8');
+      process.stdin.on('data', (chunk) => {
+        data += chunk;
+      });
+      process.stdin.on('end', () => resolve(data));
+      process.stdin.on('error', reject);
+    });
+  const result = await runLog(flags, { cwd: process.cwd(), io, now: Date.now(), readStdin });
+  process.exit(result.code);
+}
+
 // Unreachable: the COMMANDS guard above already rejects anything not in the
-// five-command vocabulary, and every member of COMMANDS has a dispatch arm
+// six-command vocabulary, and every member of COMMANDS has a dispatch arm
 // above that exits. This is an internal-invariant guard — if it ever fires,
 // a COMMANDS entry was added without a matching dispatch arm.
 console.error(`banana: internal error — no dispatch arm for '${cmd}'`);

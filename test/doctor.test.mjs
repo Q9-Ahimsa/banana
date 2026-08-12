@@ -237,6 +237,46 @@ test('auditProject: exactly the four seeded finding types, one each', (t) => {
   );
 });
 
+test('auditProject: superseded ghost entry produces no ghost finding; non-superseded ghost still flags (regression); unowned-next audit unaffected', (t) => {
+  const dir = sandbox(t);
+  mkdirSync(join(dir, '.agents'), { recursive: true });
+  writeFileSync(
+    join(dir, '.agents', 'session.log'),
+    [
+      '# Session Log v2 — supersede fixture',
+      '',
+      '## [2026-06-20] claude payments.1 | build — Retry queue spike',
+      'APPROACH: exponential backoff via a cron sweep.',
+      'STATUS: in-progress',
+      'NEXT: pick a retry ceiling',
+      '',
+      '## [2026-06-20] claude billing.1 | build — a ghost that stays a ghost',
+      'APPROACH: still open, never superseded.',
+      'STATUS: in-progress',
+      '',
+      '## [2026-07-04] testagent payments.2 | build — continuation closes the ghost',
+      'SUPERSEDES: payments.1 (continuation — closes the entry left open above)',
+      'STATUS: complete',
+      'NEXT: testagent — done',
+      '',
+    ].join('\n'),
+  );
+  const findings = auditProject(dir, NOW);
+  const ghostMessages = findings.filter((f) => f.type === 'ghost').map((f) => f.message);
+  assert.ok(!ghostMessages.some((m) => m.includes('payments.1')), 'superseded ghost excluded from the audit');
+  assert.ok(
+    ghostMessages.some((m) => m.includes('billing.1')),
+    'non-superseded ghost still flagged (regression)'
+  );
+  // Unowned-NEXT audit is unchanged by supersession: payments.1's own
+  // unowned NEXT still flags even though payments.1 itself is superseded.
+  const unownedMessages = findings.filter((f) => f.type === 'unowned-next').map((f) => f.message);
+  assert.ok(
+    unownedMessages.some((m) => m.includes('pick a retry ceiling')),
+    'unowned-NEXT audit is not gated by supersession'
+  );
+});
+
 test('clean fixture exits 0 and reports clean audits', async (t) => {
   const project = cleanProject(t);
   const home = sandbox(t);

@@ -1,5 +1,5 @@
-<!-- banana:canon rev 1.3 -->
-# CONTINUITY — cross-harness protocol (canonical) — v1.3
+<!-- banana:canon rev 1.4 -->
+# CONTINUITY — cross-harness protocol (canonical) — v1.4
 
 Any agent working on this machine or its repos follows this. The record is
 **file-based and harness-neutral**: no agent's private memory is the source of
@@ -183,8 +183,9 @@ set — nothing else by default:
 5. `NEXT:` lines owned by this session's agent tag or unowned, drawn only from
    the surfaces items 2–4 already expose;
 6. ghost flags (per the 48h ghost rule): `STATUS: in-progress` lines older
-   than 48h, detected by a status-line scan of the project's active
-   `session.log` — project-scoped and bounded by the file's rotation cap.
+   than 48h and not retired by a `SUPERSEDES:` reference, detected by a
+   status-line scan of the project's active `session.log` — project-scoped
+   and bounded by the file's rotation cap.
 
 Counter-failure (this ritual): anything visible gets woven into plans, so
 relevance filtering must happen *before* context load, not after.
@@ -217,9 +218,16 @@ ghost: flagged in briefs and by the doctor; the next session in that project
 closes it as `abandoned` via a superseding entry. Entry dates are day-grain,
 so the operational test is fixed: the 48 hours are measured from midnight UTC
 at the start of the entry's heading date — an entry dated D is a ghost from
-the start of day D+2 (UTC). The kit's `brief` and `doctor` compute exactly
-this; a by-hand scan applies the same test. Counter-failure: dead claims
-steering live sessions.
+the start of day D+2 (UTC). An entry named by a later `SUPERSEDES:` reference
+is retired from ghost surfaces regardless of its own status line: the
+superseding entry carries the stream's liveness clock and is itself subject
+to this rule — an open continuation is how work legitimately moves forward,
+so the superseding entry's own status is irrelevant to the retirement. The
+kit's `brief` and `doctor` compute exactly this; a by-hand scan applies the
+same two-step test — scan for `STATUS: in-progress` lines older than 48h,
+then drop entry ids named on any `SUPERSEDES:` line. Counter-failure: dead
+claims steering live sessions — and zombie flags on corrected history
+burying the real ones.
 
 ## Session lifecycle
 
@@ -369,7 +377,8 @@ state (item 5); every other v1 behavior carries forward.
    exempt. This deliberately narrows v1's crash-recovery chronology step
    (which read full entries) for non-target streams.
 4. **48h ghost rule** — `in-progress` entries older than 48h are flagged and
-   closed as `abandoned` by the next session in that project.
+   closed as `abandoned` by the next session in that project. Superseded
+   entries are already retired from the surfaces and are not flagged (v1.4).
 5. **Snapshot session lifecycle (BEGIN/WORK/CLOSE)** — entry ritual as
    snapshot, no mid-session re-reads of mutable shared state (immutable
    closed history stays readable on demand), reconcile at close.
@@ -424,3 +433,15 @@ kit repo, aligned with `STANDARD.md` v1.3). Nothing else changes.
     WARN meanwhile. The global page is unchanged: rebuilt whole, never
     patched. Counter-failure: the per-touch rebuild cost drove silent
     rebuild-skipping — loud staleness (the marker) replaces silent staleness.
+
+v1.4 amends the **ghost surfaces** (ADR 0003 in the kit repo, aligned with
+`SESSION-LOG.md` v2.3). Nothing else changes.
+
+14. **Supersession-aware ghosts** — an entry named by a `SUPERSEDES:`
+    reference is retired from ghost surfaces (brief, doctor, by-hand scan)
+    regardless of its own status line; the superseding entry carries the
+    liveness clock and is itself subject to the 48h rule. Motivated by the
+    kit's `log` command auto-writing continuation entries: without the
+    carve-out, every continuation would manufacture a permanent false
+    ghost from its predecessor. Counter-failure: zombie ghost flags on
+    corrected history burying the real ones.

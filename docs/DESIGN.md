@@ -78,6 +78,18 @@ v1.3 amends the **project-STATE maintenance discipline** (ADR 0001,
     work, not this amendment. Counter-failure: per-touch rebuild cost driving silent
     rebuild-skipping; loud staleness (the marker) replaces silent staleness.
 
+### v1.4 additions
+
+v1.4 amends the **ghost surfaces** (ADR 0003, `docs/adr/0003-log-auto-continuation.md`); nothing
+else changes. Mirrors canon's "Changes from v1" item 14 (`canon/CONTINUITY.md`):
+
+14. **Supersession-aware ghosts.** An entry named by a `SUPERSEDES:` reference is retired from
+    ghost surfaces (brief, doctor, by-hand scan) regardless of its own status line; the superseding
+    entry carries the liveness clock and is itself subject to the 48h rule. Motivated by `log`'s
+    auto-continuation (ADR 0003): without the carve-out, every continuation would manufacture a
+    permanent false ghost from its predecessor. Counter-failure: zombie ghost flags on corrected
+    history burying the real ones.
+
 ## `brief` — behavioral contract
 
 `banana brief <feature> --tag <agent>` writes a brief to stdout, compiled from the project's
@@ -89,7 +101,7 @@ continuity files. Include / exclude:
 | headings only of the last 5 entries from other features | other projects' content |
 | `NEXT:` lines owned by `--tag` or unowned | NEXT owned by other agents |
 | project STATE.md verbatim (one page by contract) | global STATE (machine grain, not project) |
-| ghosts: any in-progress entry older than 48h, flagged | |
+| ghosts: any in-progress entry older than 48h, flagged | Entries retired by a `SUPERSEDES:` reference are excluded (supersession-aware, canon CONTINUITY v1.4 / ADR 0003). |
 
 Every section header carries a `ref:` line naming its source file (the brief is an index into the
 record, not a replacement for it). Deterministic only — no LLM calls, pure text processing.
@@ -100,7 +112,8 @@ Reports: detected harnesses; fence-block versions found in wired files. Audits (
 
 - **Project liveness (v1.1):** in-progress entries older than 48h · unowned `NEXT:` lines ·
   project STATE.md "as of" older than the newest LOGBOOK entry date · any continuity file over 700
-  lines.
+  lines. Entries retired by a `SUPERSEDES:` reference are excluded (supersession-aware, canon
+  CONTINUITY v1.4 / ADR 0003).
 - **Upstream staleness (v1.2):** `stale-canon` — the home canon dir (`~/.agents/canon/`) is missing,
   or an installed canon file's version marker is older than the kit's bundled canon · `stale-fence`
   — any wired fence block (home adapters plus the project's `AGENTS.md`) is older than its
@@ -119,6 +132,44 @@ is THE contract: second run must be byte-identical). Every shipped wiring templa
 composes a directive (sender header + protocol summary + agent tag) and the one-shot command
 string; delivery only behind an explicit `--deliver` flag. Rationale: another agent's memory is
 written through the agent, never at its files.
+
+## `log` — write contract
+
+`banana log stub|append|close|supersede` is the single writer of
+`.agents/session.log`; lib/log.mjs owns zero grammar literals (heading
+format, PHASE/STATUS vocabulary, ghost math all live in `lib/sessionlog.mjs`)
+and orchestrates argv parsing, field validation, target resolution, and the
+write itself. The concurrency model is protocol-visible — other harnesses
+that write the log by hand build against these same rules:
+
+- **Single-buffer, single-append atomicity.** Every invocation composes the
+  full text to append (heading plus body lines, or checkpoint/close lines)
+  as one string, then issues exactly one `appendFileSync` call. Never
+  per-line writes, never read-modify-write of existing bytes — the file's
+  prior content is read only to decide what to append, never rewritten.
+- **No locks; collided-`n` is a soft error (canon §7).** `nextN` reads
+  the active log plus every `.agents/sessions/*.log` archive and takes
+  max(n)+1 at call time; two concurrent writers can race and land the same
+  `n` for a feature. The tool does not retry or lock — a duplicate `n` is
+  a recoverable, human-visible anomaly, not a crash.
+- **Grep-unit adjacency + auto-continuation (ADR 0003).** append/close
+  decide whether their target entry is still safe to append under by
+  checking the file's last `/^## \[/` line (the same grep canon's own
+  audits use), not the last *parsed* entry — a hand-mangled heading is
+  invisible to the parser but still poisons the grep. When the target
+  heading is no longer last, the tool writes the canon-prescribed
+  continuation entry itself (new heading, `SUPERSEDES:` the entry left
+  open above) instead of writing under a stranger's heading; `--no-continue`
+  opts out with a refusal (exit 2) instead of writing anything.
+- **Never creates files.** A missing `.agents/session.log` (or a
+  legacy-only log) is a state error naming `banana project` as the fix —
+  `log` never creates the file or the `.agents` directory.
+- **Never rewrites existing bytes.** Every write is an append past the
+  current end-of-file (after sniffing the file's EOL style and separator
+  needs); no existing line is ever edited or removed.
+- **Never touches legacy logs.** `.claude/session.log` (the pre-v2
+  grammar) is read-only historical context to `doctor`/`brief` at most and
+  is never scanned by `nextN`/`loadSessionHistory` and never written.
 
 ## Hard rules for this build
 
