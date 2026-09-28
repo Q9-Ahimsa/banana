@@ -227,6 +227,26 @@ test('bin: `banana state lint` exits 2 when STATE.md is missing', (t) => {
   assert.ok(stderr.includes('missing or unreadable'), `stderr: ${stderr}`);
 });
 
+// #14 dispatch-only slice: the section content itself is covered by
+// test/brief.test.mjs (lib/brief.mjs) — this just proves bin.mjs threads a
+// real `home` (env HOME/USERPROFILE, same override other state-lint e2e
+// tests above use) into `runBrief` end to end.
+test('bin: `banana brief` output contains a `## State lint` section', (t) => {
+  const home = sandbox(t, 'banana-bin-brief-home-');
+  const cwd = sandbox(t, 'banana-bin-brief-');
+  const env = { ...process.env, HOME: home, USERPROFILE: home };
+  const project = run(['project', '--owner', 'Bin Brief Owner', '--yes'], { cwd, env });
+  assert.equal(project.status, 0, `project setup failed: ${project.stderr}`);
+  const stub = run(
+    ['log', 'stub', 'cli', '--tag', 'testagent', '--phase', 'build', '--title', 'x', '--approach', 'a'],
+    { cwd, env },
+  );
+  assert.equal(stub.status, 0, `stub setup failed: ${stub.stderr}`);
+  const { status, stdout } = run(['brief', 'cli', '--tag', 'testagent'], { cwd, env });
+  assert.equal(status, 0, `stdout: ${stdout}`);
+  assert.ok(stdout.includes('## State lint'), `expected a State lint section: ${stdout}`);
+});
+
 // C1: parseLogArgs' own parse-shape errors are already self-identifying
 // ("banana log append: missing <feature>", "banana log supersede: missing
 // ..."). The log arm's catch used to unconditionally prepend its own

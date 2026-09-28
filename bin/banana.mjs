@@ -288,7 +288,7 @@ if (cmd === 'brief') {
     process.exit(1);
   }
   const io = makeIo();
-  const result = await runBrief(flags, { cwd: process.cwd(), io });
+  const result = await runBrief(flags, { cwd: process.cwd(), io, home: homedir() });
   process.exit(result.code);
 }
 
@@ -373,7 +373,7 @@ if (cmd === 'log') {
       process.stdin.on('end', () => resolve(data));
       process.stdin.on('error', reject);
     });
-  const result = await runLog(flags, { cwd: process.cwd(), io, now: Date.now(), readStdin });
+  const result = await runLog(flags, { cwd: process.cwd(), io, now: Date.now(), readStdin, home: homedir() });
   process.exit(result.code);
 }
 

@@ -18,11 +18,38 @@ after(() => {
 // are >48h old; entries dated 2026-07-04 are ~12h old.
 const NOW = Date.parse('2026-07-04T12:00:00Z');
 
+// Shared fixture home for the state-lint global side (#14): no
+// ~/.agents/STATE.md, so every test below gets a deterministic
+// `global: none (no ~/.agents/STATE.md)` unless a test writes its own home.
+// Read-only — brief never writes to home — so one shared dir is safe.
+const HOME = mkdtempSync(join(tmpdir(), 'banana-brief-home-'));
+tempDirs.push(HOME);
+
+// A lint-clean project page (#14): all six required sections present, an
+// empty `## Next` (no bullets to own-check), and an as-of date at/after
+// every session-log fixture's latest entry (2026-07-04) so
+// stale-vs-session-log never fires. Kept lint-clean so the state-lint
+// section on the golden/characterization fixtures below reads as a plain
+// PASS — dedicated state-lint tests below mutate a COPY to exercise FAIL.
 const STATE_MD = `# STATE — fixture project
-> Projection of LOGBOOK.md as of 2026-07-03. STATE_VERBATIM_MARKER
+> Projection of LOGBOOK.md as of 2026-07-04. STATE_VERBATIM_MARKER
 
 ## Now
 - shipping the auth rework
+
+## Truths
+- (none yet)
+
+## Next
+
+## Blocked
+- (none)
+
+## Watch
+- (none)
+
+## Dead ends
+- (none)
 `;
 
 // Target feature: auth (3 entries, one ghost). Other features: 6 entries, so
@@ -94,7 +121,7 @@ function makeProject(opts = {}) {
 
 /** @returns {string} */
 function fixtureBrief() {
-  return compileBrief({ feature: 'auth', tag: 'claude' }, { cwd: makeProject(), now: NOW });
+  return compileBrief({ feature: 'auth', tag: 'claude' }, { cwd: makeProject(), now: NOW, home: HOME });
 }
 
 // --- arg parsing ---
@@ -208,7 +235,7 @@ NEXT: testagent — done
 
 test('brief: superseded ghost stops flagging at both ghost surfaces; non-superseded ghost still flags (regression)', () => {
   const dir = makeProject({ log: SUPERSEDE_GHOST_LOG });
-  const brief = compileBrief({ feature: 'auth', tag: 'claude' }, { cwd: dir, now: NOW });
+  const brief = compileBrief({ feature: 'auth', tag: 'claude' }, { cwd: dir, now: NOW, home: HOME });
   const lines = brief.split('\n');
 
   // Surface 1: inline [GHOST] flag in feature history.
@@ -259,7 +286,7 @@ test('brief: every section header carries a ref line naming its source file', ()
 
 test('brief: missing STATE.md noted, compile still succeeds', () => {
   const dir = makeProject({ state: null });
-  const brief = compileBrief({ feature: 'auth', tag: 'claude' }, { cwd: dir, now: NOW });
+  const brief = compileBrief({ feature: 'auth', tag: 'claude' }, { cwd: dir, now: NOW, home: HOME });
   assert.match(brief, /## Project state/);
   assert.match(brief, /no STATE\.md/);
 });
@@ -272,7 +299,7 @@ test('runBrief: prints the brief and exits 0', async () => {
     out: (/** @type {string} */ line = '') => outLines.push(line),
     err: () => {},
   };
-  const result = await runBrief({ feature: 'auth', tag: 'claude' }, { cwd: dir, io, now: NOW });
+  const result = await runBrief({ feature: 'auth', tag: 'claude' }, { cwd: dir, io, home: HOME, now: NOW });
   assert.equal(result.code, 0);
   const printed = outLines.join('\n');
   assert.match(printed, /TARGET_MARK_A1/);
@@ -314,7 +341,7 @@ test('runBrief: no feature arg prints the slug listing to stdout and exits 0', a
     out: (/** @type {string} */ line = '') => outLines.push(line),
     err: (/** @type {string} */ line = '') => errLines.push(line),
   };
-  const result = await runBrief({ feature: null, tag: null }, { cwd: dir, io, now: NOW });
+  const result = await runBrief({ feature: null, tag: null }, { cwd: dir, io, home: HOME, now: NOW });
   assert.equal(result.code, 0);
   const printed = outLines.join('\n');
   for (const [slug, date] of [
@@ -339,7 +366,7 @@ test('runBrief: unknown slug exits 1 with the listing on stderr', async () => {
     out: (/** @type {string} */ line = '') => outLines.push(line),
     err: (/** @type {string} */ line = '') => errLines.push(line),
   };
-  const result = await runBrief({ feature: 'nope', tag: 'claude' }, { cwd: dir, io, now: NOW });
+  const result = await runBrief({ feature: 'nope', tag: 'claude' }, { cwd: dir, io, home: HOME, now: NOW });
   assert.equal(result.code, 1);
   const errText = errLines.join('\n');
   assert.match(errText, /nope/);
@@ -357,26 +384,44 @@ test('runBrief: no feature arg with missing session.log still exits 1', async ()
     out: () => {},
     err: (/** @type {string} */ line = '') => errLines.push(line),
   };
-  const result = await runBrief({ feature: null, tag: null }, { cwd: dir, io, now: NOW });
+  const result = await runBrief({ feature: null, tag: null }, { cwd: dir, io, home: HOME, now: NOW });
   assert.equal(result.code, 1);
   assert.match(errLines.join('\n'), /session\.log/);
 });
 
 // --- characterization: full output pinned byte-for-byte ---
 
-// Captured from the pre-extraction implementation (ticket #4). Any diff here is
-// a behavior change and must be a conscious act (brief v2 will be one).
+// Captured from the pre-extraction implementation (ticket #4), updated for
+// the `## State lint` section (#14) — any diff here is a behavior change and
+// must be a conscious act (brief v2 will be one).
 const GOLDEN_BRIEF = `# brief — auth (agent: claude)
 > Snapshot for one session (BEGIN). Do not re-read shared state mid-flight;
 > your own open log entry is the cohesion anchor. Refs point into the record.
 
+## State lint
+project: PASS · global: none (no ~/.agents/STATE.md)
+
 ## Project state
 ref: STATE.md
 # STATE — fixture project
-> Projection of LOGBOOK.md as of 2026-07-03. STATE_VERBATIM_MARKER
+> Projection of LOGBOOK.md as of 2026-07-04. STATE_VERBATIM_MARKER
 
 ## Now
 - shipping the auth rework
+
+## Truths
+- (none yet)
+
+## Next
+
+## Blocked
+- (none)
+
+## Watch
+- (none)
+
+## Dead ends
+- (none)
 
 ## Feature history — auth (full bodies)
 ref: .agents/session.log
@@ -439,7 +484,131 @@ test('runBrief: missing session.log exits non-zero with a pointer to banana proj
     out: () => {},
     err: (/** @type {string} */ line = '') => errLines.push(line),
   };
-  const result = await runBrief({ feature: 'auth', tag: 'claude' }, { cwd: dir, io, now: NOW });
+  const result = await runBrief({ feature: 'auth', tag: 'claude' }, { cwd: dir, io, home: HOME, now: NOW });
   assert.equal(result.code, 1);
   assert.match(errLines.join('\n'), /session\.log/);
+});
+
+// =====================================================================
+// state lint wiring (#14) — brief carries the `## State lint` guarantee
+// =====================================================================
+
+test('brief: `## State lint` section sits immediately after the header block, before `## Project state`', () => {
+  const brief = fixtureBrief();
+  const lines = brief.split('\n');
+  assert.deepEqual(lines.slice(0, 6), [
+    '# brief — auth (agent: claude)',
+    '> Snapshot for one session (BEGIN). Do not re-read shared state mid-flight;',
+    '> your own open log entry is the cohesion anchor. Refs point into the record.',
+    '',
+    '## State lint',
+    'project: PASS · global: none (no ~/.agents/STATE.md)',
+  ]);
+  assert.equal(lines[6], '');
+  assert.equal(lines[7], '## Project state');
+});
+
+test('brief: all-PASS project and global prints a bare summary line — no findings, no fix-it line', () => {
+  const brief = fixtureBrief();
+  assert.match(brief, /## State lint\nproject: PASS · global: none \(no ~\/\.agents\/STATE\.md\)\n\n## Project state/);
+  assert.ok(!brief.includes('Fix these before relying on the page'));
+});
+
+test('brief: a FAIL project page prints its finding lines and the fix-it closing line; the rest of the brief still compiles', () => {
+  const brokenState = STATE_MD.replace('## Blocked\n- (none)\n\n', '').replace('## Watch\n- (none)\n\n', '');
+  const dir = makeProject({ state: brokenState });
+  const brief = compileBrief({ feature: 'auth', tag: 'claude' }, { cwd: dir, now: NOW, home: HOME });
+  assert.match(brief, /FAIL \[missing-section\] STATE\.md: missing required section "## Blocked"/);
+  assert.match(brief, /FAIL \[missing-section\] STATE\.md: missing required section "## Watch"/);
+  assert.match(brief, /project: FAIL \(2 fail, 0 warn\) · global: none \(no ~\/\.agents\/STATE\.md\)/);
+  assert.match(brief, /Fix these before relying on the page: a FAIL means STATE no longer projects its sources\./);
+  assert.match(brief, /## Project state/);
+  assert.match(brief, /TARGET_MARK_A1/);
+});
+
+test('runBrief: exit code is unaffected by a FAIL verdict — still 0', async () => {
+  const brokenState = STATE_MD.replace('## Blocked\n- (none)\n\n', '');
+  const dir = makeProject({ state: brokenState });
+  /** @type {string[]} */
+  const outLines = [];
+  const io = { out: (/** @type {string} */ l = '') => outLines.push(l), err: () => {} };
+  const result = await runBrief({ feature: 'auth', tag: 'claude' }, { cwd: dir, io, home: HOME, now: NOW });
+  assert.equal(result.code, 0);
+  assert.match(outLines.join('\n'), /FAIL \[missing-section\]/);
+});
+
+test('brief: no STATE.md in cwd reports `project: none (no STATE.md here)`', () => {
+  const dir = makeProject({ state: null });
+  const brief = compileBrief({ feature: 'auth', tag: 'claude' }, { cwd: dir, now: NOW, home: HOME });
+  assert.match(brief, /project: none \(no STATE\.md here\) · global: none \(no ~\/\.agents\/STATE\.md\)/);
+});
+
+test('brief: an unreadable STATE.md (a directory, not a file) reports `project: unreadable (...)`', () => {
+  const dir = makeProject({ state: null });
+  mkdirSync(join(dir, 'STATE.md'));
+  const brief = compileBrief({ feature: 'auth', tag: 'claude' }, { cwd: dir, now: NOW, home: HOME });
+  assert.match(brief, /project: unreadable \([^)]*STATE\.md is missing or unreadable\)/);
+});
+
+test('brief: an unreadable global page (a directory, not a file) reports `global: unreadable (...)`', () => {
+  const dir = makeProject();
+  const home = mkdtempSync(join(tmpdir(), 'banana-brief-home-unreadable-'));
+  tempDirs.push(home);
+  mkdirSync(join(home, '.agents', 'STATE.md'), { recursive: true });
+  const brief = compileBrief({ feature: 'auth', tag: 'claude' }, { cwd: dir, now: NOW, home });
+  assert.match(brief, /global: unreadable \([^)]*STATE\.md is missing or unreadable\)/);
+});
+
+// Synthetic global fixture (public-repo hygiene: invented project name
+// `gamma`) with one stale Active-threads bullet, to prove global findings
+// print too (after project findings) and drive the fix-it line.
+const STALE_GLOBAL = [
+  '# GLOBAL STATE — cross-project projection',
+  '> One page, hard cap. Rebuilt whole, never patched.',
+  '',
+  '## Active threads',
+  '- **gamma** (as of 2026-07-01) — building the thing → `~/projects/gamma/STATE.md`',
+  '',
+  '## Backlog (owned)',
+  '- testagent — sweep the backlog',
+  '',
+  '## Watch',
+  '- an assumption needing validation (validate-by: 2026-08-01)',
+  '',
+  '## Recently closed (context for next session)',
+  '- nothing yet',
+  '',
+].join('\n');
+
+test('brief: a stale global Active-threads bullet FAILs thread-stale, printed after project findings', () => {
+  const home = mkdtempSync(join(tmpdir(), 'banana-brief-home-stale-'));
+  tempDirs.push(home);
+  mkdirSync(join(home, '.agents'), { recursive: true });
+  writeFileSync(join(home, '.agents', 'STATE.md'), STALE_GLOBAL, 'utf8');
+  mkdirSync(join(home, 'projects', 'gamma'), { recursive: true });
+  writeFileSync(
+    join(home, 'projects', 'gamma', 'STATE.md'),
+    '# STATE — gamma\n> Projection of LOGBOOK.md as of 2026-07-05 (through none).\n',
+    'utf8',
+  );
+  const dir = makeProject();
+  const brief = compileBrief({ feature: 'auth', tag: 'claude' }, { cwd: dir, now: NOW, home });
+  assert.match(brief, /project: PASS · global: FAIL \(1 fail, 0 warn\)/);
+  assert.match(brief, /FAIL \[thread-stale\] ~\/\.agents\/STATE\.md: /);
+  assert.match(brief, /Fix these before relying on the page/);
+});
+
+test('runBrief: discovery mode also carries the `## State lint` section, before the slug listing', async () => {
+  const dir = makeProject();
+  /** @type {string[]} */
+  const outLines = [];
+  const io = { out: (/** @type {string} */ l = '') => outLines.push(l), err: () => {} };
+  const result = await runBrief({ feature: null, tag: null }, { cwd: dir, io, home: HOME, now: NOW });
+  assert.equal(result.code, 0);
+  const printed = outLines.join('\n');
+  const lines = printed.split('\n');
+  assert.equal(lines[0], '## State lint');
+  assert.equal(lines[1], 'project: PASS · global: none (no ~/.agents/STATE.md)');
+  assert.equal(lines[2], '');
+  assert.ok(printed.includes('active features — slug + last entry'));
 });

@@ -106,6 +106,22 @@ continuity files. Include / exclude:
 Every section header carries a `ref:` line naming its source file (the brief is an index into the
 record, not a replacement for it). Deterministic only — no LLM calls, pure text processing.
 
+**`## State lint` section (#14).** Both modes (a compiled feature brief, and discovery mode with no
+feature) print a `## State lint` section immediately after the brief's header block, before
+`## Project state` / any other content — the brief is the session-start guarantee that a lint
+nobody runs by hand still gets surfaced. Built from `lib/state.mjs`'s `collectStateLint({ cwd, home
+})` (no subprocess, no argv parsing) and `formatStateLintLines`, so the finding text is byte-for-byte
+the same `state lint` itself would print. Content, in order: a `project: <VERDICT> · global:
+<VERDICT>` summary line (`<VERDICT>` is the lint's own summary text with no `state lint: ` prefix —
+`PASS`, `WARN (N warn)`, `FAIL (N fail, M warn)`, `none (<reason>)` when the target page doesn't
+exist, or `unreadable (<reason>)` when it exists but can't be read); then every finding line exactly
+as `state lint` prints it, project findings first, then global (no findings — no extra lines); then,
+only when either side's verdict is FAIL, one closing line: `Fix these before relying on the page: a
+FAIL means STATE no longer projects its sources.` Lint never changes `brief`'s exit code or stops it
+from printing the rest of the brief — an existing-but-unreadable STATE.md degrades to a `(STATE.md
+exists but could not be read)` placeholder in `## Project state` rather than throwing. `brief`'s
+runner takes an injected `home` (only `bin/` resolves `os.homedir()`), same as `state lint --global`.
+
 ## `doctor` — audit contract
 
 Reports: detected harnesses; fence-block versions found in wired files. Audits (exit 1 if any hit):
@@ -170,6 +186,21 @@ that write the log by hand build against these same rules:
 - **Never touches legacy logs.** `.claude/session.log` (the pre-v2
   grammar) is read-only historical context to `doctor`/`brief` at most and
   is never scanned by `nextN`/`loadSessionHistory` and never written.
+- **Post-close state-lint early catch (#14).** After a SUCCESSFUL,
+  non-dry-run write that leaves an entry in a terminal status —
+  `log close` (always terminal by construction; `in-progress` is rejected
+  earlier), or `log stub` with a terminal `--status`
+  (complete\|blocked\|abandoned) — `log` prints the same
+  project+global verdict/finding content as `brief`'s `## State lint`
+  section (`lib/state.mjs`'s `formatStateLintLines`), with no markdown
+  heading (log's other output is plain status lines, not a markdown
+  document). Never changes `log`'s exit code — a FAIL verdict still exits 0
+  on a successful write. `--dry-run` never lints (nothing was closed).
+  `--quiet` suppresses ONLY the summary line, and only when both project and
+  global are PASS or the target page doesn't exist — findings and the
+  fix-it closing line always print regardless of `quiet`. `append`,
+  `supersede`, and a non-terminal `stub` never lint. `log`'s runner takes an
+  injected `home` (only `bin/` resolves `os.homedir()`), same as `brief`.
 
 ## `state lint` — verdict contract
 
@@ -181,6 +212,16 @@ injected anywhere in `lib/state.mjs`). Verdict tiers:
 - **FAIL** — a mechanical invariant is broken.
 - **WARN** — ambiguous residue a model should look at.
 - **PASS** — neither.
+
+**No-print data seam (#14).** `collectStateLint({ cwd, home })` runs both project and global lint
+without printing, returning `{ project, global }`; each side is `{ verdict, findings }` (found and
+linted — `verdict` is the summary text with no `state lint: ` prefix, `findings` are pre-formatted
+`TIER [type] <file>: message` lines, FAILs first), `{ none: reason }` (the target file doesn't
+exist), or `{ unreadable: reason }` (it exists but couldn't be read — `reason` is the exact message
+`runStateLint` itself would print for that failure). `runStateLint` itself now routes through this
+function — one code path for every consumer of finding text, CLI included.
+`formatStateLintLines(collected, { quiet })` renders a collected pair into the printable lines
+`brief`/`log` both use (see their own contracts above).
 
 Exit codes: `0` PASS or WARN-only · `1` any FAIL · `2` usage error or the
 target STATE.md is missing/unreadable. Output is one line per finding

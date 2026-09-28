@@ -13,6 +13,13 @@ after(() => {
   for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
 });
 
+// Shared fixture home for the state-lint global side (#14) — no
+// ~/.agents/STATE.md, so every test below that doesn't pass its own `home`
+// gets a deterministic `global: none (...)`. Read-only — log never writes
+// to home — so one shared dir is safe across tests.
+const HOME = mkdtempSync(join(tmpdir(), 'banana-log-home-'));
+tempDirs.push(HOME);
+
 // LOCAL_NOW is built from local-date components (like formatLocalDate itself),
 // so formatLocalDate(LOCAL_NOW) === TODAY on every machine's timezone —
 // no TZ-dependent flakiness in the write-mechanics/verb tests. Ghost-math
@@ -59,7 +66,7 @@ function makeIo() {
 /**
  * @param {string} cwd
  * @param {string[]} argv the full `log` slice, e.g. ['stub','cli',...]
- * @param {{now?: number, readStdin?: () => Promise<string>|string}} [opts]
+ * @param {{now?: number, readStdin?: () => Promise<string>|string, home?: string}} [opts]
  */
 async function run(cwd, argv, opts = {}) {
   const io = makeIo();
@@ -69,7 +76,7 @@ async function run(cwd, argv, opts = {}) {
     (() => {
       throw new Error('stdin not expected in this test');
     });
-  const result = await runLog(flags, { cwd, io, now: opts.now ?? LOCAL_NOW, readStdin });
+  const result = await runLog(flags, { cwd, io, now: opts.now ?? LOCAL_NOW, readStdin, home: opts.home ?? HOME });
   return { code: result.code, out: io.outLines, err: io.errLines };
 }
 
@@ -80,7 +87,7 @@ async function run(cwd, argv, opts = {}) {
  * caller gets the exact composed bytes back).
  * @param {string} cwd
  * @param {string[]} argv
- * @param {{now?: number}} [opts]
+ * @param {{now?: number, home?: string}} [opts]
  */
 async function runWithWriteSink(cwd, argv, opts = {}) {
   const flags = parseLogArgs(argv);
@@ -98,7 +105,7 @@ async function runWithWriteSink(cwd, argv, opts = {}) {
   const readStdin = () => {
     throw new Error('stdin not expected in this test');
   };
-  const result = await runLog(flags, { cwd, io, now: opts.now ?? LOCAL_NOW, readStdin });
+  const result = await runLog(flags, { cwd, io, now: opts.now ?? LOCAL_NOW, readStdin, home: opts.home ?? HOME });
   return { code: result.code, out, err, writes };
 }
 
@@ -884,7 +891,9 @@ test('continuation: close after an intruder writes close lines directly (no in-p
     'close', 'cli', '--tag', 'testagent', '--status', 'complete', '--next-owner', 'testagent', '--next', 'ship',
   ]);
   assert.equal(res.code, 0);
-  assert.deepEqual(res.out, ['cli.2']);
+  // res.out[0] is the id line; res.out[1+] is the post-close state-lint
+  // block (#14) — its own content is covered by the dedicated tests below.
+  assert.equal(res.out[0], 'cli.2');
   const text = readLog(dir);
   const cli2Body = text.slice(text.indexOf('cli.2'));
   assert.ok(!cli2Body.includes('STATUS: in-progress'));
@@ -1107,4 +1116,134 @@ test('envelope round-trip: an exotic-but-legal title composes and parses back on
   assert.equal(res.code, 0);
   const [entry] = parseSessionLog(readLog(dir));
   assert.equal(entry.title, title);
+});
+
+// =====================================================================
+// state lint wiring (#14) \u2014 `log close`/terminal `log stub` carry the
+// early catch (brief carries the guarantee; this is a second chance to
+// catch drift for a session that closes cleanly).
+// =====================================================================
+
+// A lint-clean project page: all six required sections present, `## Next`
+// left empty (no bullets to own-check), and an as-of date far enough in the
+// future that no session-log fixture used below can ever stale it.
+const CLEAN_PROJECT_STATE = [
+  '# STATE \u2014 fixture',
+  '> Projection of LOGBOOK.md as of 2099-01-01 (through none).',
+  '',
+  '## Now',
+  '- x',
+  '',
+  '## Truths',
+  '- x',
+  '',
+  '## Next',
+  '',
+  '## Blocked',
+  '- x',
+  '',
+  '## Watch',
+  '- x',
+  '',
+  '## Dead ends',
+  '- x',
+  '',
+].join('\n');
+
+const BROKEN_PROJECT_STATE = CLEAN_PROJECT_STATE.replace('## Blocked\n- x\n\n', '');
+
+test('log close: a clean project+global lint prints the summary line after the id line, exit 0', async () => {
+  const dir = projectWithOpenEntry();
+  writeFileSync(join(dir, 'STATE.md'), CLEAN_PROJECT_STATE, 'utf8');
+  const res = await run(dir, [
+    'close', 'cli', '--tag', 'testagent', '--status', 'complete', '--next-owner', 'testagent', '--next', 'ship',
+  ]);
+  assert.equal(res.code, 0);
+  assert.equal(res.out[0], 'cli.1');
+  assert.equal(res.out[1], 'project: PASS \u00b7 global: none (no ~/.agents/STATE.md)');
+});
+
+test('log close: a FAIL project page prints its finding lines and the fix-it closing line, exit still 0', async () => {
+  const dir = projectWithOpenEntry();
+  writeFileSync(join(dir, 'STATE.md'), BROKEN_PROJECT_STATE, 'utf8');
+  const res = await run(dir, [
+    'close', 'cli', '--tag', 'testagent', '--status', 'complete', '--next-owner', 'testagent', '--next', 'ship',
+  ]);
+  assert.equal(res.code, 0);
+  const printed = res.out.join('\n');
+  assert.match(printed, /FAIL \[missing-section\] STATE\.md: missing required section "## Blocked"/);
+  assert.match(printed, /Fix these before relying on the page: a FAIL means STATE no longer projects its sources\./);
+});
+
+test('log stub: a terminal --status lints; a non-terminal (default in-progress) stub does not', async () => {
+  const dirTerminal = makeProject();
+  writeFileSync(join(dirTerminal, 'STATE.md'), BROKEN_PROJECT_STATE, 'utf8');
+  const terminal = await run(dirTerminal, [
+    'stub', 'cli', '--tag', 't', '--phase', 'build', '--title', 'x', '--approach', 'a',
+    '--status', 'complete', '--next-owner', 't', '--next', 'ship it',
+  ]);
+  assert.equal(terminal.code, 0);
+  assert.match(terminal.out.join('\n'), /FAIL \[missing-section\]/);
+
+  const dirInProgress = makeProject();
+  writeFileSync(join(dirInProgress, 'STATE.md'), BROKEN_PROJECT_STATE, 'utf8');
+  const inProgress = await run(dirInProgress, [
+    'stub', 'cli', '--tag', 't', '--phase', 'build', '--title', 'x', '--approach', 'a',
+  ]);
+  assert.equal(inProgress.code, 0);
+  assert.deepEqual(inProgress.out, ['cli.1']);
+});
+
+test('log append and supersede never lint, even with a FAIL project page present', async () => {
+  const dir = projectWithOpenEntry();
+  writeFileSync(join(dir, 'STATE.md'), BROKEN_PROJECT_STATE, 'utf8');
+  const appendRes = await run(dir, ['append', 'cli', '--tag', 'testagent', '--body', 'checkpoint']);
+  assert.equal(appendRes.code, 0);
+  assert.deepEqual(appendRes.out, ['cli.1']);
+
+  const dir2 = projectWithClosedCli1();
+  writeFileSync(join(dir2, 'STATE.md'), BROKEN_PROJECT_STATE, 'utf8');
+  const supersedeRes = await run(dir2, [
+    'supersede', 'cli.1', '--tag', 'testagent', '--reason', 'correction', '--status', 'abandoned',
+    '--next-owner', 't', '--next', 'y',
+  ]);
+  assert.equal(supersedeRes.code, 0);
+  assert.deepEqual(supersedeRes.out, ['cli.2']);
+});
+
+test('log close --dry-run: no lint is printed (nothing was closed)', async () => {
+  const dir = projectWithOpenEntry();
+  writeFileSync(join(dir, 'STATE.md'), BROKEN_PROJECT_STATE, 'utf8');
+  const res = await run(dir, [
+    'close', 'cli', '--tag', 'testagent', '--status', 'complete', '--next-owner', 'testagent', '--next', 'ship',
+    '--dry-run',
+  ]);
+  assert.equal(res.code, 0);
+  assert.ok(!res.out.some((l) => l.includes('project:')));
+  assert.ok(!res.out.some((l) => l.startsWith('FAIL')));
+});
+
+test('log close --quiet: a clean lint prints nothing lint-related (id line also suppressed)', async () => {
+  const dir = projectWithOpenEntry();
+  writeFileSync(join(dir, 'STATE.md'), CLEAN_PROJECT_STATE, 'utf8');
+  const res = await run(dir, [
+    'close', 'cli', '--tag', 'testagent', '--status', 'complete', '--next-owner', 'testagent', '--next', 'ship',
+    '--quiet',
+  ]);
+  assert.equal(res.code, 0);
+  assert.deepEqual(res.out, []);
+});
+
+test('log close --quiet: a FAIL project lint still prints the summary line and every finding', async () => {
+  const dir = projectWithOpenEntry();
+  writeFileSync(join(dir, 'STATE.md'), BROKEN_PROJECT_STATE, 'utf8');
+  const res = await run(dir, [
+    'close', 'cli', '--tag', 'testagent', '--status', 'complete', '--next-owner', 'testagent', '--next', 'ship',
+    '--quiet',
+  ]);
+  assert.equal(res.code, 0);
+  const printed = res.out.join('\n');
+  assert.match(printed, /project: FAIL \(1 fail, 0 warn\) \u00b7 global: none \(no ~\/\.agents\/STATE\.md\)/);
+  assert.match(printed, /FAIL \[missing-section\] STATE\.md: missing required section "## Blocked"/);
+  assert.match(printed, /Fix these before relying on the page/);
 });

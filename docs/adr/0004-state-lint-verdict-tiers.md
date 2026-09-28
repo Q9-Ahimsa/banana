@@ -154,6 +154,31 @@ themselves (not only when called through `runStateLint`) — the adversarial rev
 scripts call them directly on raw file content, and a public "pure check composer" that only
 works correctly through one specific caller is a footgun, not a contract.
 
+## Wiring (#14)
+
+A lint nobody runs catches nothing. `state lint` shipped as an opt-in subcommand (this ADR, #9/#13)
+— nothing calls it unless an agent or a CI job remembers to. Two commands now surface its verdict
+without anyone having to remember:
+
+- **`banana brief` is the guarantee.** Closing a terminal window runs no code, so a close-time check
+  alone can never be the backstop — but `brief` is the first step of every session in every harness
+  (the closed-allowlist entry ritual, canon v1.1). Both project and global verdicts print in a
+  `## State lint` section immediately after the brief's header, before anything else, in both
+  compiled-brief and discovery mode. This is unconditional: it costs one lint pass per brief, paid
+  once at session start, not per-write.
+- **`log close` (and a terminal `log stub`) is the early catch.** A session that closes cleanly gets
+  a second, narrower chance to see drift right at the moment it would otherwise walk away thinking
+  the projection was fine.
+- **Lint is advice, never a gate, on either surface.** Neither command's exit code changes on a
+  FAIL — `brief` still compiles and prints the rest of the page even when STATE.md is unreadable,
+  and `log close` still writes and exits 0 even when the resulting page would FAIL. Making either
+  command fail closed on a lint verdict would block the exact moment (an active session, mid-arc)
+  when a human or agent is best positioned to judge whether the FAIL is real or a fixture artifact;
+  the verdict is surfaced, not enforced, consistent with WARN's role elsewhere in this ADR.
+- **One finding-text code path.** `runStateLint` (the CLI) and the two wiring points above all
+  render findings through the same `formatFindingLines`/`summaryVerdict` pair — a finding line reads
+  identically whether it reached a terminal via `state lint`, `brief`, or `log close`.
+
 ## Consequences
 
 - A CI gate can key on exit `1` alone to mean "a real defect exists," without additional

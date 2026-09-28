@@ -22,8 +22,10 @@ import {
   checkStaleVsSessionLog,
   checkUnownedBullets,
   classifyOwnerBullet,
+  collectStateLint,
   DIRTY_MARKER_LINE,
   emitFindings,
+  formatStateLintLines,
   hasSection,
   isPlaceholderBullet,
   lintGlobalState,
@@ -1071,6 +1073,141 @@ test('runStateLint --global: a home bootstrapped by the real `banana init` comma
   const res = await runGlobal(home);
   assert.equal(res.code, 0, `expected a clean init to PASS, got: ${res.lines.join('\n')}`);
   assert.deepEqual(res.lines, ['state lint: PASS']);
+});
+
+// =====================================================================
+// collectStateLint / formatStateLintLines (#14) — the no-print data seam
+// `banana brief`/`banana log` route through, and `runStateLint` itself now
+// uses internally ("one code path": its own CLI output must stay byte-
+// identical to before, proven by the 125 pre-existing tests above still
+// passing unmodified).
+// =====================================================================
+
+test('collectStateLint: a clean project + a missing global page', async (t) => {
+  const dir = makeProject(t);
+  const home = sandbox(t); // no .agents/STATE.md
+  const { project, global } = collectStateLint({ cwd: dir, home });
+  assert.deepEqual(project, { verdict: 'PASS', findings: [] });
+  assert.deepEqual(global, { none: 'no ~/.agents/STATE.md' });
+});
+
+test('collectStateLint: a FAIL project page carries state-lint-formatted finding lines', async (t) => {
+  const broken = CLEAN_STATE.replace('## Blocked\n- (none)\n\n', '');
+  const dir = makeProject(t, { state: broken });
+  const home = sandbox(t);
+  const { project } = collectStateLint({ cwd: dir, home });
+  assert.ok('findings' in project, `expected a found outcome: ${JSON.stringify(project)}`);
+  assert.equal(project.verdict, 'FAIL (1 fail, 0 warn)');
+  assert.deepEqual(project.findings, ['FAIL [missing-section] STATE.md: missing required section "## Blocked"']);
+});
+
+test('collectStateLint: cwd with no STATE.md is `none`, naming the reason', async (t) => {
+  const dir = makeProject(t, { state: null });
+  const home = sandbox(t);
+  const { project } = collectStateLint({ cwd: dir, home });
+  assert.deepEqual(project, { none: 'no STATE.md here' });
+});
+
+test('collectStateLint: a project STATE.md that is a directory (unreadable) names the target', async (t) => {
+  const dir = sandbox(t);
+  mkdirSync(join(dir, 'STATE.md'));
+  const home = sandbox(t);
+  const { project } = collectStateLint({ cwd: dir, home });
+  assert.ok('unreadable' in project, `expected an unreadable outcome: ${JSON.stringify(project)}`);
+  assert.match(project.unreadable, /STATE\.md is missing or unreadable/);
+});
+
+test('collectStateLint: a global STATE.md that is a directory (unreadable) names the target', async (t) => {
+  const dir = makeProject(t);
+  const home = sandbox(t);
+  mkdirSync(join(home, '.agents', 'STATE.md'), { recursive: true });
+  const { global } = collectStateLint({ cwd: dir, home });
+  assert.ok('unreadable' in global, `expected an unreadable outcome: ${JSON.stringify(global)}`);
+  assert.match(global.unreadable, /STATE\.md is missing or unreadable/);
+});
+
+test('collectStateLint: an unreadable LOGBOOK.md surfaces as the project outcome, not silently dropped', async (t) => {
+  const dir = sandbox(t);
+  writeFileSync(join(dir, 'STATE.md'), CLEAN_STATE, 'utf8');
+  mkdirSync(join(dir, 'LOGBOOK.md'));
+  mkdirSync(join(dir, '.agents'), { recursive: true });
+  const home = sandbox(t);
+  const { project } = collectStateLint({ cwd: dir, home });
+  assert.ok('unreadable' in project, `expected an unreadable outcome: ${JSON.stringify(project)}`);
+  assert.match(project.unreadable, /LOGBOOK\.md is missing or unreadable/);
+});
+
+test('collectStateLint: runStateLint routes through it — findings text and verdict match exactly (one code path)', async (t) => {
+  const broken = CLEAN_STATE.replace(
+    '> section patches are legal and must carry the dirty-marker line.',
+    `> section patches are legal and must carry the dirty-marker line.\n${DIRTY_MARKER_LINE}`,
+  ).replace('## Blocked\n- (none)\n\n', '');
+  const dir = makeProject(t, { state: broken });
+  const home = sandbox(t);
+  const cliRes = await run(dir); // run()'s own home is cwd — irrelevant, project mode
+  const { project } = collectStateLint({ cwd: dir, home });
+  assert.ok('findings' in project, `expected a found outcome: ${JSON.stringify(project)}`);
+  assert.deepEqual(cliRes.lines.slice(0, -1), project.findings);
+  assert.equal(cliRes.lines.at(-1), `state lint: ${project.verdict}`);
+});
+
+test('formatStateLintLines: PASS + none prints only the summary line, no fix-it line', () => {
+  const lines = formatStateLintLines({
+    project: { verdict: 'PASS', findings: [] },
+    global: { none: 'no ~/.agents/STATE.md' },
+  });
+  assert.deepEqual(lines, ['project: PASS · global: none (no ~/.agents/STATE.md)']);
+});
+
+test('formatStateLintLines: a FAIL project prints findings (project first, then global) and the fix-it line', () => {
+  const lines = formatStateLintLines({
+    project: {
+      verdict: 'FAIL (1 fail, 0 warn)',
+      findings: ['FAIL [missing-section] STATE.md: missing required section "## Blocked"'],
+    },
+    global: { verdict: 'WARN (1 warn)', findings: ['WARN [dirty-marker] ~/.agents/STATE.md: m'] },
+  });
+  assert.deepEqual(lines, [
+    'project: FAIL (1 fail, 0 warn) · global: WARN (1 warn)',
+    'FAIL [missing-section] STATE.md: missing required section "## Blocked"',
+    'WARN [dirty-marker] ~/.agents/STATE.md: m',
+    'Fix these before relying on the page: a FAIL means STATE no longer projects its sources.',
+  ]);
+});
+
+test('formatStateLintLines: quiet suppresses the summary line ONLY when both sides are PASS or none', () => {
+  const bothClean = formatStateLintLines(
+    { project: { verdict: 'PASS', findings: [] }, global: { none: 'no ~/.agents/STATE.md' } },
+    { quiet: true },
+  );
+  assert.deepEqual(bothClean, []);
+
+  const oneFail = formatStateLintLines(
+    {
+      project: {
+        verdict: 'FAIL (1 fail, 0 warn)',
+        findings: ['FAIL [missing-section] STATE.md: missing required section "## Blocked"'],
+      },
+      global: { none: 'no ~/.agents/STATE.md' },
+    },
+    { quiet: true },
+  );
+  assert.equal(oneFail[0], 'project: FAIL (1 fail, 0 warn) · global: none (no ~/.agents/STATE.md)');
+});
+
+test('formatStateLintLines: quiet never hides findings or the fix-it line, even when the summary line is suppressed elsewhere', () => {
+  const lines = formatStateLintLines(
+    {
+      project: {
+        verdict: 'FAIL (1 fail, 0 warn)',
+        findings: ['FAIL [missing-section] STATE.md: missing required section "## Blocked"'],
+      },
+      global: { none: 'no ~/.agents/STATE.md' },
+    },
+    { quiet: true },
+  );
+  assert.ok(lines.includes('FAIL [missing-section] STATE.md: missing required section "## Blocked"'));
+  assert.ok(lines.includes('Fix these before relying on the page: a FAIL means STATE no longer projects its sources.'));
 });
 
 // =====================================================================
