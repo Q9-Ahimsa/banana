@@ -403,3 +403,11 @@ FILES: phase 2 (#13 --global + CONTINUITY stamp amendment) dispatched; controls 
 FILES: #13 committed bec16a1 (CONTINUITY v1.5 stamp). Controls: real page WARN x1, old page FAIL (over-cap + 6 unstamped). Adversarial review (Opus): 15 verified wrong-verdict inputs, 7 false-PASS -> phase 3 fix round dispatched (review/fix-spec.md)
 STATUS: complete
 NEXT: ahimsa — review CONTINUITY v1.5 + ADR 0004 with v2.3/v1.4, then decide the push (8 local commits)
+
+## [2026-09-28] testagent cli.10 | build — #14 state lint in brief + log close
+APPROACH: owner ruled: brief = the guarantee (runs at every session start, survives a killed window), log close = the early catch. Resume lint-builder on a disk spec
+STATUS: in-progress
+FILES: #14 filed; spec .agents/specs/cli-14-lint-wiring.md
+PROBLEM: resumed lint-builder (2006-msg context) replayed its phase-3 summary instead of taking phase 4. FIX: stopped it (queued msg would have raced), fresh wiring-builder on a self-contained prompt
+STATUS: complete
+NEXT: ahimsa — decide coverage for sessions started outside a workspace, then the push

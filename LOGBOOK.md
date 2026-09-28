@@ -43,3 +43,9 @@ WHY: no numeric "one page" cap existed and the global page had no per-thread dat
 ASSUMED: unilateral-but-disclosed — 10000-char cap (real pages 1.4k–15k, median ~5.5k); stale vs LOGBOOK = FAIL, vs session.log = WARN; shared `stateAsOf` now header-only, case-insensitive, calendar-validated (doctor inherits it) — ahimsa review pending with v2.3/v1.4, before #11
 ref: canon/CONTINUITY.md v1.5, docs/adr/0004-state-lint-verdict-tiers.md, .agents/session.log cli.9
 NEXT: ahimsa — review v1.5 + ADR 0004 alongside v2.3/v1.4; adjust or ratify before #11
+
+## [2026-09-28] testagent kit.5 | SESSION — ticket #14 shipped: state lint surfaced in brief + log close
+WHAT: `brief` opens with a `## State lint` section (project + global verdicts); `log close` and terminal `stub` print the same after writing (bfdfb2d — local, unpushed)
+DONE: 451 → 479 green; sandbox + real-page verified; advice only, exit codes unchanged; `brief` no longer crashes on an unreadable STATE.md. Gap: `brief` refuses outside a workspace, so sessions started from home never see the check
+ref: .agents/session.log cli.10; GitHub #14; .agents/specs/cli-14-lint-wiring.md
+NEXT: ahimsa — decide coverage for sessions started outside a workspace, then the push
