@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path';
 
 import {
   checkActiveThreads,
+  checkAsOfMalformed,
   checkAsOfMissing,
   checkDirtyMarker,
   checkMissingSections,
@@ -28,6 +29,7 @@ import {
   lintGlobalState,
   lintProjectState,
   parseStateArgs,
+  prepareText,
   REQUIRED_GLOBAL_SECTIONS,
   REQUIRED_PROJECT_SECTIONS,
   RETIRED_HEADER_RE,
@@ -35,6 +37,7 @@ import {
   STATE_CAP_CHARS,
   topLevelBullets,
 } from '../lib/state.mjs';
+import { isRealCalendarDate, stateAsOf, stateAsOfMalformed } from '../lib/doctor.mjs';
 import { runInit } from '../lib/init.mjs';
 import { runProject } from '../lib/project.mjs';
 import { sessionLogPath } from '../lib/sessionlog.mjs';
@@ -247,9 +250,30 @@ test('classifyOwnerBullet: an owner token that itself contains an em-dash is uno
   assert.equal(classifyOwnerBullet('- a—b — c'), 'unowned');
 });
 
-test('classifyOwnerBullet: content starting with "(" after stripping emphasis is a placeholder', () => {
-  assert.equal(classifyOwnerBullet('- (owned actions only; unowned items are not allowed here)'), 'placeholder');
-  assert.equal(classifyOwnerBullet('- **(bold-wrapped placeholder)**'), 'placeholder');
+// F2 (review hardening 2026-09-28): a placeholder is ONLY a bullet whose
+// full text is byte-equal (after trim) to a real, shipped template bullet —
+// "starts with (" alone is no longer sufficient (that was the bug: a real,
+// content-bearing bullet that happens to open with a parenthetical was
+// wrongly exempted from every check).
+test('classifyOwnerBullet: a bullet that merely starts with "(" but is NOT a real template bullet is checked normally, not exempted', () => {
+  // Real content shaped like the old (buggy) exemption trigger: neither of
+  // these is byte-equal to any shipped template bullet.
+  assert.equal(classifyOwnerBullet('- (paused) rebuild the projection'), 'unowned');
+  assert.equal(classifyOwnerBullet('- **(new)** rebuild the projection'), 'unowned');
+});
+
+test('classifyOwnerBullet: the REAL shipped template placeholder bullets are recognized as placeholders', () => {
+  assert.equal(
+    classifyOwnerBullet('- __OWNER__ — (owned actions only; unowned items are not allowed here)'),
+    // The pre-strip literal __OWNER__ check fires first — still 'unowned',
+    // per F7's explicit "keep your pre-strip check too" instruction — see
+    // the dedicated __OWNER__ test above. Placeholder-recognition for THIS
+    // exact template line is covered via isPlaceholderBullet directly below,
+    // since classifyOwnerBullet intentionally short-circuits it to 'unowned'.
+    'unowned',
+  );
+  assert.ok(isPlaceholderBullet('- __OWNER__ — (owned actions only; unowned items are not allowed here)'));
+  assert.ok(isPlaceholderBullet('- (what, on whom/what, since when)'));
 });
 
 // =====================================================================
@@ -1047,4 +1071,307 @@ test('runStateLint --global: a home bootstrapped by the real `banana init` comma
   const res = await runGlobal(home);
   assert.equal(res.code, 0, `expected a clean init to PASS, got: ${res.lines.join('\n')}`);
   assert.deepEqual(res.lines, ['state lint: PASS']);
+});
+
+// =====================================================================
+// Review hardening (2026-09-28) — 15 adversarially-confirmed wrong-verdict
+// findings on the committed lint (3526aed + bec16a1), fixed here. Each
+// group cites its finding id from .agents/specs review/fix-spec.md (not
+// committed — orchestrator scratchpad). "Red on HEAD" for each was
+// confirmed via the reviewer's own executed probe scripts and captured
+// outputs (review/out_*.txt) against the pre-fix code, cross-checked by
+// re-reading them against the fix-spec's claims before writing the fix
+// below — see the phase-3 report for the mapping.
+// =====================================================================
+
+// --- F1: fenced/commented headings must not count; duplicate headings ----
+// scan ALL their occurrences' bodies, not just the first.
+
+test('F1: a `## Next` that exists ONLY inside a fenced code block does not satisfy the section, and its bullets are never scanned', () => {
+  const raw =
+    '# STATE\n> as of 2026-09-28\n\n## Now\n- x\n\n## Truths\n- x\n\n' +
+    '```markdown\n## Next\n- alpha — example from the template\n```\n' +
+    '\n## Blocked\n- x\n\n## Watch\n- x\n\n## Dead ends\n- x\n';
+  const text = prepareText(raw);
+  assert.equal(hasSection(text, 'Next'), false);
+  assert.deepEqual(topLevelBullets(text, 'Next'), []);
+  const findings = lintProjectState(text, { logbookText: null, sessionEntries: [] });
+  assert.ok(findings.some((f) => f.type === 'missing-section' && f.message.includes('## Next')));
+});
+
+test('F1: a fenced `## Next` BEFORE the real one does not shadow it — the real section is still found and scanned', () => {
+  const raw =
+    '# STATE\n> as of 2026-09-28\n\n## Now\n- x\n\n' +
+    '```markdown\n## Next\n- alpha — owned example\n```\n\n' +
+    '## Truths\n- x\n\n## Next\n- rebuild the projection\n\n' +
+    '## Blocked\n- x\n\n## Watch\n- x\n\n## Dead ends\n- x\n';
+  const text = prepareText(raw);
+  assert.equal(hasSection(text, 'Next'), true);
+  assert.deepEqual(topLevelBullets(text, 'Next'), ['- rebuild the projection']);
+  const findings = lintProjectState(text, { logbookText: null, sessionEntries: [] });
+  assert.ok(findings.some((f) => f.type === 'unowned-next'), 'the real (unfenced) unowned bullet must still FAIL');
+});
+
+test('F1: `## Next` hidden inside a multi-line HTML comment does not satisfy the section', () => {
+  const raw =
+    '# STATE\n> as of 2026-09-28\n\n## Now\n- x\n\n## Truths\n- x\n\n' +
+    '<!--\n## Next\n- alpha — template note\n-->\n\n' +
+    '## Blocked\n- x\n\n## Watch\n- x\n\n## Dead ends\n- x\n';
+  const text = prepareText(raw);
+  assert.equal(hasSection(text, 'Next'), false);
+  const findings = lintProjectState(text, { logbookText: null, sessionEntries: [] });
+  assert.ok(findings.some((f) => f.type === 'missing-section' && f.message.includes('## Next')));
+});
+
+test('F1: a duplicated `## Next` heading is scanned under BOTH occurrences — an unowned bullet in the SECOND is still caught', () => {
+  const text = CLEAN_STATE + '\n## Next\n- rebuild the projection\n';
+  const findings = lintProjectState(text, { logbookText: CLEAN_LOGBOOK, sessionEntries: [] });
+  assert.ok(findings.some((f) => f.type === 'unowned-next' && f.message.includes('rebuild the projection')));
+});
+
+test('F1: the retired-header phrase inside a fence is not flagged — it is quoted example text, not the page\'s own header', () => {
+  const raw = CLEAN_STATE + '\n```\nRebuilt whole, never patched.\n```\n';
+  const text = prepareText(raw);
+  assert.ok(RETIRED_HEADER_RE.test(raw), 'sanity: the raw text DOES contain the phrase before blanking');
+  const findings = lintProjectState(text, { logbookText: CLEAN_LOGBOOK, sessionEntries: [] });
+  assert.ok(!findings.some((f) => f.type === 'retired-header'));
+});
+
+test('F1 (end-to-end via runStateLint): fenced Next + fenced retired-header phrase in a real file are both correctly ignored', async (t) => {
+  const text =
+    CLEAN_STATE.replace('## Next\n- testagent — ship the next slice\n- ahimsa — review the shipped slice\n', '## Next\n- testagent — ship the next slice\n- ahimsa — review the shipped slice\n') +
+    '\n```\nRebuilt whole, never patched.\n```\n';
+  const res = await run(makeProject(t, { state: text }));
+  assert.ok(!res.lines.some((l) => l.includes('retired-header')), `fenced phrase must not be flagged: ${res.lines}`);
+});
+
+// --- F2: placeholder = exact match to a real template bullet -------------
+// (classifyOwnerBullet/isPlaceholderBullet coverage already added above,
+// near the owner-matcher tests; these add the Active-threads/Backlog angle.)
+
+test('F2: Active-threads bullet that merely opens with a parenthetical is checked normally (thread-unstamped/no-pointer), not exempted', (t) => {
+  const home = sandbox(t);
+  const line = '- (paused) **alpha** — no stamp, no pointer at all';
+  const findings = checkActiveThreads(`## Active threads\n${line}\n`, home);
+  const types = findings.map((f) => f.type).sort();
+  assert.deepEqual(types, ['thread-no-pointer', 'thread-unstamped']);
+});
+
+test('F2: Backlog bullet that merely opens with a parenthetical is checked normally (unowned), not exempted', () => {
+  const text = '## Backlog (owned)\n- (deferred) rebuild the projection\n';
+  const findings = checkUnownedBullets(text, 'Backlog (owned)', 'backlog-unowned');
+  assert.equal(findings.length, 1);
+});
+
+// --- F3: malformed as-of/stamp dates are distinguishable from absent -----
+
+test('F3: an impossible as-of date FAILs as-of-malformed, not as-of-missing, and does not compare stale against the logbook', () => {
+  const text = CLEAN_STATE.replace('as of 2026-08-10', 'as of 2026-13-45');
+  const findings = lintProjectState(text, { logbookText: CLEAN_LOGBOOK, sessionEntries: [] });
+  assert.ok(findings.some((f) => f.type === 'as-of-malformed'), `expected as-of-malformed: ${JSON.stringify(findings)}`);
+  assert.ok(!findings.some((f) => f.type === 'as-of-missing'));
+  assert.ok(!findings.some((f) => f.type === 'stale-vs-logbook'));
+});
+
+test('F3: an impossible Active-threads stamp FAILs thread-stamp-malformed, not thread-unstamped', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const line = '- **alpha** (as of 2026-09-31) — building the thing → `~/projects/alpha/STATE.md`';
+  const findings = checkActiveThreads(`## Active threads\n${line}\n`, home);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'FAIL');
+  assert.equal(findings[0].type, 'thread-stamp-malformed');
+});
+
+// --- F4: as-of is header-only and last-match (doctor.test.mjs covers ----
+// stateAsOf directly; this confirms the FULL lintProjectState pipeline).
+
+test('F4: a date mentioned only in the Dead-ends body does not date an otherwise-undated page', () => {
+  const text = CLEAN_STATE
+    .replace('as of 2026-08-10 ', '')
+    .replace('## Dead ends\n- (none yet)\n', '## Dead ends\n- tried the old importer as of 2026-09-28; abandoned\n');
+  const findings = lintProjectState(text, { logbookText: CLEAN_LOGBOOK, sessionEntries: [] });
+  assert.ok(findings.some((f) => f.type === 'as-of-missing'), 'the header is genuinely undated — the body date must not count');
+});
+
+// --- F5: arrow resolution ignores backtick-interior arrows and skips -----
+// trailing-prose arrows whose target doesn't look like a path.
+
+test('F5: an arrow inside backticks AFTER the real pointer does not shadow it', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-02');
+  const line = '- **alpha** (as of 2026-09-01) — st → `~/projects/alpha/STATE.md` (see `a → b`)';
+  const findings = checkActiveThreads(`## Active threads\n${line}\n`, home);
+  assert.ok(findings.some((f) => f.type === 'thread-stale'), `expected thread-stale, got: ${JSON.stringify(findings)}`);
+});
+
+test('F5: a second, trailing-prose arrow whose target is not a path does not shadow the real pointer', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-02');
+  const line = '- **alpha** (as of 2026-09-01) — st → `~/projects/alpha/STATE.md` (next: draft → review)';
+  const findings = checkActiveThreads(`## Active threads\n${line}\n`, home);
+  assert.ok(findings.some((f) => f.type === 'thread-stale'), `expected thread-stale, got: ${JSON.stringify(findings)}`);
+});
+
+test('F5: an arrow chain in prose BEFORE the real pointer still resolves to the real pointer', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-02');
+  const line = '- **alpha** (as of 2026-09-01) — spark→bounce→brief → `~/projects/alpha/STATE.md`';
+  const findings = checkActiveThreads(`## Active threads\n${line}\n`, home);
+  assert.ok(findings.some((f) => f.type === 'thread-stale'), `expected thread-stale, got: ${JSON.stringify(findings)}`);
+});
+
+// --- F6: multiple stamps on one bullet compare against the OLDEST --------
+
+test('F6: two stamps, OLDER one first — the oldest still governs (conservative)', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-02');
+  const line = '- **alpha** (as of 2026-01-01) — was (as of 2026-09-30) → `~/projects/alpha/STATE.md`';
+  const findings = checkActiveThreads(`## Active threads\n${line}\n`, home);
+  assert.ok(findings.some((f) => f.type === 'thread-stale'), `expected thread-stale, got: ${JSON.stringify(findings)}`);
+});
+
+test('F6: two stamps, NEWER one first — the oldest still governs (conservative)', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-02');
+  const line = '- **alpha** (as of 2026-09-30) — earlier (as of 2026-01-01) → `~/projects/alpha/STATE.md`';
+  const findings = checkActiveThreads(`## Active threads\n${line}\n`, home);
+  assert.ok(findings.some((f) => f.type === 'thread-stale'), `expected thread-stale, got: ${JSON.stringify(findings)}`);
+});
+
+// --- F7: emphasis markers strip fully (one layer per side is enough once --
+// the alternation includes the triple-marker forms), even around a literal
+// __OWNER__ token's own underscores.
+
+test('F7: a triple-asterisk-wrapped "unowned" is still recognized as unowned', () => {
+  assert.equal(classifyOwnerBullet('- ***unowned*** — do X'), 'unowned');
+});
+
+test('F7: a double-asterisk-wrapped __OWNER__ is still recognized as unowned', () => {
+  assert.equal(classifyOwnerBullet('- **__OWNER__** — do X'), 'unowned');
+});
+
+// --- F8: +, numbered, and one-space-indented list markers count as -------
+// top-level bullets; a leading TAB does not (the rule is 0-1 leading SPACES).
+
+test('F8: a "+" bullet and a numbered bullet both count as top-level', () => {
+  const text = '## Next\n+ rebuild the projection\n1. also rebuild the projection\n';
+  assert.deepEqual(topLevelBullets(text, 'Next'), ['+ rebuild the projection', '1. also rebuild the projection']);
+});
+
+test('F8: a one-space-indented bullet counts; a tab-indented one does not', () => {
+  const text = '## Next\n rebuild me - not a bullet, no marker\n - rebuild the projection\n\t- tab-indented, excluded\n';
+  assert.deepEqual(topLevelBullets(text, 'Next'), [' - rebuild the projection']);
+});
+
+// --- F9: a section body ends at the next level-1/2 heading only — a -----
+// deeper heading or a horizontal rule does not end it.
+
+test('F9: a bullet after a LATER "# H1" is out of the Next section (the missing case, fixed)', () => {
+  const text = '# STATE\n> as of 2026-09-28\n\n## Next\n- alpha — x\n\n# Appendix\n- rebuild the projection\n';
+  assert.deepEqual(topLevelBullets(text, 'Next'), ['- alpha — x']);
+});
+
+test('F9: a bullet after a deeper "#### H4" or a "---" rule stays IN the Next section', () => {
+  const withH4 = '# STATE\n> as of 2026-09-28\n\n## Next\n- alpha — x\n\n#### Appendix\n- rebuild the projection\n';
+  assert.deepEqual(topLevelBullets(withH4, 'Next'), ['- alpha — x', '- rebuild the projection']);
+  const withRule = '# STATE\n> as of 2026-09-28\n\n## Next\n- alpha — x\n\n---\n- rebuild the projection\n';
+  assert.deepEqual(topLevelBullets(withRule, 'Next'), ['- alpha — x', '- rebuild the projection']);
+});
+
+// --- F11: extra whitespace after the bullet marker does not defeat the ---
+// owner match.
+
+test('F11: two spaces after the marker is still owned', () => {
+  assert.equal(classifyOwnerBullet('-  ahimsa — do X'), 'owned');
+});
+
+test('F11: a tab after the marker is still owned', () => {
+  assert.equal(classifyOwnerBullet('-\tahimsa — do X'), 'owned');
+});
+
+// --- F12: stamp matching is case-insensitive but otherwise exact ---------
+
+test('F12: a capitalized "(As of ...)" stamp counts', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const line = '- **alpha** (As of 2026-09-01) — st → `~/projects/alpha/STATE.md`';
+  assert.deepEqual(checkActiveThreads(`## Active threads\n${line}\n`, home), []);
+});
+
+test('F12: extra text before the closing paren keeps the stamp unrecognized — exact by design', (t) => {
+  const home = sandbox(t);
+  const line = '- **alpha** (as of 2026-09-28, rebuilt) — st → `~/projects/alpha/STATE.md`';
+  const findings = checkActiveThreads(`## Active threads\n${line}\n`, home);
+  assert.ok(findings.some((f) => f.type === 'thread-unstamped'), 'the convention is exact by design (documented in DESIGN.md)');
+});
+
+// --- F13: a BOM glued mid-document before a heading does not hide it -----
+
+test('F13: a BOM glued directly before a "## Next" heading does not hide the section', () => {
+  const withBom = CLEAN_STATE.replace('## Next\n', '﻿## Next\n');
+  const findings = lintProjectState(withBom.replace(/﻿/g, ''), { logbookText: CLEAN_LOGBOOK, sessionEntries: [] });
+  assert.deepEqual(findings, [], 'sanity: without the BOM the fixture is clean');
+  // The real regression guard is end-to-end (runStateLint applies prepareText,
+  // which strips the BOM before any section matching runs).
+});
+
+test('F13 (end-to-end via runStateLint): a BOM glued before "## Next" does not cause a false missing-section', async (t) => {
+  const withBom = CLEAN_STATE.replace('## Next\n', '﻿## Next\n');
+  const res = await run(makeProject(t, { state: withBom }));
+  assert.equal(res.code, 0, `expected PASS, got: ${res.lines.join('\n')}`);
+  assert.deepEqual(res.lines, ['state lint: PASS']);
+});
+
+// --- F14: the dirty marker compares on line.trim() (a trailing space -----
+// still counts); an Active-threads bullet is never joined across lines.
+
+test('F14: a dirty marker with one trailing space still WARNs', () => {
+  const withMarker = CLEAN_STATE.replace(
+    '> section patches are legal and must carry the dirty-marker line.',
+    `> section patches are legal and must carry the dirty-marker line.\n${DIRTY_MARKER_LINE} `,
+  );
+  const findings = checkDirtyMarker(withMarker);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].type, 'dirty-marker');
+});
+
+test('F14: a wrapped Active-threads bullet (stamp+pointer on an indented continuation line) is NOT joined — FAILs by design', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const text = '## Active threads\n- **alpha** — a long thread\n  (as of 2026-09-28) → `~/projects/alpha/STATE.md`\n';
+  const findings = checkActiveThreads(text, home);
+  const types = findings.map((f) => f.type).sort();
+  assert.deepEqual(types, ['thread-no-pointer', 'thread-unstamped'], 'the continuation line must not be joined into the bullet');
+});
+
+// --- F15: CR-only (old-Mac) line endings normalize the same as LF/CRLF ---
+
+test('F15: a page with CR-only line endings still lints clean', async (t) => {
+  const crOnly = CLEAN_STATE.replace(/\n/g, '\r');
+  const res = await run(makeProject(t, { state: crOnly }));
+  assert.equal(res.code, 0, `expected PASS, got: ${res.lines.join('\n')}`);
+  assert.deepEqual(res.lines, ['state lint: PASS']);
+});
+
+// --- Unreadable (but existing) LOGBOOK.md / session.log --> exit 2 -------
+// (previously silently swallowed to null, dropping stale-vs-logbook).
+
+test('unreadable input: an existing LOGBOOK.md that cannot be read (a directory, not a file) exits 2 naming it', async (t) => {
+  const dir = sandbox(t);
+  writeFileSync(join(dir, 'STATE.md'), CLEAN_STATE, 'utf8');
+  mkdirSync(join(dir, 'LOGBOOK.md')); // a directory named LOGBOOK.md, not a file
+  mkdirSync(join(dir, '.agents'), { recursive: true });
+  const res = await run(dir);
+  assert.equal(res.code, 2);
+  assert.ok(res.lines.some((l) => l.includes('LOGBOOK.md') && l.includes('missing or unreadable')));
+});
+
+test('unreadable input: an existing .agents/session.log that cannot be read (a directory) exits 2 naming it', async (t) => {
+  const dir = sandbox(t);
+  writeFileSync(join(dir, 'STATE.md'), CLEAN_STATE, 'utf8');
+  mkdirSync(join(dir, '.agents', 'session.log'), { recursive: true }); // a directory, not a file
+  const res = await run(dir);
+  assert.equal(res.code, 2);
+  assert.ok(res.lines.some((l) => l.includes('session.log') && l.includes('missing or unreadable')));
 });

@@ -186,9 +186,24 @@ Exit codes: `0` PASS or WARN-only · `1` any FAIL · `2` usage error or the
 target STATE.md is missing/unreadable. Output is one line per finding
 (FAILs first, then WARNs), `FAIL [type] <file>: <message>` / `WARN [type]
 <file>: <message>`, then a final summary line — `state lint: FAIL (N fail, M
-warn)` / `state lint: WARN (M warn)` / `state lint: PASS`. CRLF is normalized
-to LF before any check runs (Windows files); `STATE_CAP_CHARS` (10000, ADR
-0004) is measured on that normalized text.
+warn)` / `state lint: WARN (M warn)` / `state lint: PASS`. `STATE_CAP_CHARS`
+(10000, ADR 0004) is measured after the full text-preparation pipeline below.
+
+**Text preparation** (review hardening 2026-09-28; `lib/state.mjs`'s
+`prepareText`, run before any check, including by `lintProjectState` and
+`lintGlobalState` themselves — calling either directly on raw file content is
+safe, not just going through `runStateLint`): normalize line endings (CRLF
+**and** lone-CR old-Mac endings both become LF) and strip every U+FEFF
+byte-order-mark (not only one at file start — a BOM glued directly in front
+of a heading mid-document is just as real a character as one at position 0),
+then blank fenced code regions (``` ``` ``` or `~~~`, matching delimiter,
+unterminated blanks to EOF) and `<!-- ... -->` HTML comments (single- or
+multi-line) — every line either touches becomes an empty line, so line
+indexes stay stable and every check below sees only real page content, never
+quoted example text or explanatory markup. A section heading (or an as-of/
+stamp date, or the dirty marker, or the retired-header phrase) that exists
+ONLY inside a fence or comment does not count; one that exists for real
+elsewhere on the page is unaffected by a decoy copy sitting in a fence.
 
 **Project mode** (`banana state lint`, default) lints `<cwd>/STATE.md`;
 `<cwd>/LOGBOOK.md` and `<cwd>/.agents/session.log` are optional comparison
@@ -201,6 +216,7 @@ own).
 | FAIL | `over-cap` | page length exceeds `STATE_CAP_CHARS` |
 | FAIL | `unowned-next` | a top-level bullet in the `## Next` section (qualifier-tolerant, below) fails the shared owner matcher (below) |
 | FAIL | `as-of-missing` | no `as of YYYY-MM-DD` date in the header, and it is not the fresh-page exception (bootstrap placeholder `as of (date)` with zero LOGBOOK.md entries) |
+| FAIL | `as-of-malformed` | the header's `as of` value is date-SHAPED but not a real calendar date (`2026-13-45`, `2026-09-31`, ...) — mutually exclusive with `as-of-missing`: a malformed date IS an attempt, so it never also reports "missing" |
 | FAIL | `stale-vs-logbook` | the as-of date is older than the newest LOGBOOK.md entry date (equal passes) |
 | WARN | `stale-vs-session-log` | the as-of date is older than the newest `.agents/session.log` entry date (equal passes) — WARN, not FAIL: see ADR 0004 |
 | WARN | `dirty-marker` | the standing rebuild-on-close marker (ADR 0001) is present |
@@ -210,31 +226,68 @@ own).
 section's body, e.g. `## Next`, for the owner-matcher scan, both use this
 ONE matcher; a page qualifying its headings — `## Watch (tripwires ...)` —
 must never silently skip a body scan, which would print identically to a
-clean PASS). A `## <Name>` heading is present iff some line, trailing
-whitespace trimmed, matches `^## <Name>(?:\s.*)?$` with `<Name>` regex-escaped:
-the exact section name, optionally followed by whitespace and then any
-qualifier text. Real project pages qualify their headings this way —
-`## Truths (durable studio doctrine)`, `## Watch (tripwires — mirrored as ADR
-revisit-triggers)` both count as their section. A name-glued suffix does
-NOT count: `## Watchlist` does not satisfy `Watch`, `## Nextsteps` does not
-satisfy `Next` — the qualifier must be whitespace-separated from the name,
-not appended directly onto it. (Fixed 2026-09-28, phase 1b: the original
-exact-line matcher false-positived `missing-section` on three real pages
-that qualify their headings — see ADR 0004.)
+clean PASS). A `## <Name>` heading is present iff some (post-preparation)
+line, trailing whitespace trimmed, matches `^## <Name>(?:\s.*)?$` with
+`<Name>` regex-escaped: the exact section name, optionally followed by
+whitespace and then any qualifier text. Real project pages qualify their
+headings this way — `## Truths (durable studio doctrine)`, `## Watch
+(tripwires — mirrored as ADR revisit-triggers)` both count as their section.
+A name-glued suffix does NOT count: `## Watchlist` does not satisfy `Watch`,
+`## Nextsteps` does not satisfy `Next` — the qualifier must be
+whitespace-separated from the name, not appended directly onto it. (Fixed
+2026-09-28, phase 1b: the original exact-line matcher false-positived
+`missing-section` on three real pages that qualify their headings — see ADR
+0004.) A **duplicated** heading is scanned under every occurrence, not just
+the first (review hardening 2026-09-28) — a second `## Next` block's bullets
+are not silently invisible to the unowned-bullet scan. A section's body ends
+at the next heading of level 1 or 2 (`# ` or `## `) — a deeper `###`/`####`
+heading or a `---` rule does not end it (also review hardening: the original
+boundary check only recognized `## `, letting a bullet after a later `# `
+H1 bleed into the wrong section's scan).
 
 **Owner matcher** (shared machinery — project `unowned-next` and global
-`backlog-unowned` both use it): a top-level bullet is a line matching
-`^[-*] ` (no indentation); indented bullets, prose, blank lines and `###`
-sub-headings are ignored. A placeholder bullet — content, after removing one
-leading markdown-emphasis marker (`**`, `*`, `__`, `_`), starts with `(` — is
-skipped by both the owner matcher and the global Active-threads freshness
-checks below. A non-placeholder bullet is owned iff its content matches
-`owner — text` (em-dash U+2014), the owner token itself carries no em-dash,
-and the owner token — after stripping one trailing emphasis marker — is not
-`unowned` (case-insensitive). The literal, unsubstituted `__OWNER__`
-bootstrap placeholder token is always unowned (checked before the
-leading-strip, so its own wrapping underscores can't hide it from the
-comparison — see `lib/state.mjs`'s `classifyOwnerBullet`).
+`backlog-unowned` both use it): a top-level bullet is 0-1 leading spaces,
+then `-`, `*`, `+` or a numbered marker (`\d+[.)]`), then a space or tab
+(review hardening 2026-09-28 — originally only `^[-*] ` (dash/asterisk, no
+`+`/numbered/indented forms); indented bullets (2+ spaces or a leading tab),
+prose, blank lines and `###` sub-headings are still not top-level. A
+placeholder is ONLY a bullet whose full (trimmed) text is byte-equal to one
+of the literal bullets shipped in `templates/project-STATE.md` /
+`templates/global-STATE.md` (any `__OWNER__` token in a template bullet
+matches either the literal token or a real single-token owner, so a
+freshly-bootstrapped page's substituted placeholders still count) — review
+hardening 2026-09-28: "any bullet whose content starts with `(`" was too
+broad and silently exempted real content
+(`- (paused) rebuild the projection`) from every check. A non-placeholder
+bullet is owned iff its content matches `owner — text` (em-dash U+2014), the
+owner token itself carries no em-dash, and the owner token — after stripping
+ONE layer of emphasis from each end (the alternation tries `***`/`___`
+before `**`/`__` before `*`/`_`, so a triple-wrapped word unwraps in one pass
+per side instead of needing an open-ended repeat that would also eat into a
+literal word's own underscores) — is not `unowned` (case-insensitive) or the
+literal `__OWNER__`. The literal, unsubstituted `__OWNER__` bootstrap
+placeholder token is always unowned (checked before the placeholder-pattern
+check, so its own wrapping underscores can't hide it from the comparison —
+see `lib/state.mjs`'s `classifyOwnerBullet`).
+
+**As-of / freshness-stamp date parsing** (shared `lib/doctor.mjs` helper
+`stateAsOf`, single-sourced — review hardening 2026-09-28): searched only in
+the HEADER block (every line before the first `## ` heading, after text
+preparation above), case-insensitive `as of`, taking the LAST match in that
+block — a header may legitimately mention an earlier date in prose before
+its own real as-of clause, and body text (a `## Dead ends` sentence, say)
+must never date an otherwise-undated page. A date-shaped value is validated
+as a REAL calendar date (a `Date.UTC` round-trip — `2026-13-45`,
+`2026-09-31`, `2026-02-30` all "succeed" at construction time but roll into a
+different date rather than throwing); an impossible value is
+`as-of-malformed`/`thread-stamp-malformed`, distinguishable from no date at
+all. A bullet's freshness stamp (`(as of YYYY-MM-DD)`) reuses the same
+real-date validation and is matched case-insensitively too (`(As of
+2026-09-28)` counts) but is otherwise exact by design: `(as of 2026-09-28,
+rebuilt)` is not a match — the closing paren must follow the date
+immediately. If a bullet carries more than one stamp, the OLDEST one governs
+staleness comparison (conservative: if any reading could be stale, treat it
+as stale).
 
 **Global mode** (`banana state lint --global`, #13) lints
 `<home>/.agents/STATE.md` instead — a single input, no LOGBOOK.md/session.log
@@ -248,7 +301,8 @@ comparison (the global page has none). `home` is always injected through
 | FAIL | `over-cap` | page length exceeds `STATE_CAP_CHARS` (same constant, same measurement) |
 | FAIL | `thread-unstamped` | a non-placeholder top-level `## Active threads` bullet has no `(as of YYYY-MM-DD)` freshness stamp |
 | FAIL | `thread-no-pointer` | same bullet has no `→` pointer (independent of the stamp check — both can fire on the same bullet) |
-| FAIL | `thread-stale` | the bullet's pointer resolves to a readable target STATE.md whose own as-of date is LATER than the bullet's stamp (equal passes); only evaluated when both a stamp and a resolved, dated target exist |
+| FAIL | `thread-stale` | the bullet's pointer resolves to a readable target STATE.md whose own as-of date is LATER than the bullet's stamp (equal passes); only evaluated when both a valid stamp and a resolved, dated target exist |
+| FAIL | `thread-stamp-malformed` | the bullet's freshness stamp is date-shaped but not a real calendar date — mutually exclusive with `thread-unstamped`: a malformed stamp IS an attempt |
 | FAIL | `backlog-unowned` | a top-level `## Backlog (owned)` bullet fails the owner matcher |
 | WARN | `thread-unverifiable` | the bullet has a pointer, but it does not resolve to a readable file named `STATE.md` (a memory file, a missing path, a relative path, ...) |
 | WARN | `thread-target-undated` | the pointer resolves to a readable STATE.md with no `as of YYYY-MM-DD` date (incl. the bootstrap placeholder) |
@@ -258,13 +312,39 @@ is rebuilt whole, never patched mid-arc (no standing-marker state to flag),
 and "rebuilt whole, never patched" is its correct, required rule at this
 grain, not a defect.
 
-**Pointer resolution.** Take the text after the LAST `→` in the bullet; the
-target is the first backtick-quoted span there, else the first
-whitespace-delimited token. `~/` or `~\` prefix resolves against `home`;
-absolute (`X:\…`, `X:/…`, `/…`) resolves as-is; anything else is
-unverifiable. Both `\` and `/` separators are accepted. A target that is a
-directory resolves to `<dir>/STATE.md`. The resolved target must be named
-`STATE.md` (case-sensitive) to be verified — otherwise `thread-unverifiable`.
+**Pointer resolution.** Among every `→` in the bullet that is NOT inside a
+backtick span (review hardening 2026-09-28 — an arrow quoted as example text
+inside backticks, `` `a → b` ``, is not a structural delimiter), take the
+LAST one whose target candidate looks like a recognized path form (`~/`,
+`~\`, `X:\…`, `X:/…`, `/…`) — a trailing arrow in prose after the real
+pointer (`(next: draft → review)`) does not win just for appearing last,
+since its target doesn't look like a path. Only when NONE of the candidates
+look like a path does resolution fall back to the very last one (which then
+correctly resolves to unverifiable). For the chosen arrow: the target is the
+first backtick-quoted span after it, else the first whitespace-delimited
+token. `~/` or `~\` prefix resolves against `home`; absolute (`X:\…`,
+`X:/…`, `/…`) resolves as-is; anything else is unverifiable. Both `\` and
+`/` separators are accepted. A target that is a directory resolves to
+`<dir>/STATE.md`. The resolved target must be named `STATE.md`
+(case-sensitive) to be verified — otherwise `thread-unverifiable`.
+
+**A bullet is scanned as ONE physical line, never joined with a following
+line** (review hardening 2026-09-28, F14; canon: "one line per in-flight
+project"). A stamp or pointer living on an indented continuation line, or on
+a following unmarked line, is invisible to the checks above and the bullet
+FAILs (`thread-unstamped`/`thread-no-pointer`) by design — a wrapped
+Active-threads bullet is a defect to fix by putting it back on one line, not
+something the linter reconstructs. The dirty-marker comparison
+(`checkDirtyMarker`) is on `line.trim()`, not raw equality — a trailing
+space or leading indentation doesn't hide a real marker, but no other
+variation is tolerated (still byte-exact otherwise).
+
+**Unreadable (but existing) LOGBOOK.md or session.log** (review hardening
+2026-09-28): a file that exists but cannot be read (permissions, or it's a
+directory rather than a file) is a disk-state precondition failure, same
+tier as an unreadable target STATE.md — `runStateLint` reports it and exits
+`2`, naming the file. It is never silently swallowed to "absent" (which
+would silently drop `stale-vs-logbook`/its date comparisons).
 
 ## Hard rules for this build
 

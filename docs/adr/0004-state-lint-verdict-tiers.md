@@ -103,6 +103,57 @@ never patched (unlike project STATE's rebuild-on-close) — there is no mid-arc 
 for a marker to announce, and "rebuilt whole, never patched" is its *correct*, required rule
 at this grain, not the retired one project pages moved away from in v1.3.
 
+## Review hardening (2026-09-28)
+
+An independent adversarial review of the committed lint (`3526aed` + `bec16a1`) confirmed 15
+wrong-verdict inputs — 7 of them false PASSes — against real trigger shapes (fenced/commented
+headings, arrows inside backticks, multiple stamps, page-wide date search, and more). Every
+mutation check from the original build was real and correct; this is a different class of gap
+(right check, wrong input handling), expected on a first hardening pass, not a mark against
+the original TDD. One line per rule (`lib/state.mjs` unless noted):
+
+- **F1** — before any section matching, blank fenced code regions and `<!-- ... -->` HTML
+  comments to empty lines; a section is present iff a non-blanked line matches; a duplicated
+  heading is scanned under every occurrence, not just the first.
+- **F2** — a placeholder is ONLY a bullet byte-equal (after trim) to a literal bullet shipped in
+  `templates/project-STATE.md`/`templates/global-STATE.md` (with `__OWNER__` tolerant of
+  substitution) — not "any bullet starting with `(`".
+- **F3** — a date-shaped-but-impossible value (`2026-13-45`, `2026-09-31`, ...) is
+  `as-of-malformed`/`thread-stamp-malformed`, never silently "missing" or silently accepted.
+- **F4** — as-of search is header-block-only (before the first `## `), case-insensitive, LAST
+  match wins — not page-wide, case-sensitive, first match.
+- **F5** — pointer resolution ignores `→` inside backtick spans and skips a trailing-prose arrow
+  whose target doesn't look like a path.
+- **F6** — a bullet carrying more than one freshness stamp compares against the OLDEST
+  (conservative).
+- **F7** — emphasis stripping tries the triple-marker form (`***`/`___`) before double/single, so
+  one strip per side fully unwraps a triple-wrapped or doubly-wrapped `__OWNER__` token.
+- **F8** — a top-level bullet marker is `-`/`*`/`+`/numbered (`\d+[.)]`) with 0-1 leading spaces,
+  not only `-`/`*` with none.
+- **F9** — a section body ends at the next level-1 or level-2 heading (`# `/`## `), not `## `
+  alone — a deeper heading or a `---` rule does not end it.
+- **F10** — the target STATE.md's own as-of (for `thread-stale`) reuses the same F3/F4/F12-hardened
+  `stateAsOf`, so a capitalized "As of" or a page-wide decoy no longer defeats it either.
+- **F11** — the bullet content extractor consumes the marker generically (not a hardcoded 2-char
+  offset), so extra whitespace or a tab after the marker doesn't defeat the owner match.
+- **F12** — the freshness-stamp regex is case-insensitive (`(As of ...)` counts) but otherwise
+  exact by design — `(as of 2026-09-28, rebuilt)` still doesn't match.
+- **F13** — every U+FEFF byte-order-mark is stripped during normalization, not only one at file
+  start.
+- **F14** — the dirty marker compares on `line.trim()` (byte-exact otherwise); an Active-threads
+  bullet is never joined across lines — a wrapped bullet FAILs by design (canon: one line per
+  in-flight project).
+- **F15** — line-ending normalization is `/\r\n?/g` (CRLF and lone-CR both become LF), not
+  `/\r\n/g` alone.
+- **Unreadable inputs** — an existing-but-unreadable LOGBOOK.md or session.log exits `2` naming
+  the file, the same tier as an unreadable target, instead of being silently swallowed to
+  "absent."
+
+`lintProjectState`/`lintGlobalState` were also changed to run the full text-preparation pipeline
+themselves (not only when called through `runStateLint`) — the adversarial review's own probe
+scripts call them directly on raw file content, and a public "pure check composer" that only
+works correctly through one specific caller is a footgun, not a contract.
+
 ## Consequences
 
 - A CI gate can key on exit `1` alone to mean "a real defect exists," without additional

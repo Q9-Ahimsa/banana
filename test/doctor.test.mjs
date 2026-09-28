@@ -32,6 +32,7 @@ import {
   ROTATION_THRESHOLD_LINES,
   runDoctor,
   stateAsOf,
+  stateAsOfMalformed,
 } from '../lib/doctor.mjs';
 import { fencedBlock } from '../lib/fence.mjs';
 import { CANON_FILES } from '../lib/init.mjs';
@@ -198,6 +199,33 @@ test('stateAsOf and newestLogbookDate parse dates, tolerate their absence', () =
   const logbook = '## [2026-06-01] a x.1 | DECISION — one\n## [2026-06-20] a x.2 | FIX — two\n';
   assert.equal(newestLogbookDate(logbook), '2026-06-20');
   assert.equal(newestLogbookDate('# no entries yet\n'), null);
+});
+
+// Review hardening 2026-09-28 (F3/F4/F10): header-only scope, case-insensitive,
+// last match wins, and a date-shaped-but-impossible value is distinguishable
+// from "no date" via stateAsOfMalformed rather than silently null either way.
+test('stateAsOf: case-insensitive "As of", header-only scope, last match wins', () => {
+  assert.equal(stateAsOf('> Projection. As of 2026-09-28.'), '2026-09-28', 'capital "As of" recognized');
+  // Body text (past the first "## " heading) is out of scope — a date
+  // mentioned only in a body section must not date an otherwise-undated page.
+  const bodyOnly = '# STATE — x\n> Projection of LOGBOOK.md.\n\n## Dead ends\n- tried X as of 2026-09-28; abandoned\n';
+  assert.equal(stateAsOf(bodyOnly), null, 'a body-only "as of" does not count');
+  // Two header mentions: the LAST one wins (the real projection line, not an
+  // earlier "rebuilt from the plan as of ..." aside).
+  const twoMentions = '# STATE — x\n> Rebuilt from the plan as of 2026-01-01; projection of LOGBOOK.md as of 2026-09-28.\n';
+  assert.equal(stateAsOf(twoMentions), '2026-09-28');
+});
+
+test('stateAsOf / stateAsOfMalformed: a date-shaped but impossible value is distinguishable from absent', () => {
+  assert.equal(stateAsOf('> as of 2026-13-45'), null, 'month 13 is not a real date');
+  assert.equal(stateAsOfMalformed('> as of 2026-13-45'), '2026-13-45');
+  assert.equal(stateAsOf('> as of 2026-09-31'), null, 'September has no 31st');
+  assert.equal(stateAsOfMalformed('> as of 2026-09-31'), '2026-09-31');
+  assert.equal(stateAsOf('> as of 2026-02-30'), null, 'February has no 30th');
+  assert.equal(stateAsOfMalformed('> as of 2026-02-30'), '2026-02-30');
+  // A genuinely absent date: both return null, not just stateAsOf.
+  assert.equal(stateAsOf('> Projection of LOGBOOK.md as of (date).'), null);
+  assert.equal(stateAsOfMalformed('> Projection of LOGBOOK.md as of (date).'), null);
 });
 
 test('seeded-violation fixture: all four audit types flagged, exit 1, nothing written', async (t) => {
