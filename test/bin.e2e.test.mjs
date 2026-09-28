@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 const binPath = fileURLToPath(new URL('../bin/banana.mjs', import.meta.url));
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
-const COMMANDS = ['init', 'project', 'brief', 'doctor', 'sync', 'log'];
+const COMMANDS = ['init', 'project', 'brief', 'doctor', 'sync', 'log', 'state'];
 
 /**
  * Run the bin as a subprocess, never throwing on a non-zero exit.
@@ -70,7 +70,7 @@ test('bin: every subcommand accepts --help and -h with a usage string, not an op
   }
 });
 
-test('bin: top-level --help and -h exit 0 and list all six commands', () => {
+test('bin: top-level --help and -h exit 0 and list all seven commands', () => {
   for (const flag of ['--help', '-h']) {
     const { status, stdout } = run([flag]);
     assert.equal(status, 0, `${flag} exits 0`);
@@ -116,6 +116,79 @@ test('bin: `banana log <unknown verb>` exits 1 naming the vocabulary', () => {
     stderr.includes("unknown log verb 'frobnicate' (expected stub|append|close|supersede)"),
     `stderr: ${stderr}`,
   );
+});
+
+// Dispatch-only slices: the state arm does POSITIONAL --help/-h detection
+// (mirrors log's arm), and its usage-error exit code is 2, not 1 — the
+// contract distinguishes usage errors from any FAIL finding (exit 1).
+// Behavior itself lives at the lib/state.mjs seam (test/state.test.mjs).
+test('bin: bare `banana state` prints usage to stderr and exits 2', () => {
+  const { status, stdout, stderr } = run(['state']);
+  assert.equal(status, 2);
+  assert.equal(stdout, '');
+  assert.ok(stderr.includes('Usage: banana state'), `stderr carries usage: ${stderr}`);
+});
+
+test('bin: `banana state lint --help` prints lint usage and exits 0', () => {
+  const { status, stdout, stderr } = run(['state', 'lint', '--help']);
+  assert.equal(status, 0);
+  assert.ok(stdout.startsWith('Usage: banana state lint'), `stdout: ${stdout}`);
+  assert.equal(stderr, '');
+});
+
+test('bin: `banana state <unknown verb>` exits 2 naming the vocabulary', () => {
+  const { status, stderr } = run(['state', 'frobnicate']);
+  assert.equal(status, 2);
+  assert.ok(stderr.includes("unknown state verb 'frobnicate' (expected lint)"), `stderr: ${stderr}`);
+});
+
+test('bin: `banana state lint --global` exits 2 — --global is not accepted yet (#13)', () => {
+  const { status, stderr } = run(['state', 'lint', '--global']);
+  assert.equal(status, 2);
+  assert.ok(stderr.includes("unknown option '--global'"), `stderr: ${stderr}`);
+});
+
+test('bin: `banana state lint` against a real STATE.md prints a verdict and exits 0', (t) => {
+  const cwd = sandbox(t, 'banana-bin-state-');
+  writeFileSync(
+    join(cwd, 'STATE.md'),
+    [
+      '# STATE — widget',
+      '> Projection of LOGBOOK.md as of (date) (through none). Logbook wins',
+      '> on conflict. One page, hard cap. Rebuilt at session close; mid-arc',
+      '> section patches are legal and must carry the dirty-marker line.',
+      '',
+      '## Now',
+      '- (current focus, 1–3 lines)',
+      '',
+      '## Truths',
+      '- (decisions in force, one line each + logbook id — pointers, not rationale)',
+      '',
+      '## Next',
+      '- testagent — ship it',
+      '',
+      '## Blocked',
+      '- (what, on whom/what, since when)',
+      '',
+      '## Watch',
+      '- (assumptions needing validation, each with a validate-by date)',
+      '',
+      '## Dead ends',
+      '- (approaches tried and abandoned, one line each + why, or an entry pointer)',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  const { status, stdout } = run(['state', 'lint'], { cwd });
+  assert.equal(status, 0);
+  assert.equal(stdout.trim(), 'state lint: PASS');
+});
+
+test('bin: `banana state lint` exits 2 when STATE.md is missing', (t) => {
+  const cwd = sandbox(t, 'banana-bin-state-');
+  const { status, stderr } = run(['state', 'lint'], { cwd });
+  assert.equal(status, 2);
+  assert.ok(stderr.includes('missing or unreadable'), `stderr: ${stderr}`);
 });
 
 // C1: parseLogArgs' own parse-shape errors are already self-identifying

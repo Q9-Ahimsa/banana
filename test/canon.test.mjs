@@ -4,6 +4,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
+import { DIRTY_MARKER_LINE, RETIRED_HEADER_RE } from '../lib/state.mjs';
+
 const canonDir = fileURLToPath(new URL('../canon', import.meta.url));
 const templatesDir = fileURLToPath(new URL('../templates', import.meta.url));
 
@@ -37,12 +39,11 @@ const EXPECTED_REVS = {
   'SESSION-LOG.md': '1.4',
 };
 
-// ADR 0001 (rebuild-on-close): the canonical dirty-marker line, byte-exact.
-const DIRTY_MARKER_LINE = '> ⚠ patched since last rebuild — log is authority';
-
-// The retired project-STATE rule. (The global page keeps rebuild-whole by
-// design — the amendment is project-grain only.)
-const RETIRED_HEADER_RE = /rebuilt whole, never patched/i;
+// DIRTY_MARKER_LINE (ADR 0001, byte-exact) and RETIRED_HEADER_RE (the
+// retired project-STATE rule — global grain keeps rebuild-whole by design)
+// are single-sourced from lib/state.mjs (banana state lint, #9) so the
+// canon's own byte-exact assertions and the lint tool's detection can never
+// drift apart.
 
 // Machine-specific residue that must never ship in the canon.
 const FORBIDDEN_PATTERNS = [

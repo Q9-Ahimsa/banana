@@ -171,6 +171,76 @@ that write the log by hand build against these same rules:
   grammar) is read-only historical context to `doctor`/`brief` at most and
   is never scanned by `nextN`/`loadSessionHistory` and never written.
 
+## `state lint` — verdict contract
+
+`banana state lint` mechanically lints a STATE.md page against the canon's
+invariants — **lint never grades content.** Every verdict is reproducible
+from file bytes alone, so no check ever reads the clock (no `now` is
+injected anywhere in `lib/state.mjs`). Verdict tiers:
+
+- **FAIL** — a mechanical invariant is broken.
+- **WARN** — ambiguous residue a model should look at.
+- **PASS** — neither.
+
+Exit codes: `0` PASS or WARN-only · `1` any FAIL · `2` usage error or the
+target STATE.md is missing/unreadable. Output is one line per finding
+(FAILs first, then WARNs), `FAIL [type] <file>: <message>` / `WARN [type]
+<file>: <message>`, then a final summary line — `state lint: FAIL (N fail, M
+warn)` / `state lint: WARN (M warn)` / `state lint: PASS`. CRLF is normalized
+to LF before any check runs (Windows files); `STATE_CAP_CHARS` (10000, ADR
+0004) is measured on that normalized text.
+
+**Project mode** (`banana state lint`, default) lints `<cwd>/STATE.md`;
+`<cwd>/LOGBOOK.md` and `<cwd>/.agents/session.log` are optional comparison
+inputs (missing files skip the checks that need them, not a finding on their
+own).
+
+| Tier | type | Fires when |
+|---|---|---|
+| FAIL | `missing-section` | one of the six required headings (`## Now`, `## Truths`, `## Next`, `## Blocked`, `## Watch`, `## Dead ends`) has no matching heading line (qualifier-tolerant, below) |
+| FAIL | `over-cap` | page length exceeds `STATE_CAP_CHARS` |
+| FAIL | `unowned-next` | a top-level bullet in the `## Next` section (qualifier-tolerant, below) fails the shared owner matcher (below) |
+| FAIL | `as-of-missing` | no `as of YYYY-MM-DD` date in the header, and it is not the fresh-page exception (bootstrap placeholder `as of (date)` with zero LOGBOOK.md entries) |
+| FAIL | `stale-vs-logbook` | the as-of date is older than the newest LOGBOOK.md entry date (equal passes) |
+| WARN | `stale-vs-session-log` | the as-of date is older than the newest `.agents/session.log` entry date (equal passes) — WARN, not FAIL: see ADR 0004 |
+| WARN | `dirty-marker` | the standing rebuild-on-close marker (ADR 0001) is present |
+| WARN | `retired-header` | the page still carries the pre-amendment "rebuilt whole, never patched" rule — project grain only |
+
+**Heading matcher** (shared machinery — `missing-section` and locating a
+section's body, e.g. `## Next`, for the owner-matcher scan, both use this
+ONE matcher; a page qualifying its headings — `## Watch (tripwires ...)` —
+must never silently skip a body scan, which would print identically to a
+clean PASS). A `## <Name>` heading is present iff some line, trailing
+whitespace trimmed, matches `^## <Name>(?:\s.*)?$` with `<Name>` regex-escaped:
+the exact section name, optionally followed by whitespace and then any
+qualifier text. Real project pages qualify their headings this way —
+`## Truths (durable studio doctrine)`, `## Watch (tripwires — mirrored as ADR
+revisit-triggers)` both count as their section. A name-glued suffix does
+NOT count: `## Watchlist` does not satisfy `Watch`, `## Nextsteps` does not
+satisfy `Next` — the qualifier must be whitespace-separated from the name,
+not appended directly onto it. (Fixed 2026-09-28, phase 1b: the original
+exact-line matcher false-positived `missing-section` on three real pages
+that qualify their headings — see ADR 0004.)
+
+**Owner matcher** (shared machinery — also the seam `--global`'s
+`backlog-unowned` check will reuse, #13): a top-level bullet is a line
+matching `^[-*] ` (no indentation); indented bullets, prose, blank lines and
+`###` sub-headings are ignored. For each top-level bullet, strip one leading
+markdown-emphasis marker (`**`, `*`, `__`, `_`) from its content; content
+that then starts with `(` is a template placeholder, skipped. A bullet is
+owned iff its content matches `owner — text` (em-dash U+2014), the owner
+token itself carries no em-dash, and the owner token — after stripping one
+trailing emphasis marker — is not `unowned` (case-insensitive). The literal,
+unsubstituted `__OWNER__` bootstrap placeholder token is always unowned
+(checked before the leading-strip, so its own wrapping underscores can't
+hide it from the comparison — see `lib/state.mjs`'s `classifyOwnerBullet`).
+
+`--global` (#13, not yet implemented) will lint `<home>/.agents/STATE.md`
+instead, against the global-grain sections and its own thread-freshness
+checks; the shared functions above (owner matcher, cap check,
+missing-section check, Finding shape, output formatter) are already written
+mode-agnostic for that to slot in without restructuring.
+
 ## Hard rules for this build
 
 - Zero runtime dependencies. Node >= 18, ESM (`.mjs`), built-in `node:test`.

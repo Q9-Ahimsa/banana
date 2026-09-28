@@ -4,6 +4,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
+import { RETIRED_HEADER_RE } from '../lib/state.mjs';
+
 const templatesDir = fileURLToPath(new URL('../templates', import.meta.url));
 
 const REQUIRED_FILES = [
@@ -142,7 +144,7 @@ test('project-STATE.md header teaches rebuild-on-close, retired rule absent', ()
     'project-STATE.md header missing the dirty-marker requirement'
   );
   assert.ok(
-    !/rebuilt whole, never patched/i.test(text),
+    !RETIRED_HEADER_RE.test(text),
     'project-STATE.md still carries the retired rebuild-whole rule'
   );
 });

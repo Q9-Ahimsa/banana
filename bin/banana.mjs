@@ -9,7 +9,7 @@ const pkg = JSON.parse(
   readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8')
 );
 
-const COMMANDS = ['init', 'project', 'brief', 'doctor', 'sync', 'log'];
+const COMMANDS = ['init', 'project', 'brief', 'doctor', 'sync', 'log', 'state'];
 const [cmd] = process.argv.slice(2);
 
 // --- `log` usage text ---------------------------------------------------
@@ -103,6 +103,34 @@ const LOG_VERB_USAGE = {
   supersede: LOG_SUPERSEDE_USAGE,
 };
 
+// --- `state` usage text --------------------------------------------------
+// Same rationale as the `log` usage strings above: presentation lives here,
+// lib/state.mjs owns zero help text (contract: docs/DESIGN.md `state lint`
+// — verdict contract).
+
+const STATE_USAGE = `Usage: banana state <lint> [options]
+
+  lint       lint a STATE.md page against the canon's mechanical invariants
+
+Run \`banana state lint --help\` for lint-specific usage.
+
+Exit codes: 0 PASS or WARN-only, 1 any FAIL, 2 usage error or missing/unreadable target`;
+
+const STATE_LINT_USAGE = `Usage: banana state lint [--global]
+
+Lint never grades content — every verdict is reproducible from file bytes
+alone, so no check ever reads the clock.
+
+  (no flag)  lint the project page at <cwd>/STATE.md
+  --global   lint the machine-grain page at <home>/.agents/STATE.md
+
+Verdict tiers:
+  FAIL   a mechanical invariant is broken
+  WARN   ambiguous residue a model should look at
+  PASS   neither
+
+Exit codes: 0 PASS or WARN-only, 1 any FAIL, 2 usage error or the target STATE.md is missing/unreadable`;
+
 /** Owner inference rung shared by init and project: git config user.name. */
 function gitUserName() {
   try {
@@ -182,6 +210,7 @@ Commands:
   doctor    check wiring versions and run liveness audits
   sync      refresh the kit-owned canon and re-apply stale wiring fences
   log       stamp session-log entries: stub / append / close / supersede (envelope computed, never hand-typed)
+  state     lint a STATE.md page against the canon's mechanical invariants (state lint)
 
 Tip: under npx, run the bare 'version' subcommand (not --version/-v) to check
 the version — npm reserves those flags globally and they never reach this
@@ -348,8 +377,42 @@ if (cmd === 'log') {
   process.exit(result.code);
 }
 
+if (cmd === 'state') {
+  const argv = process.argv.slice(3);
+  // POSITIONAL help detection only — mirrors the `log` arm above (argv[0]/
+  // argv[1] of the slice after 'state'), not maybeSubHelp, for the same
+  // reason (a flag-shaped value must never silently short-circuit). Missing
+  // verb and unknown verb/flag all exit 2 here, not 1 — `state lint`'s own
+  // usage-error exit code (contract: docs/DESIGN.md `state lint` — verdict
+  // contract), distinct from every other subcommand's exit 1.
+  if (argv.length === 0) {
+    console.error(STATE_USAGE);
+    process.exit(2);
+  }
+  if (argv[0] === '--help' || argv[0] === '-h') {
+    console.log(STATE_USAGE);
+    process.exit(0);
+  }
+  if (argv[0] === 'lint' && (argv[1] === '--help' || argv[1] === '-h')) {
+    console.log(STATE_LINT_USAGE);
+    process.exit(0);
+  }
+  const { parseStateArgs, runStateLint } = await import('../lib/state.mjs');
+  /** @type {import('../lib/state.mjs').StateFlags} */
+  let flags;
+  try {
+    flags = parseStateArgs(argv);
+  } catch (error) {
+    console.error(`banana state: ${error instanceof Error ? error.message : error}`);
+    process.exit(2);
+  }
+  const io = makeIo();
+  const result = await runStateLint(flags, { cwd: process.cwd(), io, home: homedir() });
+  process.exit(result.code);
+}
+
 // Unreachable: the COMMANDS guard above already rejects anything not in the
-// six-command vocabulary, and every member of COMMANDS has a dispatch arm
+// seven-command vocabulary, and every member of COMMANDS has a dispatch arm
 // above that exits. This is an internal-invariant guard — if it ever fires,
 // a COMMANDS entry was added without a matching dispatch arm.
 console.error(`banana: internal error — no dispatch arm for '${cmd}'`);
