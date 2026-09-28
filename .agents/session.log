@@ -387,3 +387,19 @@ DECISION: two-axis review verified (29 agents, adversarial): standards 9 confirm
 VALIDATED: fix wave wf_267332c5-ff8 landed (A canon v1.4 + docs, B lib B1-B11, C bin C1-C2; all TDD with RED evidence); main re-verified: tsc clean, 315/315; re-smoke: empty-NEXT refused exit 1, single prefix, dry-run byte-exact
 STATUS: complete
 NEXT: testagent — /implement #8 (brief v2), then #9 #6 #10 #11 per cli.5 order; standing flag: Ahimsa review of canon amendments SESSION-LOG v2.3 + CONTINUITY v1.4 before rollout (#11)
+
+## [2026-09-28] testagent cli.9 | build — #9 state lint + #13 global-page freshness check
+APPROACH: trigger: global ~/.agents/STATE.md found 4/8 threads stale 2026-09-28 (owner: do both). Spec on disk .agents/specs/cli-9-13-state-lint.md -> one task-worker, TDD, two commits (#9 then #13 + canon stamp amendment) -> independent audit incl. mutation checks + real-page positive controls
+DECIDED: cap = 10000 chars (no numeric cap existed; real pages 1.4k-15k, median ~5.5k -> askterics alone FAILs) · as-of vs LOGBOOK = FAIL, vs session.log = WARN (canon rebuild trigger is promotion, so an unpromoted session entry is legit residue) · global stamp '(as of YYYY-MM-DD)' per Active-threads bullet
+STATUS: in-progress
+FILES: ~/.agents/STATE.md rebuilt from 8 project STATE pages + memory (18716 -> 6356 chars); canonical 4 sections; every Active thread stamped (as of); parked corpo/PumpAndDump -> owned Backlog; stability-entropy dropped (owner). Backup of old page (positive control for #13): scratchpad STATE.2026-09-19.bak.md
+FILES: GitHub #13 filed; spec .agents/specs/cli-9-13-state-lint.md; lint-builder (task-worker) dispatched on phase 1 (#9)
+VALIDATED: phase 1 (#9) re-run independently: 372/372 tests, typecheck clean; real-page smoke hit all 3 predictions (askterics over-cap 14936 + **unowned** FAIL; mnemosyne + df-athon stale-vs-session-log WARN)
+PROBLEM: 3 of 5 missing-section FAILs were false positives - real pages qualify headings ('## Watch (tripwires ...)'); spec said exact line. Same matcher gap would let '## Next (owned)' skip the unowned scan silently
+FIX: phase 1b sent - shared heading matcher ^## Name(\s.*)?$ for presence + body location; plus fresh-page positive control via the real project-command code path
+FILES: #9 committed 3526aed (amended from 810cdf0 before any push: fixtures/spec/ADR carried a real person's name, an unpublished piece title, private project names + a local user path - public repo). Sweep of all added lines: 0 hits
+PROBLEM: fixture realism vs public repo - spec asked for real shapes without saying the repo is public. FIX: phase 2 prompt carries an explicit synthetic-fixtures rule
+FILES: phase 2 (#13 --global + CONTINUITY stamp amendment) dispatched; controls = real global page (expect 1 WARN) + old 09-19 page in sandbox home (must FAIL)
+FILES: #13 committed bec16a1 (CONTINUITY v1.5 stamp). Controls: real page WARN x1, old page FAIL (over-cap + 6 unstamped). Adversarial review (Opus): 15 verified wrong-verdict inputs, 7 false-PASS -> phase 3 fix round dispatched (review/fix-spec.md)
+STATUS: complete
+NEXT: ahimsa — review CONTINUITY v1.5 + ADR 0004 with v2.3/v1.4, then decide the push (8 local commits)
