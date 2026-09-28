@@ -142,10 +142,46 @@ test('bin: `banana state <unknown verb>` exits 2 naming the vocabulary', () => {
   assert.ok(stderr.includes("unknown state verb 'frobnicate' (expected lint)"), `stderr: ${stderr}`);
 });
 
-test('bin: `banana state lint --global` exits 2 — --global is not accepted yet (#13)', () => {
-  const { status, stderr } = run(['state', 'lint', '--global']);
+test('bin: `banana state lint --global` runs against a sandboxed home (env HOME/USERPROFILE) and exits 0 on a clean global page', (t) => {
+  const home = sandbox(t, 'banana-bin-state-global-');
+  mkdirSync(join(home, '.agents'), { recursive: true });
+  writeFileSync(
+    join(home, '.agents', 'STATE.md'),
+    [
+      '# GLOBAL STATE — cross-project projection',
+      '> One page, hard cap. Rebuilt whole, never patched. Chronology lives in project',
+      '> logbooks; this file only answers "what\'s live and what\'s queued across',
+      '> everything." Owner: testagent. Protocol: `~/.agents/canon/CONTINUITY.md`.',
+      '',
+      '## Active threads',
+      '- (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)',
+      '',
+      '## Backlog (owned)',
+      '- (queued cross-project items, each owned: `testagent — action` or an agent tag)',
+      '',
+      '## Watch',
+      '- (assumptions and deadlines needing attention, each with a validate-by date)',
+      '',
+      '## Recently closed (context for next session)',
+      '- (last few finished threads, one line each, with pointers)',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  const { status, stdout } = run(['state', 'lint', '--global'], {
+    env: { ...process.env, HOME: home, USERPROFILE: home },
+  });
+  assert.equal(status, 0, `stdout: ${stdout}`);
+  assert.equal(stdout.trim(), 'state lint: PASS');
+});
+
+test('bin: `banana state lint --global` exits 2 when the target is missing', (t) => {
+  const home = sandbox(t, 'banana-bin-state-global-missing-');
+  const { status, stderr } = run(['state', 'lint', '--global'], {
+    env: { ...process.env, HOME: home, USERPROFILE: home },
+  });
   assert.equal(status, 2);
-  assert.ok(stderr.includes("unknown option '--global'"), `stderr: ${stderr}`);
+  assert.ok(stderr.includes('missing or unreadable'), `stderr: ${stderr}`);
 });
 
 test('bin: `banana state lint` against a real STATE.md prints a verdict and exits 0', (t) => {

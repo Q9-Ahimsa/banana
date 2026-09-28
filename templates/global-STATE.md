@@ -4,7 +4,7 @@
 > everything." Owner: __OWNER__. Protocol: `~/.agents/canon/CONTINUITY.md`.
 
 ## Active threads
-- (one line per in-flight project: **name** — status → pointer to its STATE.md)
+- (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)
 
 ## Backlog (owned)
 - (queued cross-project items, each owned: `__OWNER__ — action` or an agent tag)

@@ -1,17 +1,17 @@
-// #9 (project mode) acceptance: `banana state lint` mechanically verdicts a
-// project STATE.md page — FAIL (a mechanical invariant is broken), WARN
-// (ambiguous residue a model should look at), PASS (neither) — never grading
-// content; every verdict is reproducible from file bytes alone. Exit codes:
-// 0 PASS/WARN-only, 1 any FAIL, 2 usage error or a missing/unreadable target.
-// Global mode (#13, `--global`) is out of scope here; parseStateArgs must
-// reject `--global` until #13 lands.
+// #9 (project mode) + #13 (global mode, `--global`) acceptance: `banana
+// state lint` mechanically verdicts a STATE.md page — FAIL (a mechanical
+// invariant is broken), WARN (ambiguous residue a model should look at),
+// PASS (neither) — never grading content; every verdict is reproducible
+// from file bytes alone. Exit codes: 0 PASS/WARN-only, 1 any FAIL, 2 usage
+// error or a missing/unreadable target.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import {
+  checkActiveThreads,
   checkAsOfMissing,
   checkDirtyMarker,
   checkMissingSections,
@@ -24,14 +24,18 @@ import {
   DIRTY_MARKER_LINE,
   emitFindings,
   hasSection,
+  isPlaceholderBullet,
+  lintGlobalState,
   lintProjectState,
   parseStateArgs,
+  REQUIRED_GLOBAL_SECTIONS,
   REQUIRED_PROJECT_SECTIONS,
   RETIRED_HEADER_RE,
   runStateLint,
   STATE_CAP_CHARS,
   topLevelBullets,
 } from '../lib/state.mjs';
+import { runInit } from '../lib/init.mjs';
 import { runProject } from '../lib/project.mjs';
 import { sessionLogPath } from '../lib/sessionlog.mjs';
 
@@ -144,7 +148,19 @@ function makeIo() {
  */
 async function run(cwd) {
   const io = makeIo();
-  const result = await runStateLint({ verb: 'lint' }, { cwd, io, home: cwd });
+  const result = await runStateLint({ verb: 'lint', global: false }, { cwd, io, home: cwd });
+  return { code: result.code, lines: io.lines };
+}
+
+/**
+ * @param {string} home
+ * @returns {Promise<{ code: number, lines: string[] }>}
+ */
+async function runGlobal(home) {
+  const io = makeIo();
+  // cwd is irrelevant in global mode — never read — passed as home itself
+  // so a stray project-mode code path would trip on it, not silently pass.
+  const result = await runStateLint({ verb: 'lint', global: true }, { cwd: home, io, home });
   return { code: result.code, lines: io.lines };
 }
 
@@ -169,12 +185,12 @@ test('parseStateArgs: unknown verb names the vocabulary', () => {
   assert.throws(() => parseStateArgs(['frobnicate']), /unknown state verb 'frobnicate' \(expected lint\)/);
 });
 
-test('parseStateArgs: bare `lint` parses to { verb: "lint" }', () => {
-  assert.deepEqual(parseStateArgs(['lint']), { verb: 'lint' });
+test('parseStateArgs: bare `lint` defaults global to false', () => {
+  assert.deepEqual(parseStateArgs(['lint']), { verb: 'lint', global: false });
 });
 
-test('parseStateArgs: --global is not yet accepted (phase 1) — unknown option', () => {
-  assert.throws(() => parseStateArgs(['lint', '--global']), /unknown option '--global'/);
+test('parseStateArgs: `lint --global` sets global to true', () => {
+  assert.deepEqual(parseStateArgs(['lint', '--global']), { verb: 'lint', global: true });
 });
 
 test('parseStateArgs: any other unknown flag is rejected the same way', () => {
@@ -634,5 +650,401 @@ test('runStateLint: a project bootstrapped by the real `banana project` command 
 
   const res = await run(dir);
   assert.equal(res.code, 0, `expected a clean bootstrap to PASS, got: ${res.lines.join('\n')}`);
+  assert.deepEqual(res.lines, ['state lint: PASS']);
+});
+
+// =====================================================================
+// Global mode (#13, `--global`) — fixtures + helpers. Public-repo hygiene:
+// every fixture below is synthetic (invented projects `alpha`/`beta`/`gamma`,
+// no real project/person/machine names) but keeps the real trigger SHAPES:
+// backticked `~/`-relative pointers, `~\` Windows-style, absolute `X:\…`
+// paths, a memory-file pointer, and a directory pointer.
+// =====================================================================
+
+const CLEAN_GLOBAL = [
+  '# GLOBAL STATE — cross-project projection',
+  '> One page, hard cap. Rebuilt whole, never patched. Chronology lives in project',
+  '> logbooks; this file only answers "what\'s live and what\'s queued across',
+  '> everything." Owner: testagent. Protocol: `~/.agents/canon/CONTINUITY.md`.',
+  '',
+  '## Active threads',
+  '- **alpha** (as of 2026-09-01) — building the thing → `~/projects/alpha/STATE.md`',
+  '',
+  '## Backlog (owned)',
+  '- testagent — sweep the backlog',
+  '',
+  '## Watch',
+  '- an assumption needing validation (validate-by: 2026-10-01)',
+  '',
+  '## Recently closed (context for next session)',
+  '- gamma finished — see alpha\'s logbook',
+  '',
+].join('\n');
+
+const FRESH_GLOBAL = [
+  '# GLOBAL STATE — cross-project projection',
+  '> One page, hard cap. Rebuilt whole, never patched. Chronology lives in project',
+  '> logbooks; this file only answers "what\'s live and what\'s queued across',
+  '> everything." Owner: testagent. Protocol: `~/.agents/canon/CONTINUITY.md`.',
+  '',
+  '## Active threads',
+  '- (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)',
+  '',
+  '## Backlog (owned)',
+  '- (queued cross-project items, each owned: `testagent — action` or an agent tag)',
+  '',
+  '## Watch',
+  '- (assumptions and deadlines needing attention, each with a validate-by date)',
+  '',
+  '## Recently closed (context for next session)',
+  '- (last few finished threads, one line each, with pointers)',
+  '',
+].join('\n');
+
+/**
+ * A fresh sandbox home with `.agents/STATE.md` = text.
+ * @param {import('node:test').TestContext} t
+ * @param {string} text
+ * @returns {string} the home dir
+ */
+function makeGlobalHome(t, text) {
+  const home = sandbox(t);
+  mkdirSync(join(home, '.agents'), { recursive: true });
+  writeFileSync(join(home, '.agents', 'STATE.md'), text, 'utf8');
+  return home;
+}
+
+/**
+ * Write a target project STATE.md at an arbitrary absolute path (parent
+ * dirs created as needed) — for pointer-resolution fixtures.
+ * @param {string} path
+ * @param {string | null} asOfDate null = keep the bootstrap placeholder (undated)
+ */
+function makeTargetState(path, asOfDate) {
+  mkdirSync(dirname(path), { recursive: true });
+  const text =
+    asOfDate === null
+      ? '# STATE — target\n> Projection of LOGBOOK.md as of (date) (through none). Logbook wins\n'
+      : `# STATE — target\n> Projection of LOGBOOK.md as of ${asOfDate} (through target.1). Logbook wins\n`;
+  writeFileSync(path, text, 'utf8');
+}
+
+// =====================================================================
+// isPlaceholderBullet — shared by the owner matcher and Active-threads
+// =====================================================================
+
+test('isPlaceholderBullet: the real Active-threads/Backlog placeholder texts are placeholders', () => {
+  assert.ok(
+    isPlaceholderBullet(
+      '- (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)',
+    ),
+  );
+  assert.ok(isPlaceholderBullet('- (queued cross-project items, each owned: `testagent — action` or an agent tag)'));
+});
+
+test('isPlaceholderBullet: a real thread bullet is not a placeholder', () => {
+  assert.ok(!isPlaceholderBullet('- **alpha** (as of 2026-09-01) — building the thing → `~/projects/alpha/STATE.md`'));
+});
+
+// =====================================================================
+// checkMissingSections (global names) — the parenthetical is part of the
+// required name, not an optional qualifier
+// =====================================================================
+
+test('checkMissingSections: the clean global fixture has all four sections', () => {
+  assert.deepEqual(checkMissingSections(CLEAN_GLOBAL, REQUIRED_GLOBAL_SECTIONS), []);
+});
+
+test('checkMissingSections: a bare "## Recently closed" does NOT satisfy "Recently closed (context for next session)"', () => {
+  const text = [
+    '## Active threads', '- x',
+    '## Backlog (owned)', '- x',
+    '## Watch', '- x',
+    '## Recently closed', '- x',
+  ].join('\n');
+  const findings = checkMissingSections(text, REQUIRED_GLOBAL_SECTIONS);
+  assert.equal(findings.length, 1);
+  assert.ok(findings[0].message.includes('Recently closed (context for next session)'));
+});
+
+// =====================================================================
+// checkOverCap wiring (global) — same shared function as project mode;
+// this proves lintGlobalState actually calls it, not just that checkOverCap
+// itself works (already mutation-tested in phase 1).
+// =====================================================================
+
+test('lintGlobalState: a page over STATE_CAP_CHARS FAILs over-cap through the composed findings', (t) => {
+  const marker = '- an assumption needing validation (validate-by: 2026-10-01)';
+  const extra = STATE_CAP_CHARS + 1 - CLEAN_GLOBAL.length;
+  assert.ok(extra >= 1, 'sanity: CLEAN_GLOBAL is small enough to pad past the cap');
+  const padded = CLEAN_GLOBAL.replace(marker, `${marker} ${'x'.repeat(extra - 1)}`);
+  assert.equal(padded.length, STATE_CAP_CHARS + 1);
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const findings = lintGlobalState(padded, { home });
+  assert.ok(findings.some((f) => f.type === 'over-cap'), `expected an over-cap finding: ${JSON.stringify(findings)}`);
+});
+
+// =====================================================================
+// checkActiveThreads — thread-unstamped / thread-no-pointer / thread-stale
+// (FAIL), thread-unverifiable / thread-target-undated (WARN)
+// =====================================================================
+
+test('checkActiveThreads: a placeholder bullet is skipped entirely', () => {
+  assert.deepEqual(checkActiveThreads(FRESH_GLOBAL, '/nonexistent/home'), []);
+});
+
+test('checkActiveThreads: stamped + pointer resolving to a target at the SAME as-of date passes (equal-passes boundary)', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const line = '- **alpha** (as of 2026-09-01) — building the thing → `~/projects/alpha/STATE.md`';
+  assert.deepEqual(checkActiveThreads(`## Active threads\n${line}\n`, home), []);
+});
+
+test('checkActiveThreads: stamp one day older than the target as-of FAILs thread-stale, naming both dates and the path', (t) => {
+  const home = sandbox(t);
+  const targetPath = join(home, 'projects', 'alpha', 'STATE.md');
+  makeTargetState(targetPath, '2026-09-02');
+  const line = '- **alpha** (as of 2026-09-01) — building the thing → `~/projects/alpha/STATE.md`';
+  const findings = checkActiveThreads(`## Active threads\n${line}\n`, home);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'FAIL');
+  assert.equal(findings[0].type, 'thread-stale');
+  assert.ok(findings[0].message.includes('2026-09-01'));
+  assert.ok(findings[0].message.includes('2026-09-02'));
+  assert.ok(findings[0].message.includes(targetPath));
+});
+
+test('checkActiveThreads: no "(as of ...)" stamp FAILs thread-unstamped', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const line = '- **alpha** — building the thing → `~/projects/alpha/STATE.md`';
+  const findings = checkActiveThreads(`## Active threads\n${line}\n`, home);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'FAIL');
+  assert.equal(findings[0].type, 'thread-unstamped');
+});
+
+test('checkActiveThreads: no "→" pointer FAILs thread-no-pointer, independent of the stamp', (t) => {
+  const home = sandbox(t);
+  const line = '- **alpha** (as of 2026-09-01) — building the thing, no pointer yet';
+  const findings = checkActiveThreads(`## Active threads\n${line}\n`, home);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'FAIL');
+  assert.equal(findings[0].type, 'thread-no-pointer');
+});
+
+test('checkActiveThreads: both missing — unstamped AND no pointer — fire as two separate findings', (t) => {
+  const home = sandbox(t);
+  const line = '- **alpha** — building the thing, no stamp, no pointer';
+  const findings = checkActiveThreads(`## Active threads\n${line}\n`, home);
+  const types = findings.map((f) => f.type).sort();
+  assert.deepEqual(types, ['thread-no-pointer', 'thread-unstamped']);
+});
+
+test('checkActiveThreads: takes the target after the LAST arrow when a bullet has more than one', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const line =
+    '- **alpha** (as of 2026-09-01) — building the thing → status: on track → `~/projects/alpha/STATE.md`';
+  assert.deepEqual(checkActiveThreads(`## Active threads\n${line}\n`, home), []);
+});
+
+test('checkActiveThreads: ~\\ (Windows-style tilde) resolves against home the same as ~/', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'beta', 'STATE.md'), '2026-09-01');
+  const line = '- **beta** (as of 2026-09-01) — shipping the other thing → `~\\projects\\beta\\STATE.md`';
+  assert.deepEqual(checkActiveThreads(`## Active threads\n${line}\n`, home), []);
+});
+
+test('checkActiveThreads: an absolute Windows-style path (X:\\…) resolves as-is, not against home', (t) => {
+  const home = sandbox(t); // the global page's own home — irrelevant to this pointer
+  const otherDir = mkdtempSync(join(tmpdir(), 'banana-state-abs-'));
+  tempDirs.push(otherDir);
+  const targetPath = join(otherDir, 'STATE.md');
+  makeTargetState(targetPath, '2026-09-01');
+  const line = `- **beta** (as of 2026-09-01) — shipping the other thing → \`${targetPath}\``;
+  assert.deepEqual(checkActiveThreads(`## Active threads\n${line}\n`, home), []);
+});
+
+test('checkActiveThreads: a directory pointer resolves to <dir>/STATE.md', (t) => {
+  const home = sandbox(t);
+  const dir = join(home, 'projects', 'alpha');
+  makeTargetState(join(dir, 'STATE.md'), '2026-09-01');
+  const line = '- **alpha** (as of 2026-09-01) — building the thing → `~/projects/alpha`';
+  assert.deepEqual(checkActiveThreads(`## Active threads\n${line}\n`, home), []);
+});
+
+test('checkActiveThreads: a pointer to a non-STATE memory file is thread-unverifiable (WARN)', (t) => {
+  const home = sandbox(t);
+  const line = '- **alpha** (as of 2026-09-01) — building the thing → memory project_alpha.md';
+  const findings = checkActiveThreads(`## Active threads\n${line}\n`, home);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'WARN');
+  assert.equal(findings[0].type, 'thread-unverifiable');
+});
+
+test('checkActiveThreads: a recognized but nonexistent path is thread-unverifiable (WARN) — missing path', (t) => {
+  const home = sandbox(t);
+  const line = '- **alpha** (as of 2026-09-01) — building the thing → `~/projects/nonexistent/STATE.md`';
+  const findings = checkActiveThreads(`## Active threads\n${line}\n`, home);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'WARN');
+  assert.equal(findings[0].type, 'thread-unverifiable');
+});
+
+test('checkActiveThreads: a relative (non-~, non-absolute) pointer is thread-unverifiable (WARN)', (t) => {
+  const home = sandbox(t);
+  const line = '- **alpha** (as of 2026-09-01) — building the thing → `projects/alpha/STATE.md`';
+  const findings = checkActiveThreads(`## Active threads\n${line}\n`, home);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].type, 'thread-unverifiable');
+});
+
+test('checkActiveThreads: a resolved, readable target with no as-of date is thread-target-undated (WARN)', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), null); // still the bootstrap placeholder
+  const line = '- **alpha** (as of 2026-09-01) — building the thing → `~/projects/alpha/STATE.md`';
+  const findings = checkActiveThreads(`## Active threads\n${line}\n`, home);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'WARN');
+  assert.equal(findings[0].type, 'thread-target-undated');
+});
+
+// =====================================================================
+// checkUnownedBullets on '## Backlog (owned)' — global backlog-unowned type
+// =====================================================================
+
+test('checkUnownedBullets: the clean global Backlog is owned, no findings', () => {
+  assert.deepEqual(checkUnownedBullets(CLEAN_GLOBAL, 'Backlog (owned)', 'backlog-unowned'), []);
+});
+
+test('checkUnownedBullets: the fresh-page Backlog placeholder is skipped (not a finding)', () => {
+  assert.deepEqual(checkUnownedBullets(FRESH_GLOBAL, 'Backlog (owned)', 'backlog-unowned'), []);
+});
+
+test('checkUnownedBullets: an unowned Backlog bullet FAILs backlog-unowned', () => {
+  const text = '## Backlog (owned)\n- unowned — nobody claimed this yet\n';
+  const findings = checkUnownedBullets(text, 'Backlog (owned)', 'backlog-unowned');
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].type, 'backlog-unowned');
+});
+
+// =====================================================================
+// lintGlobalState — composition sanity + the never-flag-retired-header rule
+// =====================================================================
+
+test('lintGlobalState: the clean global fixture has zero findings', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  assert.deepEqual(lintGlobalState(CLEAN_GLOBAL, { home }), []);
+});
+
+test('lintGlobalState: never flags "Rebuilt whole, never patched." — correct at this grain', (t) => {
+  // CLEAN_GLOBAL's own header carries this phrase verbatim (it's the correct,
+  // required global-grain rule) — if retired-header were wired into global
+  // mode this fixture would already fail, so this doubles as a regression
+  // guard for the never-flag rule.
+  assert.ok(CLEAN_GLOBAL.includes('Rebuilt whole, never patched.'));
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  assert.deepEqual(lintGlobalState(CLEAN_GLOBAL, { home }), []);
+});
+
+test('lintGlobalState: an unowned Backlog bullet surfaces through the composed findings, not just the standalone checkUnownedBullets call', (t) => {
+  const text = CLEAN_GLOBAL.replace('- testagent — sweep the backlog', '- unowned — nobody claimed this yet');
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const findings = lintGlobalState(text, { home });
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].type, 'backlog-unowned');
+});
+
+// =====================================================================
+// runStateLint --global — end-to-end tiers, exit codes, missing target
+// =====================================================================
+
+test('runStateLint --global: a clean global page is PASS, exit 0', async (t) => {
+  const home = makeGlobalHome(t, CLEAN_GLOBAL);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const res = await runGlobal(home);
+  assert.equal(res.code, 0, `expected PASS, got: ${res.lines.join('\n')}`);
+  assert.deepEqual(res.lines, ['state lint: PASS']);
+});
+
+test('runStateLint --global: WARN-only (a memory-file thread pointer) exits 0', async (t) => {
+  const text = CLEAN_GLOBAL.replace(
+    '- **alpha** (as of 2026-09-01) — building the thing → `~/projects/alpha/STATE.md`',
+    '- **alpha** (as of 2026-09-01) — building the thing → memory project_alpha.md',
+  );
+  const home = makeGlobalHome(t, text);
+  const res = await runGlobal(home);
+  assert.equal(res.code, 0, `expected WARN-only exit 0, got: ${res.lines.join('\n')}`);
+  assert.ok(res.lines.some((l) => l.startsWith('WARN [thread-unverifiable]')));
+  assert.ok(res.lines.at(-1)?.startsWith('state lint: WARN'));
+});
+
+test('runStateLint --global: FAIL-only (missing section) exits 1', async (t) => {
+  const text = CLEAN_GLOBAL.replace('## Watch\n- an assumption needing validation (validate-by: 2026-10-01)\n\n', '');
+  const home = makeGlobalHome(t, text);
+  const res = await runGlobal(home);
+  assert.equal(res.code, 1);
+  assert.ok(res.lines.some((l) => l.startsWith('FAIL [missing-section]')));
+});
+
+test('runStateLint --global: mixed FAIL + WARN exits 1, FAILs printed before WARNs', async (t) => {
+  const text = CLEAN_GLOBAL.replace(
+    '- **alpha** (as of 2026-09-01) — building the thing → `~/projects/alpha/STATE.md`',
+    '- **alpha** — building the thing → memory project_alpha.md',
+  );
+  const home = makeGlobalHome(t, text);
+  const res = await runGlobal(home);
+  assert.equal(res.code, 1);
+  const failIdx = res.lines.findIndex((l) => l.startsWith('FAIL'));
+  const warnIdx = res.lines.findIndex((l) => l.startsWith('WARN'));
+  assert.ok(failIdx !== -1 && warnIdx !== -1 && failIdx < warnIdx);
+  assert.ok(res.lines.some((l) => l.startsWith('FAIL [thread-unstamped]')));
+  assert.ok(res.lines.some((l) => l.startsWith('WARN [thread-unverifiable]')));
+});
+
+test('runStateLint --global: a missing home STATE.md exits 2', async (t) => {
+  const home = sandbox(t); // no .agents/STATE.md written
+  const res = await runGlobal(home);
+  assert.equal(res.code, 2);
+  assert.ok(res.lines.some((l) => l.includes('missing or unreadable')));
+});
+
+test('runStateLint --global: findings are tagged with the ~/.agents/STATE.md file token, not the bare project-mode token', async (t) => {
+  const text = CLEAN_GLOBAL.replace('## Watch\n- an assumption needing validation (validate-by: 2026-10-01)\n\n', '');
+  const home = makeGlobalHome(t, text);
+  const res = await runGlobal(home);
+  assert.ok(res.lines[0].includes('~/.agents/STATE.md'), `expected the global file token: ${res.lines[0]}`);
+});
+
+// =====================================================================
+// Global fresh-page positive control (#13 analogue of Fix B): a home
+// bootstrapped through the REAL `banana init` code path (the actual
+// templates/global-STATE.md + its real __OWNER__ substitution) with a
+// single-token owner must lint clean.
+// =====================================================================
+
+test('runStateLint --global: a home bootstrapped by the real `banana init` command lints clean', async (t) => {
+  const home = sandbox(t);
+  const initIo = {
+    out: () => {},
+    err: () => {},
+    prompt: async () => {
+      throw new Error('prompt not expected in this test — owner is provided and yes:true');
+    },
+  };
+  const initResult = await runInit(
+    { owner: 'testagent', tag: null, harnesses: [], yes: true, deliver: false },
+    { home, io: initIo, isTTY: false, gitUserName: () => null, env: { PATH: '' } },
+  );
+  assert.equal(initResult.code, 0, `banana init itself must succeed to set up this control: ${JSON.stringify(initResult)}`);
+  assert.ok(initResult.created.some((p) => p.endsWith(join('.agents', 'STATE.md'))), 'banana init must have written the global STATE.md');
+
+  const res = await runGlobal(home);
+  assert.equal(res.code, 0, `expected a clean init to PASS, got: ${res.lines.join('\n')}`);
   assert.deepEqual(res.lines, ['state lint: PASS']);
 });

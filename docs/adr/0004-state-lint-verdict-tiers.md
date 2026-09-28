@@ -64,18 +64,61 @@ scanned for `unowned-next`, or a qualified heading would silently skip that
 scan, which prints identically to a clean PASS (the worst kind of lint bug: a
 false negative that looks exactly like success).
 
+## Global grain (#13)
+
+The trigger for this whole ticket: `~/.agents/STATE.md` was stale on 4 of its 8 threads
+while the file's own date read 9 days old — every session had rewritten the one bullet it
+touched and carried the rest forward unexamined, so nothing about the page's own bytes
+signaled staleness. Project mode (#9) already answers "is this page consistent with its own
+logs?"; global mode answers the different question "is this page still consistent with the
+project pages it projects?" — a cross-file check, not a self-check, so it needed its own
+canon amendment (CONTINUITY v1.5) before `state lint` had anything to verify against.
+
+**The freshness stamp.** Every non-placeholder `## Active threads` bullet now carries
+`(as of YYYY-MM-DD)` — the date of the newest source it was rebuilt from, normally the
+project's own STATE.md as-of. `thread-stale` FAILs when the pointed-to project STATE is
+dated *later* than the stamp: the global bullet is provably behind a page it claims to
+summarize. This is deliberately a FAIL, not a WARN, unlike project mode's
+session-log-lag — there is no legitimate "mid-arc, not yet promoted" story here: the
+project's own STATE.md is itself already a rebuilt projection, so a stamp older than it is
+simply wrong, not provisionally incomplete.
+
+**Two WARNs, not FAILs, for the parts lint cannot verify by design.**
+`thread-unverifiable` (a pointer that cannot be resolved to a readable STATE.md — a memory
+file, a missing path, a relative path) and `thread-target-undated` (a resolved target with
+no as-of date of its own) both stop short of FAIL because the global page cannot always
+point at another `state lint`-conformant STATE.md — some threads are legitimately tracked
+in memory files or external documents, and flagging that as a hard defect would punish a
+sanctioned pattern, not a broken one.
+
+**Placeholder bullets are skipped, symmetrically with the owner matcher.** The bootstrap
+template's Active-threads and Backlog placeholder lines both start with `(` after emphasis
+stripping — the same test the owner matcher already used to skip a template Next bullet.
+Reusing it (rather than inventing a thread-specific placeholder rule) is why a freshly
+`init`-ed global page — proven against the real `banana init` code path, not a hand-copied
+fixture — lints clean with zero findings on the first try.
+
+**No dirty-marker, no retired-header, in global mode.** The global page is rebuilt whole,
+never patched (unlike project STATE's rebuild-on-close) — there is no mid-arc patched state
+for a marker to announce, and "rebuilt whole, never patched" is its *correct*, required rule
+at this grain, not the retired one project pages moved away from in v1.3.
+
 ## Consequences
 
 - A CI gate can key on exit `1` alone to mean "a real defect exists," without additional
   parsing.
-- WARN findings (dirty marker, retired header, session-log lag) need a human or agent to look
-  and decide — they do not block automation, but they do surface.
+- WARN findings (dirty marker, retired header, session-log lag, thread-unverifiable,
+  thread-target-undated) need a human or agent to look and decide — they do not block
+  automation, but they do surface.
 - The char cap is a decision under uncertainty, not a canon-derived number; if pages trend
   meaningfully larger in future real use, the cap is revisitable evidence, not doctrine.
 - Heading detection tolerates any qualifier text a page appends after whitespace, on both the
   presence check and the body-scan boundary — a canon amendment that further constrains
   permitted qualifier text (if one is ever needed) must update both together, since they now
   share one matcher by design.
+- The freshness stamp is a manual field, not (yet) machine-derived at rebuild time — a future
+  `banana state` subcommand could compute and write it; today a session author fills it by
+  hand, and `state lint --global` is the check that catches drift, not a writer that prevents it.
 
 ## Considered options
 
@@ -95,3 +138,10 @@ false negative that looks exactly like success).
 - **Free-form heading match (any text after `## <Name>`, no separating whitespace required)**
   — rejected: would also match a genuine name collision (`## Watchlist` for `Watch`), which is
   a different section entirely, not a qualified version of the required one.
+- **`thread-stale` as a WARN, matching session-log-lag** — rejected: unlike an unpromoted
+  session-log checkpoint, a project's own STATE.md is already a rebuilt, authoritative
+  projection — a global stamp older than it has no legitimate "not yet promoted" story, so
+  treating it as ambiguous residue would hide a real, provable defect.
+- **FAIL on every unresolved Active-threads pointer** — rejected: the global page legitimately
+  points at non-STATE.md tracking (memory files, external docs) for some threads; a hard FAIL
+  there would punish a sanctioned pattern the canon does not forbid.

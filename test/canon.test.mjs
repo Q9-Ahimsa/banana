@@ -34,7 +34,7 @@ const VERSION_MARKER_RE = /<!-- banana:canon rev (\d+\.\d+) -->/;
 
 // Per-file revisions — a file's marker bumps when its protocol text changes.
 const EXPECTED_REVS = {
-  'CONTINUITY.md': '1.4',
+  'CONTINUITY.md': '1.5',
   'STANDARD.md': '1.3',
   'SESSION-LOG.md': '1.4',
 };
@@ -144,9 +144,40 @@ test('CONTINUITY.md carries the v1.4 supersession-aware ghost amendment (ADR 000
     text.includes('retired from ghost surfaces'),
     'CONTINUITY.md missing the supersession-aware ghost retirement text'
   );
+  // No title-version assertion here: the exact current title is pinned once,
+  // by the newest amendment's own test (below) and by the generic
+  // 'every canon file carries its expected version marker' test — coupling
+  // it here too would break this v1.4-specific test on every later bump.
+});
+
+test('CONTINUITY.md carries the v1.5 Active-threads freshness-stamp amendment (ADR 0004 §Global grain)', () => {
+  const text = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
   assert.ok(
-    text.includes('— v1.4'),
-    'CONTINUITY.md title not bumped to v1.4'
+    text.includes('Freshness stamp'),
+    'CONTINUITY.md missing the Freshness stamp amendment'
+  );
+  assert.ok(
+    text.includes('- (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)'),
+    'CONTINUITY.md Global-grain template missing the freshness-stamped Active-threads placeholder'
+  );
+  assert.ok(
+    text.includes('— v1.5'),
+    'CONTINUITY.md title not bumped to v1.5'
+  );
+});
+
+test('canon Global-grain embedded template agrees with templates/global-STATE.md on the Active-threads placeholder', () => {
+  const continuity = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
+  const template = readFileSync(join(templatesDir, 'global-STATE.md'), 'utf8');
+  const ACTIVE_THREADS_LINE =
+    '- (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)';
+  assert.ok(
+    continuity.includes(ACTIVE_THREADS_LINE),
+    'CONTINUITY.md Global-grain template missing the freshness-stamped Active-threads placeholder'
+  );
+  assert.ok(
+    template.includes(ACTIVE_THREADS_LINE),
+    'templates/global-STATE.md missing the freshness-stamped Active-threads placeholder'
   );
 });
 

@@ -1,5 +1,5 @@
-<!-- banana:canon rev 1.4 -->
-# CONTINUITY — cross-harness protocol (canonical) — v1.4
+<!-- banana:canon rev 1.5 -->
+# CONTINUITY — cross-harness protocol (canonical) — v1.5
 
 Any agent working on this machine or its repos follows this. The record is
 **file-based and harness-neutral**: no agent's private memory is the source of
@@ -92,7 +92,7 @@ report yet keep their single placeholder line rather than being omitted):
 > everything." Owner: {owner}. Protocol: `~/.agents/canon/CONTINUITY.md`.
 
 ## Active threads
-- (one line per in-flight project: **name** — status → pointer to its STATE.md)
+- (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)
 
 ## Backlog (owned)
 - (queued cross-project items, each owned: `{owner} — action` or an agent tag)
@@ -108,6 +108,10 @@ report yet keep their single placeholder line rather than being omitted):
 - **Session close:** if cross-project state changed (thread opened/closed,
   backlog item added), rebuild the page — never patch it. Chronology does not
   live here; it lives in project logbooks.
+- **Freshness stamp** — every Active-threads bullet carries `(as of
+  YYYY-MM-DD)`, the newest source it was rebuilt from (normally its project
+  STATE's as-of); a project STATE dated later than the stamp means the
+  thread is stale, and `banana state lint --global` FAILs it.
 
 ## Project grain — Logbook Standard
 
@@ -445,3 +449,14 @@ v1.4 amends the **ghost surfaces** (ADR 0003 in the kit repo, aligned with
     carve-out, every continuation would manufacture a permanent false
     ghost from its predecessor. Counter-failure: zombie ghost flags on
     corrected history burying the real ones.
+
+v1.5 amends the **global-grain Active-threads freshness stamp** (ADR 0004
+§Global grain in the kit repo, aligned with `banana state lint --global`,
+#13). Nothing else changes.
+
+15. **Freshness stamp** — every Active-threads bullet carries `(as of
+    YYYY-MM-DD)`, the newest source it was rebuilt from (normally its
+    project STATE's as-of); a project STATE dated later than the stamp
+    means the thread is stale, and `banana state lint --global` FAILs it.
+    Counter-failure: a machine-grain page silently drifting behind the
+    project pages it projects, undetectable until read by eye.

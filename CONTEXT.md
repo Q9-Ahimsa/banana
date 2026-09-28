@@ -28,3 +28,8 @@
   `SUPERSEDES:` the one left open above. Born open for checkpoints, born closed for closes.
   Distinct from a correction supersede: it continues the same work rather than fixing the
   record. `banana log` writes it automatically (ADR 0003).
+- **Freshness stamp** — the `(as of YYYY-MM-DD)` every global-STATE `## Active threads`
+  bullet carries (canon CONTINUITY v1.5): the date of the newest source the bullet was
+  rebuilt from, normally its project STATE's own as-of. A project STATE dated later than the
+  stamp means the thread is stale; `banana state lint --global` FAILs it as `thread-stale`
+  (#13).

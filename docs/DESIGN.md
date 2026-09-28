@@ -222,24 +222,49 @@ not appended directly onto it. (Fixed 2026-09-28, phase 1b: the original
 exact-line matcher false-positived `missing-section` on three real pages
 that qualify their headings — see ADR 0004.)
 
-**Owner matcher** (shared machinery — also the seam `--global`'s
-`backlog-unowned` check will reuse, #13): a top-level bullet is a line
-matching `^[-*] ` (no indentation); indented bullets, prose, blank lines and
-`###` sub-headings are ignored. For each top-level bullet, strip one leading
-markdown-emphasis marker (`**`, `*`, `__`, `_`) from its content; content
-that then starts with `(` is a template placeholder, skipped. A bullet is
-owned iff its content matches `owner — text` (em-dash U+2014), the owner
-token itself carries no em-dash, and the owner token — after stripping one
-trailing emphasis marker — is not `unowned` (case-insensitive). The literal,
-unsubstituted `__OWNER__` bootstrap placeholder token is always unowned
-(checked before the leading-strip, so its own wrapping underscores can't
-hide it from the comparison — see `lib/state.mjs`'s `classifyOwnerBullet`).
+**Owner matcher** (shared machinery — project `unowned-next` and global
+`backlog-unowned` both use it): a top-level bullet is a line matching
+`^[-*] ` (no indentation); indented bullets, prose, blank lines and `###`
+sub-headings are ignored. A placeholder bullet — content, after removing one
+leading markdown-emphasis marker (`**`, `*`, `__`, `_`), starts with `(` — is
+skipped by both the owner matcher and the global Active-threads freshness
+checks below. A non-placeholder bullet is owned iff its content matches
+`owner — text` (em-dash U+2014), the owner token itself carries no em-dash,
+and the owner token — after stripping one trailing emphasis marker — is not
+`unowned` (case-insensitive). The literal, unsubstituted `__OWNER__`
+bootstrap placeholder token is always unowned (checked before the
+leading-strip, so its own wrapping underscores can't hide it from the
+comparison — see `lib/state.mjs`'s `classifyOwnerBullet`).
 
-`--global` (#13, not yet implemented) will lint `<home>/.agents/STATE.md`
-instead, against the global-grain sections and its own thread-freshness
-checks; the shared functions above (owner matcher, cap check,
-missing-section check, Finding shape, output formatter) are already written
-mode-agnostic for that to slot in without restructuring.
+**Global mode** (`banana state lint --global`, #13) lints
+`<home>/.agents/STATE.md` instead — a single input, no LOGBOOK.md/session.log
+comparison (the global page has none). `home` is always injected through
+`runStateLint`'s deps; `lib/state.mjs` never reads the real HOME itself, only
+`bin/` resolves `--global`'s home to `os.homedir()`.
+
+| Tier | type | Fires when |
+|---|---|---|
+| FAIL | `missing-section` | one of the four required headings — `## Active threads`, `## Backlog (owned)`, `## Watch`, `## Recently closed (context for next session)` — has no matching heading line (qualifier-tolerant, above; the parenthetical in the last two names is part of the required name, not an optional qualifier — a bare `## Recently closed` does not satisfy it) |
+| FAIL | `over-cap` | page length exceeds `STATE_CAP_CHARS` (same constant, same measurement) |
+| FAIL | `thread-unstamped` | a non-placeholder top-level `## Active threads` bullet has no `(as of YYYY-MM-DD)` freshness stamp |
+| FAIL | `thread-no-pointer` | same bullet has no `→` pointer (independent of the stamp check — both can fire on the same bullet) |
+| FAIL | `thread-stale` | the bullet's pointer resolves to a readable target STATE.md whose own as-of date is LATER than the bullet's stamp (equal passes); only evaluated when both a stamp and a resolved, dated target exist |
+| FAIL | `backlog-unowned` | a top-level `## Backlog (owned)` bullet fails the owner matcher |
+| WARN | `thread-unverifiable` | the bullet has a pointer, but it does not resolve to a readable file named `STATE.md` (a memory file, a missing path, a relative path, ...) |
+| WARN | `thread-target-undated` | the pointer resolves to a readable STATE.md with no `as of YYYY-MM-DD` date (incl. the bootstrap placeholder) |
+
+Global mode never flags `dirty-marker` or `retired-header`: the global page
+is rebuilt whole, never patched mid-arc (no standing-marker state to flag),
+and "rebuilt whole, never patched" is its correct, required rule at this
+grain, not a defect.
+
+**Pointer resolution.** Take the text after the LAST `→` in the bullet; the
+target is the first backtick-quoted span there, else the first
+whitespace-delimited token. `~/` or `~\` prefix resolves against `home`;
+absolute (`X:\…`, `X:/…`, `/…`) resolves as-is; anything else is
+unverifiable. Both `\` and `/` separators are accepted. A target that is a
+directory resolves to `<dir>/STATE.md`. The resolved target must be named
+`STATE.md` (case-sensitive) to be verified — otherwise `thread-unverifiable`.
 
 ## Hard rules for this build
 
