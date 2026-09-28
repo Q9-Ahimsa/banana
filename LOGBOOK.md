@@ -49,3 +49,10 @@ WHAT: `brief` opens with a `## State lint` section (project + global verdicts); 
 DONE: 451 → 479 green; sandbox + real-page verified; advice only, exit codes unchanged; `brief` no longer crashes on an unreadable STATE.md. Gap: `brief` refuses outside a workspace, so sessions started from home never see the check
 ref: .agents/session.log cli.10; GitHub #14; .agents/specs/cli-14-lint-wiring.md
 NEXT: ahimsa — decide coverage for sessions started outside a workspace, then the push
+
+## [2026-09-29] testagent kit.6 | RELEASE — pushed to origin (f38fb83..0361947): #4 #5 #7 #9 #13 #14 now served by npx
+WHAT: every session running `npx github:Q9-Ahimsa/banana` now gets `banana log`, `state lint [--global]`, and lint in `brief` / `log close`; installed canon unchanged (rev 1.2 — `sync` is #11)
+DONE: secret sweep 0 hits over 7,561 added lines (scanner control-tested); verified through npx: `brief` carries `## State lint`; #9 #13 #14 auto-closed; first live catch within minutes = a stale thread on the global page
+ASSUMED: owner ruled the push before reviewing canon v2.3/v1.4/v1.5 + ADR 0004 — the CLI now behaves per them; review still pending
+ref: .agents/session.log cli.11
+NEXT: ahimsa — review canon v2.3/v1.4/v1.5 + ADR 0004 (gate before #11)

@@ -411,3 +411,10 @@ FILES: #14 filed; spec .agents/specs/cli-14-lint-wiring.md
 PROBLEM: resumed lint-builder (2006-msg context) replayed its phase-3 summary instead of taking phase 4. FIX: stopped it (queued msg would have raced), fresh wiring-builder on a self-contained prompt
 STATUS: complete
 NEXT: ahimsa — decide coverage for sessions started outside a workspace, then the push
+
+## [2026-09-29] testagent cli.11 | ops — push to origin + record
+APPROACH: owner ruled the push; sweep, push, verify via npx
+VALIDATED: 0 secret hits / 7561 added lines (scanner control-tested); pushed f38fb83..0361947; npx brief carries the lint; #9 #13 #14 closed
+PROBLEM: an earlier whole-page rebuild here dropped another session's global thread (guard checked one bullet, not the file) - recovered by that session; recorded in STATE Watch
+STATUS: complete
+NEXT: ahimsa — review canon v2.3/v1.4/v1.5 + ADR 0004; rule on global-page concurrency
