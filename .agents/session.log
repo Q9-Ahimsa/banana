@@ -428,3 +428,9 @@ PROBLEM: hook's real run found global page at 10007 chars (over cap) + an owner-
 FILES: #15 committed 6b6373d (CONTINUITY v1.6; rule 13 contradiction fixed). Global page: v1.6 header, own lines trimmed, claude backlog owner reformatted, concurrency Watch closed - others' threads untouched (verified)
 STATUS: complete
 NEXT: ahimsa — go on sync (deploys ratified canon v1.6 + fences to home harness files; identity now preserved)
+
+## [2026-09-29] claude cli.13 | ops — sync: deploy ratified canon to ~/.agents/canon
+APPROACH: owner go; backups first, then sync, then byte-compare
+VALIDATED: refreshed CONTINUITY 1.2->1.6, STANDARD 1.2->1.3, SESSION-LOG 1.2->1.4, byte-equal to kit; Claude/Codex/Pi files unchanged (hash = backup); identity lines intact; stale-canon findings 0
+STATUS: complete
+NEXT: claude — #11 rollout: migrate the 6 project STATE headers (retired-header WARN), then #8

@@ -1,5 +1,5 @@
 # STATE — banana
-> Projection of LOGBOOK.md as of 2026-09-29 (through kit.8). Logbook wins
+> Projection of LOGBOOK.md as of 2026-09-29 (through kit.9). Logbook wins
 > on conflict. One page, hard cap. Rebuilt at session close; mid-arc
 > section patches are legal and must carry the dirty-marker line.
 
@@ -12,7 +12,7 @@
 - banana = protocol + mechanical CLI; markdown canonical, no datastore (spec #3) — kit.1
 - Canon, owner-ratified 2026-09-29: SESSION-LOG v2.3; CONTINUITY v1.6 (v1.4 ghosts, v1.5 freshness
   stamps, v1.6 per-thread global edits); STANDARD + CONTINUITY v1.3 rebuild-on-close — kit.7.
-  Installed `~/.agents/canon/` is still rev 1.2 until `sync` runs
+  Deployed to the installed `~/.agents/canon/` via `sync` 2026-09-29 — kit.9
 - state lint: FAIL exit 1 · WARN exit 0 · usage/unreadable exit 2; 10000-char cap; stale vs LOGBOOK
   = FAIL, vs session.log = WARN; dates header-only + calendar-validated (ADR 0004) — kit.4
 - Lint wiring: `brief` = the guarantee (every session start), `log close` = the early catch; advice, never a gate — kit.5
@@ -23,9 +23,9 @@
 - The CLI deploys on push (npx serves origin/main); canon deploys to installed sites only via `sync`, gated at #11 — kit.6
 
 ## Next
-- ahimsa — go on `sync`: deploys canon v1.6 + current fences to the home harness files (identity now preserved) — kit.8
-- claude — /implement #8 (brief v2), then #6 #10 #11 per cli.5 order
-- claude — hygiene: supersede the 10 July ghost entries + 2 hyphen-dash NEXTs `doctor` flags here
+- claude — #11 rollout: migrate the 6 project STATE headers still carrying the retired rule (`retired-header` WARN) — kit.9
+- claude — /implement #8 (brief v2), then #6 #10 per cli.5 order
+- claude — hygiene: supersede the 11 July ghost entries + 2 hyphen-dash NEXTs `doctor` flags here
 
 ## Blocked
 - (none)

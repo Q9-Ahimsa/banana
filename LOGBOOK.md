@@ -67,3 +67,9 @@ WHAT: CONTINUITY v1.6 + global-mode retired-header WARN (6b6373d); fence identit
 DONE: 479 → 500 green; end to end, a forced v1 → v2 fence upgrade keeps the recorded identity where the old kit wrote the placeholder tag; a Claude SessionStart hook on the owner's machine now lints the global page at every session start
 ref: .agents/session.log cli.12; GitHub #15, #16; .agents/specs/cli-15-global-per-thread.md, cli-16-fence-identity.md
 NEXT: ahimsa — go on `sync` (deploys canon v1.6 + current fences to the home harness files)
+
+## [2026-09-29] claude kit.9 | RELEASE — ratified canon deployed to the installed site via `sync`
+WHAT: `~/.agents/canon/` refreshed — CONTINUITY 1.2 → 1.6, STANDARD 1.2 → 1.3, SESSION-LOG 1.2 → 1.4, byte-equal to the kit; home harness fences already current (v2), so none were rewritten
+DONE: every file sync could touch backed up first; harness files unchanged (hash = backup), identity lines intact; `doctor` stale-canon 0, stale-fence 0. Remaining doctor findings: 11 July ghosts (earlier counted as 10 — `banana.12` was missed) + 2 hyphen-dash NEXTs
+ref: .agents/session.log cli.13
+NEXT: claude — #11 rollout: migrate the 6 project STATE headers (`retired-header` WARN), then #8
