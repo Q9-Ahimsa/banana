@@ -149,9 +149,10 @@ test('bin: `banana state lint --global` runs against a sandboxed home (env HOME/
     join(home, '.agents', 'STATE.md'),
     [
       '# GLOBAL STATE — cross-project projection',
-      '> One page, hard cap. Rebuilt whole, never patched. Chronology lives in project',
-      '> logbooks; this file only answers "what\'s live and what\'s queued across',
-      '> everything." Owner: testagent. Protocol: `~/.agents/canon/CONTINUITY.md`.',
+      '> One page, hard cap. Edit only your own threads; never rewrite the page.',
+      '> Chronology lives in project logbooks; this file only answers "what\'s live and',
+      '> what\'s queued across everything." Owner: testagent. Protocol:',
+      '> `~/.agents/canon/CONTINUITY.md`.',
       '',
       '## Active threads',
       '- (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)',

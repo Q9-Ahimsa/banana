@@ -18,6 +18,7 @@ import {
   checkMissingSections,
   checkOverCap,
   checkRetiredHeader,
+  checkRetiredHeaderGlobal,
   checkStaleVsLogbook,
   checkStaleVsSessionLog,
   checkUnownedBullets,
@@ -514,6 +515,27 @@ test('checkRetiredHeader: the pre-amendment phrase anywhere in the page warns, c
   assert.ok(RETIRED_HEADER_RE.test(retired));
 });
 
+// checkRetiredHeaderGlobal (#15, ADR 0005): the global-grain counterpart —
+// same RETIRED_HEADER_RE, different migration target (per-thread edits, not
+// rebuild-on-close).
+
+test('checkRetiredHeaderGlobal: absent on the clean global fixture (new header)', () => {
+  assert.deepEqual(checkRetiredHeaderGlobal(CLEAN_GLOBAL), []);
+});
+
+test('checkRetiredHeaderGlobal: the pre-amendment phrase warns, case-insensitively, pointing at ADR 0005', () => {
+  const retired = CLEAN_GLOBAL.replace(
+    'Edit only your own threads; never rewrite the page.',
+    'Rebuilt whole, never patched.',
+  );
+  const findings = checkRetiredHeaderGlobal(retired);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'WARN');
+  assert.equal(findings[0].type, 'retired-header');
+  assert.ok(findings[0].message.includes('ADR 0005'));
+  assert.ok(RETIRED_HEADER_RE.test(retired));
+});
+
 // =====================================================================
 // emitFindings — tier ordering, summary line, exit code
 // =====================================================================
@@ -689,9 +711,10 @@ test('runStateLint: a project bootstrapped by the real `banana project` command 
 
 const CLEAN_GLOBAL = [
   '# GLOBAL STATE — cross-project projection',
-  '> One page, hard cap. Rebuilt whole, never patched. Chronology lives in project',
-  '> logbooks; this file only answers "what\'s live and what\'s queued across',
-  '> everything." Owner: testagent. Protocol: `~/.agents/canon/CONTINUITY.md`.',
+  '> One page, hard cap. Edit only your own threads; never rewrite the page.',
+  '> Chronology lives in project logbooks; this file only answers "what\'s live and',
+  '> what\'s queued across everything." Owner: testagent. Protocol:',
+  '> `~/.agents/canon/CONTINUITY.md`.',
   '',
   '## Active threads',
   '- **alpha** (as of 2026-09-01) — building the thing → `~/projects/alpha/STATE.md`',
@@ -709,9 +732,10 @@ const CLEAN_GLOBAL = [
 
 const FRESH_GLOBAL = [
   '# GLOBAL STATE — cross-project projection',
-  '> One page, hard cap. Rebuilt whole, never patched. Chronology lives in project',
-  '> logbooks; this file only answers "what\'s live and what\'s queued across',
-  '> everything." Owner: testagent. Protocol: `~/.agents/canon/CONTINUITY.md`.',
+  '> One page, hard cap. Edit only your own threads; never rewrite the page.',
+  '> Chronology lives in project logbooks; this file only answers "what\'s live and',
+  '> what\'s queued across everything." Owner: testagent. Protocol:',
+  '> `~/.agents/canon/CONTINUITY.md`.',
   '',
   '## Active threads',
   '- (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)',
@@ -957,24 +981,28 @@ test('checkUnownedBullets: an unowned Backlog bullet FAILs backlog-unowned', () 
 });
 
 // =====================================================================
-// lintGlobalState — composition sanity + the never-flag-retired-header rule
+// lintGlobalState — composition sanity + the retired-header WARN (#15, ADR
+// 0005: the old "never flags it" rule is retired along with the header it
+// used to tolerate).
 // =====================================================================
 
-test('lintGlobalState: the clean global fixture has zero findings', (t) => {
+test('lintGlobalState: the clean global fixture (new header) has zero findings', (t) => {
   const home = sandbox(t);
   makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
   assert.deepEqual(lintGlobalState(CLEAN_GLOBAL, { home }), []);
 });
 
-test('lintGlobalState: never flags "Rebuilt whole, never patched." — correct at this grain', (t) => {
-  // CLEAN_GLOBAL's own header carries this phrase verbatim (it's the correct,
-  // required global-grain rule) — if retired-header were wired into global
-  // mode this fixture would already fail, so this doubles as a regression
-  // guard for the never-flag rule.
-  assert.ok(CLEAN_GLOBAL.includes('Rebuilt whole, never patched.'));
+test('lintGlobalState: the pre-amendment header WARNs retired-header, page otherwise identical', (t) => {
+  const retired = CLEAN_GLOBAL.replace(
+    'Edit only your own threads; never rewrite the page.',
+    'Rebuilt whole, never patched.',
+  );
   const home = sandbox(t);
   makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
-  assert.deepEqual(lintGlobalState(CLEAN_GLOBAL, { home }), []);
+  const findings = lintGlobalState(retired, { home });
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'WARN');
+  assert.equal(findings[0].type, 'retired-header');
 });
 
 test('lintGlobalState: an unowned Backlog bullet surfaces through the composed findings, not just the standalone checkUnownedBullets call', (t) => {
@@ -1007,6 +1035,18 @@ test('runStateLint --global: WARN-only (a memory-file thread pointer) exits 0', 
   const res = await runGlobal(home);
   assert.equal(res.code, 0, `expected WARN-only exit 0, got: ${res.lines.join('\n')}`);
   assert.ok(res.lines.some((l) => l.startsWith('WARN [thread-unverifiable]')));
+  assert.ok(res.lines.at(-1)?.startsWith('state lint: WARN'));
+});
+
+test('runStateLint --global: the pre-amendment header WARNs retired-header, exit 0 (#15, ADR 0005)', async (t) => {
+  const text = CLEAN_GLOBAL.replace(
+    'Edit only your own threads; never rewrite the page.',
+    'Rebuilt whole, never patched.',
+  );
+  const home = makeGlobalHome(t, text);
+  const res = await runGlobal(home);
+  assert.equal(res.code, 0, `expected WARN-only exit 0, got: ${res.lines.join('\n')}`);
+  assert.ok(res.lines.some((l) => l.startsWith('WARN [retired-header]')));
   assert.ok(res.lines.at(-1)?.startsWith('state lint: WARN'));
 });
 

@@ -1,5 +1,5 @@
-<!-- banana:canon rev 1.5 -->
-# CONTINUITY — cross-harness protocol (canonical) — v1.5
+<!-- banana:canon rev 1.6 -->
+# CONTINUITY — cross-harness protocol (canonical) — v1.6
 
 Any agent working on this machine or its repos follows this. The record is
 **file-based and harness-neutral**: no agent's private memory is the source of
@@ -25,8 +25,9 @@ an ops runbook) — version control is not a precondition for continuity.
    leave it as written.
    (`STANDARD.md` §3's six-section template is project grain — its
    Truths/Blocked/Dead-ends sections, logbook ids, and rebuild-on-close
-   discipline are project-scoped and do not apply here; this global page
-   keeps its own header's rules: one page, rebuilt whole, never patched.)
+   discipline are project-scoped and do not apply here; this global page keeps
+   its own header's rules: one page, edited per-thread, never rewritten whole —
+   v1.6, ADR 0005.)
 2. **Initialize the workspace.** Preferred: run the kit's `project` command
    named in your wiring block — it creates the files below idempotently and
    proceeds in non-git topic dirs. By hand, create whichever are missing:
@@ -87,9 +88,10 @@ report yet keep their single placeholder line rather than being omitted):
 
 ```markdown
 # GLOBAL STATE — cross-project projection
-> One page, hard cap. Rebuilt whole, never patched. Chronology lives in project
-> logbooks; this file only answers "what's live and what's queued across
-> everything." Owner: {owner}. Protocol: `~/.agents/canon/CONTINUITY.md`.
+> One page, hard cap. Edit only your own threads; never rewrite the page.
+> Chronology lives in project logbooks; this file only answers "what's live and
+> what's queued across everything." Owner: {owner}. Protocol:
+> `~/.agents/canon/CONTINUITY.md`.
 
 ## Active threads
 - (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)
@@ -106,8 +108,13 @@ report yet keep their single placeholder line rather than being omitted):
 - **Session start:** read it — allowlist item 1 of the entry ritual (machine
   grain, so it sits outside any project brief and is read directly).
 - **Session close:** if cross-project state changed (thread opened/closed,
-  backlog item added), rebuild the page — never patch it. Chronology does not
-  live here; it lives in project logbooks.
+  backlog item added), edit only the threads and items your session owns or
+  changed — a targeted edit right after a fresh read, re-stamping each touched
+  thread's `(as of)` from its source. Never rewrite the whole page: several
+  sessions write it concurrently, and a whole-page write from a stale read
+  deletes their updates. Freshness is enforced by `banana state lint --global`,
+  not by rebuilding. Chronology does not live here; it lives in project
+  logbooks.
 - **Freshness stamp** — every Active-threads bullet carries `(as of
   YYYY-MM-DD)`, the newest source it was rebuilt from (normally its project
   STATE's as-of); a project STATE dated later than the stamp means the
@@ -293,10 +300,10 @@ this protocol exists to protect.
 
 All six rules carry forward from v1; rule 2's scope is restated for v1.2's
 kit-owned canon directory (item 10) and its STATE-page parenthetical amended
-for v1.3's rebuild-on-close (item 13), rule 3 is clarified, rule 4 is
-tightened, and rule 5 gained its read-scope parenthetical (binding "what you
-are shown" to the v1.1 entry ritual and its sanctioned re-reads) — each
-disclosed in "Changes from v1".
+for v1.3's rebuild-on-close (item 13) and again for v1.6's per-thread edits
+(item 16), rule 3 is clarified, rule 4 is tightened, and rule 5 gained its
+read-scope parenthetical (binding "what you are shown" to the v1.1 entry
+ritual and its sanctioned re-reads) — each disclosed in "Changes from v1".
 
 1. **Memory and files are complementary, with one arbiter.** Private agent
    memory is first-class for what it uniquely holds: user preferences, learned
@@ -305,8 +312,9 @@ disclosed in "Changes from v1".
    matters to another agent, it goes in STATE/LOGBOOK/session.log; on conflict
    about project state, the files win (memory may be stale the moment someone
    else writes an entry).
-2. **Append-only everywhere** except STATE pages (projections — the global
-   page rebuilt whole, project pages per `STANDARD.md` §3's rebuild-on-close).
+2. **Append-only everywhere** except STATE pages (projections — the global page
+   edited per-thread (v1.6, ADR 0005), project pages per `STANDARD.md` §3's
+   rebuild-on-close).
    Scope: this rule governs the record — the user-owned surfaces (session
    logs, logbooks, STATE pages). The kit-owned `~/.agents/canon/` directory
    is protocol documentation, not record: it is version-marked and
@@ -434,8 +442,8 @@ kit repo, aligned with `STANDARD.md` v1.3). Nothing else changes.
     extends to promotion OR standing marker, and the rebuild removes the
     marker. Recovery is lazy: a standing marker obliges nothing at open —
     the log is authority while it stands, and the doctor and `state lint`
-    WARN meanwhile. The global page is unchanged: rebuilt whole, never
-    patched. Counter-failure: the per-touch rebuild cost drove silent
+    WARN meanwhile. The global page follows item 16 (per-thread edits,
+    v1.6). Counter-failure: the per-touch rebuild cost drove silent
     rebuild-skipping — loud staleness (the marker) replaces silent staleness.
 
 v1.4 amends the **ghost surfaces** (ADR 0003 in the kit repo, aligned with
@@ -460,3 +468,15 @@ v1.5 amends the **global-grain Active-threads freshness stamp** (ADR 0004
     means the thread is stale, and `banana state lint --global` FAILs it.
     Counter-failure: a machine-grain page silently drifting behind the
     project pages it projects, undetectable until read by eye.
+
+v1.6 amends the **global-grain maintenance rule** (ADR 0005 in the kit repo).
+Nothing else changes.
+
+16. **Per-thread edits** — a session closes by editing only the Active-threads
+    bullets and Backlog items it owns or changed, right after a fresh read,
+    re-stamping each touched thread's `(as of)` from its source; the page is
+    never rewritten whole. Freshness stays enforced by the v1.5 stamp and
+    `banana state lint --global`, not by rebuild discipline. Counter-failure: a
+    whole-page write from a stale read silently deletes a concurrent session's
+    update — the failure whole-page rebuilds could not detect and, once several
+    sessions write concurrently, actively cause.

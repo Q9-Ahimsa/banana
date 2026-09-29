@@ -34,16 +34,17 @@ const VERSION_MARKER_RE = /<!-- banana:canon rev (\d+\.\d+) -->/;
 
 // Per-file revisions — a file's marker bumps when its protocol text changes.
 const EXPECTED_REVS = {
-  'CONTINUITY.md': '1.5',
+  'CONTINUITY.md': '1.6',
   'STANDARD.md': '1.3',
   'SESSION-LOG.md': '1.4',
 };
 
 // DIRTY_MARKER_LINE (ADR 0001, byte-exact) and RETIRED_HEADER_RE (the
-// retired project-STATE rule — global grain keeps rebuild-whole by design)
-// are single-sourced from lib/state.mjs (banana state lint, #9) so the
-// canon's own byte-exact assertions and the lint tool's detection can never
-// drift apart.
+// retired "rebuilt whole, never patched" rule — retired at both grains now:
+// project via ADR 0001's rebuild-on-close, global via ADR 0005's per-thread
+// edits) are single-sourced from lib/state.mjs (banana state lint, #9/#15)
+// so the canon's own byte-exact assertions and the lint tool's detection can
+// never drift apart.
 
 // Machine-specific residue that must never ship in the canon.
 const FORBIDDEN_PATTERNS = [
@@ -117,7 +118,7 @@ test('STANDARD.md carries the v1.3 rebuild-on-close amendment (ADR 0001)', () =>
   );
 });
 
-test('CONTINUITY.md project grain is amended; global grain keeps rebuild-whole', () => {
+test('CONTINUITY.md project grain is amended; global grain moves to per-thread edits (v1.6)', () => {
   const text = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
   const flat = flatten(text);
   assert.ok(
@@ -133,8 +134,12 @@ test('CONTINUITY.md project grain is amended; global grain keeps rebuild-whole',
     'CONTINUITY.md still carries the retired project-STATE rule'
   );
   assert.ok(
-    text.includes('> One page, hard cap. Rebuilt whole, never patched. Chronology lives in project'),
-    'CONTINUITY.md global template header must keep rebuild-whole (out of amendment scope)'
+    !text.includes('> One page, hard cap. Rebuilt whole, never patched.'),
+    'CONTINUITY.md global template header still carries the retired rebuild-whole rule'
+  );
+  assert.ok(
+    text.includes('> One page, hard cap. Edit only your own threads; never rewrite the page.'),
+    'CONTINUITY.md global template header missing the new per-thread-edits line'
   );
 });
 
@@ -160,9 +165,39 @@ test('CONTINUITY.md carries the v1.5 Active-threads freshness-stamp amendment (A
     text.includes('- (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)'),
     'CONTINUITY.md Global-grain template missing the freshness-stamped Active-threads placeholder'
   );
+  // No title-version assertion here: the exact current title is pinned once,
+  // by the newest amendment's own test (below) and by the generic
+  // 'every canon file carries its expected version marker' test — coupling
+  // it here too would break this v1.5-specific test on every later bump.
+});
+
+test('CONTINUITY.md carries the v1.6 per-thread-edits amendment (ADR 0005)', () => {
+  const text = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
   assert.ok(
-    text.includes('— v1.5'),
-    'CONTINUITY.md title not bumped to v1.5'
+    text.includes('Per-thread edits'),
+    'CONTINUITY.md missing the Per-thread edits amendment'
+  );
+  assert.ok(
+    text.includes('silently deletes a concurrent session\'s'),
+    'CONTINUITY.md missing the Per-thread edits Counter-failure sentence'
+  );
+  assert.ok(
+    text.includes('— v1.6'),
+    'CONTINUITY.md title not bumped to v1.6'
+  );
+});
+
+test('canon Global-grain embedded template agrees with templates/global-STATE.md on the header', () => {
+  const continuity = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
+  const template = readFileSync(join(templatesDir, 'global-STATE.md'), 'utf8');
+  const HEADER_LINE = '> One page, hard cap. Edit only your own threads; never rewrite the page.';
+  assert.ok(
+    continuity.includes(HEADER_LINE),
+    'CONTINUITY.md Global-grain template missing the new header line'
+  );
+  assert.ok(
+    template.includes(HEADER_LINE),
+    'templates/global-STATE.md missing the new header line'
   );
 });
 

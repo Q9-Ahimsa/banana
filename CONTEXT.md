@@ -33,3 +33,10 @@
   rebuilt from, normally its project STATE's own as-of. A project STATE dated later than the
   stamp means the thread is stale; `banana state lint --global` FAILs it as `thread-stale`
   (#13).
+- **Per-thread edit** — the global-STATE maintenance discipline replacing whole-page
+  rebuilds (canon CONTINUITY v1.6, ADR 0005): a session closes by editing only the
+  Active-threads bullets and Backlog items it owns or changed, right after a fresh read,
+  re-stamping each touched thread's `(as of)` from its own source, never rewriting the whole
+  page. Drift is caught, not prevented: the freshness stamp and `banana state lint --global`
+  (`thread-stale`, and now `retired-header` for a page still carrying the old rule) are the
+  backstop (#15).

@@ -11,6 +11,7 @@ gates trip on things that are not defects, or hide real defects inside noise. De
 PASS/WARN-only, `1` any FAIL, `2` usage error or a missing/unreadable target. Usage errors
 and disk-state preconditions share exit `2` deliberately, so exit `1` means FAIL and nothing
 else — a CI script can gate on `1` alone without also having to parse output for the reason.
+Ratified by Ahimsa, 2026-09-29.
 
 Lint never grades content: every verdict is reproducible from file bytes alone, so no check
 reads the clock (no `now` is ever injected into `lib/state.mjs`) and no check judges whether

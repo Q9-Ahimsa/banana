@@ -564,7 +564,7 @@ test('brief: an unreadable global page (a directory, not a file) reports `global
 // print too (after project findings) and drive the fix-it line.
 const STALE_GLOBAL = [
   '# GLOBAL STATE — cross-project projection',
-  '> One page, hard cap. Rebuilt whole, never patched.',
+  '> One page, hard cap. Edit only your own threads; never rewrite the page.',
   '',
   '## Active threads',
   '- **gamma** (as of 2026-07-01) — building the thing → `~/projects/gamma/STATE.md`',

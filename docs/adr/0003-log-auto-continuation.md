@@ -6,7 +6,8 @@ canon-prescribed continuation entry itself — announced on stderr, new id on st
 `--no-continue` opts out (refusal, exit 2). Adjacency is decided on the grep unit
 (`^## \[`), not on parsed entries, because a hand-mangled heading is invisible to the
 parser but poisons the documented greps. Decided 2026-08-12 with the 3-lens interface
-panel for ticket #7; canon v2.3 pins the continuation's exact shape.
+panel for ticket #7; canon v2.3 pins the continuation's exact shape. Ratified by
+Ahimsa, 2026-09-29.
 
 ## Consequences
 

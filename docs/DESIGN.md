@@ -261,7 +261,7 @@ own).
 | FAIL | `stale-vs-logbook` | the as-of date is older than the newest LOGBOOK.md entry date (equal passes) |
 | WARN | `stale-vs-session-log` | the as-of date is older than the newest `.agents/session.log` entry date (equal passes) — WARN, not FAIL: see ADR 0004 |
 | WARN | `dirty-marker` | the standing rebuild-on-close marker (ADR 0001) is present |
-| WARN | `retired-header` | the page still carries the pre-amendment "rebuilt whole, never patched" rule — project grain only |
+| WARN | `retired-header` | the page still carries the pre-amendment "rebuilt whole, never patched" rule — this project-mode message points to ADR 0001 (rebuild-on-close); see the global-mode table below for the counterpart message (ADR 0005) |
 
 **Heading matcher** (shared machinery — `missing-section` and locating a
 section's body, e.g. `## Next`, for the owner-matcher scan, both use this
@@ -347,11 +347,15 @@ comparison (the global page has none). `home` is always injected through
 | FAIL | `backlog-unowned` | a top-level `## Backlog (owned)` bullet fails the owner matcher |
 | WARN | `thread-unverifiable` | the bullet has a pointer, but it does not resolve to a readable file named `STATE.md` (a memory file, a missing path, a relative path, ...) |
 | WARN | `thread-target-undated` | the pointer resolves to a readable STATE.md with no `as of YYYY-MM-DD` date (incl. the bootstrap placeholder) |
+| WARN | `retired-header` | the page still carries the pre-amendment "rebuilt whole, never patched" rule — this global-mode message points to ADR 0005 (per-thread edits, #15) |
 
-Global mode never flags `dirty-marker` or `retired-header`: the global page
-is rebuilt whole, never patched mid-arc (no standing-marker state to flag),
-and "rebuilt whole, never patched" is its correct, required rule at this
-grain, not a defect.
+Global mode never flags `dirty-marker`: ADR 0005's per-thread edits (#15)
+introduced no marker convention for a mid-arc patched global page, so there
+is no standing-marker state to flag. It DOES flag `retired-header` (added by
+#15): ADR 0005 (2026-09-29) retired the whole-rebuild rule in favor of
+per-thread edits, so a page still carrying the old header is stale — the same
+shape as project mode's own `retired-header` check, just pointing at a
+different migration (ADR 0005, not ADR 0001).
 
 **Pointer resolution.** Among every `→` in the bullet that is NOT inside a
 backtick span (review hardening 2026-09-28 — an arrow quoted as example text

@@ -131,8 +131,10 @@ test('templates/ contains zero machine-specific references', () => {
   }
 });
 
-// ADR 0001: the project-STATE header teaches rebuild-on-close; the global
-// page keeps rebuild-whole — the amendment is project-grain only.
+// ADR 0001: the project-STATE header teaches rebuild-on-close, retired rule
+// absent. ADR 0005 (#15): the global-STATE header moves from rebuild-whole to
+// per-thread edits, retired rule absent there too — both grains now retire
+// the same phrase, just to different migration targets.
 test('project-STATE.md header teaches rebuild-on-close, retired rule absent', () => {
   const text = readFileSync(join(templatesDir, 'project-STATE.md'), 'utf8');
   assert.ok(
@@ -149,10 +151,14 @@ test('project-STATE.md header teaches rebuild-on-close, retired rule absent', ()
   );
 });
 
-test('global-STATE.md header keeps the rebuild-whole rule', () => {
+test('global-STATE.md header moves to per-thread edits, retired rebuild-whole rule absent (ADR 0005)', () => {
   const text = readFileSync(join(templatesDir, 'global-STATE.md'), 'utf8');
   assert.ok(
-    text.includes('Rebuilt whole, never patched.'),
-    'global-STATE.md header must keep rebuild-whole — the amendment is project-grain only'
+    !RETIRED_HEADER_RE.test(text),
+    'global-STATE.md still carries the retired rebuild-whole rule'
+  );
+  assert.ok(
+    text.includes('Edit only your own threads; never rewrite the page.'),
+    'global-STATE.md header missing the per-thread-edits rule'
   );
 });
