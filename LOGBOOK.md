@@ -56,3 +56,14 @@ DONE: secret sweep 0 hits over 7,561 added lines (scanner control-tested); verif
 ASSUMED: owner ruled the push before reviewing canon v2.3/v1.4/v1.5 + ADR 0004 — the CLI now behaves per them; review still pending
 ref: .agents/session.log cli.11
 NEXT: ahimsa — review canon v2.3/v1.4/v1.5 + ADR 0004 (gate before #11)
+
+## [2026-09-29] claude kit.7 | DECISION — owner ratified canon v2.3/v1.4/v1.5 + ADR 0003/0004; global page moves to per-thread edits (CONTINUITY v1.6, ADR 0005)
+WHY: a whole-page rebuild on 2026-09-28 deleted a concurrent session's update; the v1.5 stamps + `state lint --global` now carry drift control, so "rebuilt whole" costs more than it protects
+ref: canon/CONTINUITY.md v1.6 item 16; docs/adr/0005-global-page-per-thread-edits.md; GitHub #15
+NEXT: claude — deploy the ratified canon via `sync` on the owner's go (#11 scope)
+
+## [2026-09-29] claude kit.8 | SESSION — tickets #15 + #16 shipped: per-thread global edits; fence identity survives project/init/sync
+WHAT: CONTINUITY v1.6 + global-mode retired-header WARN (6b6373d); fence identity single-sourced, `project` and `init` now preserve it as `sync` already did (cde4147)
+DONE: 479 → 500 green; end to end, a forced v1 → v2 fence upgrade keeps the recorded identity where the old kit wrote the placeholder tag; a Claude SessionStart hook on the owner's machine now lints the global page at every session start
+ref: .agents/session.log cli.12; GitHub #15, #16; .agents/specs/cli-15-global-per-thread.md, cli-16-fence-identity.md
+NEXT: ahimsa — go on `sync` (deploys canon v1.6 + current fences to the home harness files)

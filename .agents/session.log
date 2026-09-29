@@ -418,3 +418,13 @@ VALIDATED: 0 secret hits / 7561 added lines (scanner control-tested); pushed f38
 PROBLEM: an earlier whole-page rebuild here dropped another session's global thread (guard checked one bullet, not the file) - recovered by that session; recorded in STATE Watch
 STATUS: complete
 NEXT: ahimsa — review canon v2.3/v1.4/v1.5 + ADR 0004; rule on global-page concurrency
+
+## [2026-09-29] claude cli.12 | build — ratify canon; #15 per-thread global edits; #16 fence identity; home hook
+APPROACH: owner: go for all. #15 then #16 sequential (shared docs); hook + ratification record in main meanwhile
+STATUS: in-progress
+FILES: SessionStart hook ~/.claude/hooks/state-lint-session-start.ps1 + settings.json entry (exec form, 15s timeout); pipe-tested: exit 0 / 374ms / valid JSON; missing kit -> silent exit 0. First live fire = next session start
+FILES: 'Rebuild, don't patch' -> per-thread edits in ~/.claude/CLAUDE.md (v4.8) + ~/.codex/AGENTS.md line 73
+PROBLEM: hook's real run found global page at 10007 chars (over cap) + an owner-with-qualifier backlog line (claude-owned) - fix in the post-#15 page pass
+FILES: #15 committed 6b6373d (CONTINUITY v1.6; rule 13 contradiction fixed). Global page: v1.6 header, own lines trimmed, claude backlog owner reformatted, concurrency Watch closed - others' threads untouched (verified)
+STATUS: complete
+NEXT: ahimsa — go on sync (deploys ratified canon v1.6 + fences to home harness files; identity now preserved)
