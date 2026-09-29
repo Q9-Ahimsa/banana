@@ -4,11 +4,32 @@ import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { spliceFence, applyFence, findFence, fencedBlock } from '../lib/fence.mjs';
+import {
+  spliceFence,
+  applyFence,
+  findFence,
+  fencedBlock,
+  extractIdentity,
+  readPreservedIdentity,
+} from '../lib/fence.mjs';
 
 const BLOCK_V1 = fencedBlock('## Continuity protocol\n\n- rule one\n- rule two', 1);
 const BLOCK_V1_UPDATED = fencedBlock('## Continuity protocol\n\n- rule one revised', 1);
 const BLOCK_V2 = fencedBlock('## Continuity protocol v2\n\n- new regime', 2);
+
+/** @returns {{ out: (l?: string) => void, err: (l?: string) => void, lines: string[], errLines: string[] }} */
+function collectedIo() {
+  /** @type {string[]} */
+  const lines = [];
+  /** @type {string[]} */
+  const errLines = [];
+  return {
+    lines,
+    errLines,
+    out: (/** @type {string} */ line = '') => lines.push(line),
+    err: (/** @type {string} */ line = '') => errLines.push(line),
+  };
+}
 
 /** @returns {string} a fresh temp dir, cleaned up when the test ends */
 function sandbox(t) {
@@ -103,4 +124,71 @@ test('applyFence never touches the file when nothing changes', (t) => {
   assert.equal(report.changed, false);
   assert.equal(readFileSync(decoy, 'utf8'), 'decoy\n');
   assert.ok(existsSync(target));
+});
+
+// extractIdentity / readPreservedIdentity (#16): single-sourced "read
+// identity from an existing fence" step, shared by every fence-writing path.
+
+test('extractIdentity recovers owner and tag from a v2 identity line', () => {
+  const block = fencedBlock('- **Identity:** you are `alpha-agent`; owner: `beta-owner`.', 2);
+  assert.deepEqual(extractIdentity(block), { owner: 'beta-owner', tag: 'alpha-agent' });
+});
+
+test('extractIdentity returns nulls when there is no identity line', () => {
+  assert.deepEqual(extractIdentity(fencedBlock('no identity line here', 1)), {
+    owner: null,
+    tag: null,
+  });
+});
+
+test('readPreservedIdentity returns null when the file does not exist', (t) => {
+  const io = collectedIo();
+  const target = join(sandbox(t), 'does-not-exist.md');
+  assert.equal(readPreservedIdentity(target, io), null);
+  assert.deepEqual(io.lines, []);
+  assert.deepEqual(io.errLines, []);
+});
+
+test('readPreservedIdentity returns null when the file has no fence', (t) => {
+  const target = join(sandbox(t), 'AGENTS.md');
+  writeFileSync(target, '# Purely user-owned instructions\n');
+  const io = collectedIo();
+  assert.equal(readPreservedIdentity(target, io), null);
+  assert.deepEqual(io.errLines, []);
+});
+
+test('readPreservedIdentity returns null, not a throw, on a corrupt fence', (t) => {
+  const target = join(sandbox(t), 'AGENTS.md');
+  writeFileSync(target, '<!-- banana:begin v1 -->\nno end marker here\n');
+  const io = collectedIo();
+  assert.equal(readPreservedIdentity(target, io), null);
+  assert.deepEqual(io.errLines, [], 'a corrupt fence is surfaced by the real write path, not warned here');
+});
+
+test('readPreservedIdentity recovers owner/tag from an existing fence', (t) => {
+  const target = join(sandbox(t), 'AGENTS.md');
+  const block = fencedBlock('- **Identity:** you are `alpha-agent`; owner: `beta-owner`.', 2);
+  writeFileSync(target, `intro\n\n${block}\n`);
+  const io = collectedIo();
+  assert.deepEqual(readPreservedIdentity(target, io), { owner: 'beta-owner', tag: 'alpha-agent' });
+  assert.deepEqual(io.errLines, []);
+});
+
+test('readPreservedIdentity warns exactly once and returns null when identity cannot be parsed', (t) => {
+  const target = join(sandbox(t), 'AGENTS.md');
+  writeFileSync(target, fencedBlock('no identity line here', 1));
+  const io = collectedIo();
+  assert.equal(readPreservedIdentity(target, io), null);
+  assert.equal(io.errLines.length, 1, 'exactly one warning line');
+  assert.ok(io.errLines[0].includes(target), 'warning names the file');
+});
+
+test('readPreservedIdentity falls back to io.out when io.err is absent', (t) => {
+  const target = join(sandbox(t), 'AGENTS.md');
+  writeFileSync(target, fencedBlock('no identity line here', 1));
+  /** @type {string[]} */
+  const lines = [];
+  assert.equal(readPreservedIdentity(target, { out: (line = '') => lines.push(line) }), null);
+  assert.equal(lines.length, 1, 'warning lands on out when err is not provided');
+  assert.ok(lines[0].includes(target));
 });

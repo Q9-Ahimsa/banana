@@ -340,6 +340,79 @@ test('e2e: --deliver runs the injected delivery command', async (t) => {
   assert.deepEqual(ran, [result.hermes?.command], 'exactly the composed command ran');
 });
 
+// #16: a re-run must preserve an already-wired adapter file's owner-set
+// tag/owner instead of overwriting it with this run's inferred defaults.
+
+test('e2e: re-run preserves a custom tag/owner already wired into a home adapter file, ignoring git config', async (t) => {
+  const home = sandbox(t);
+  mkdirSync(join(home, '.claude'));
+  const first = await runInit(
+    parseInitArgs(['--owner', 'beta-owner', '--tag', 'alpha-agent', '--yes']),
+    { home, env: NO_PATH, io: scriptedIo().io },
+  );
+  assert.equal(first.code, 0);
+
+  const { io, lines } = scriptedIo();
+  const second = await runInit(parseInitArgs(['--yes']), {
+    home,
+    env: NO_PATH,
+    io,
+    gitUserName: () => 'Someone Else',
+  });
+  assert.equal(second.code, 0);
+  assert.equal(second.wired[0]?.changed, false, 'identical block re-applied — no change');
+
+  const text = readFileSync(join(home, '.claude', 'CLAUDE.md'), 'utf8');
+  assert.ok(text.includes('`beta-owner`'), 'owner preserved from the existing fence');
+  assert.ok(text.includes('`alpha-agent`'), 'tag preserved from the existing fence');
+  assert.ok(!text.includes('Someone Else'), 'git config must not override a preserved identity');
+});
+
+test('e2e: explicit --owner/--tag flags win over a preserved adapter identity', async (t) => {
+  const home = sandbox(t);
+  mkdirSync(join(home, '.claude'));
+  const first = await runInit(
+    parseInitArgs(['--owner', 'beta-owner', '--tag', 'alpha-agent', '--yes']),
+    { home, env: NO_PATH, io: scriptedIo().io },
+  );
+  assert.equal(first.code, 0);
+
+  const second = await runInit(
+    parseInitArgs(['--owner', 'Override Owner', '--tag', 'override-agent', '--yes']),
+    { home, env: NO_PATH, io: scriptedIo().io },
+  );
+  assert.equal(second.code, 0);
+
+  const text = readFileSync(join(home, '.claude', 'CLAUDE.md'), 'utf8');
+  assert.ok(text.includes('`Override Owner`'), 'explicit --owner wins over the preserved owner');
+  assert.ok(text.includes('`override-agent`'), 'explicit --tag wins over the preserved tag');
+  assert.ok(!text.includes('beta-owner'), 'preserved owner replaced by the override');
+  assert.ok(!text.includes('alpha-agent'), 'preserved tag replaced by the override');
+});
+
+test('e2e: an adapter fence whose identity line cannot be parsed falls back to current behavior with one warning', async (t) => {
+  const home = sandbox(t);
+  mkdirSync(join(home, '.claude'));
+  const claudeMd = join(home, '.claude', 'CLAUDE.md');
+  writeFileSync(claudeMd, '<!-- banana:begin v1 -->\nno identity line here\n<!-- banana:end -->\n');
+  const { io, lines } = scriptedIo();
+
+  const result = await runInit(parseInitArgs(['--yes']), {
+    home,
+    env: NO_PATH,
+    io,
+    gitUserName: () => 'Fallback Owner',
+  });
+  assert.equal(result.code, 0);
+
+  const text = readFileSync(claudeMd, 'utf8');
+  assert.ok(text.includes('`Fallback Owner`'), 'falls back to normal owner inference');
+  assert.ok(text.includes('`claude`'), "falls back to the adapter's own default tag");
+
+  const warnings = lines.filter((line) => line.includes(claudeMd) && /cannot recover/i.test(line));
+  assert.equal(warnings.length, 1, 'exactly one warning line naming the file');
+});
+
 test('e2e: a filesystem error mid-run fails gracefully instead of throwing', async (t) => {
   const home = sandbox(t);
   // Occupy .agents with a plain file so mkdirSync(canonDir, ...) throws ENOTDIR

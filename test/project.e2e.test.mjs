@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 
 import { parseProjectArgs, runProject } from '../lib/project.mjs';
 import { fenceBegin, FENCE_END } from '../lib/fence.mjs';
+import { renderWiringTemplate } from '../lib/wiring.mjs';
 
 /** @returns {string} a fresh temp dir, cleaned up when the test ends */
 function sandbox(t) {
@@ -219,6 +220,128 @@ test('non-TTY: no inferable owner exits non-zero naming --owner and --yes, write
   assert.ok(output.includes('--owner'), 'failure names --owner');
   assert.ok(output.includes('--yes'), 'failure names --yes');
   assert.deepEqual([...snapshot(repo).keys()], [], 'no files written');
+});
+
+// #16: a re-run must preserve an existing AGENTS.md fence's owner-set
+// tag/owner instead of overwriting it with this run's inferred defaults.
+
+test('e2e: re-run preserves a custom tag/owner already wired into AGENTS.md, ignoring git config', async (t) => {
+  const repo = repoSandbox(t);
+  const agentsTarget = join(repo, 'AGENTS.md');
+  const first = await runProject(
+    { owner: 'beta-owner', tag: 'alpha-agent', yes: true },
+    { cwd: repo, io: scriptedIo().io },
+  );
+  assert.equal(first.code, 0);
+
+  const scripted = scriptedIo();
+  const second = await runProject(
+    { owner: null, tag: null, yes: true },
+    { cwd: repo, io: scripted.io, gitUserName: () => 'Someone Else' },
+  );
+  assert.equal(second.code, 0);
+  assert.equal(second.wired?.changed, false, 'identical block re-applied — no change');
+
+  const agents = readFileSync(agentsTarget, 'utf8');
+  assert.ok(agents.includes('`beta-owner`'), 'owner preserved from the existing fence');
+  assert.ok(agents.includes('`alpha-agent`'), 'tag preserved from the existing fence');
+  assert.ok(!agents.includes('Someone Else'), 'git config must not override a preserved identity');
+  assert.ok(
+    scripted.lines.join('\n').includes('beta-owner (preserved from existing AGENTS.md fence)'),
+    'preservation reported',
+  );
+});
+
+test('e2e: project upgrades an old fence version while preserving its custom identity', async (t) => {
+  const repo = repoSandbox(t);
+  const agentsTarget = join(repo, 'AGENTS.md');
+  writeFileSync(
+    agentsTarget,
+    [
+      '# Repo notes',
+      '',
+      '<!-- banana:begin v1 -->',
+      '## Continuity bootstrap (banana)',
+      '',
+      '- **Your agent tag:** `alpha-agent`. Owner: `beta-owner`. Sign every entry.',
+      '<!-- banana:end -->',
+      '',
+    ].join('\n'),
+  );
+
+  const result = await runProject(
+    { owner: null, tag: null, yes: true },
+    { cwd: repo, io: scriptedIo().io, gitUserName: () => 'Someone Else' },
+  );
+  assert.equal(result.code, 0);
+
+  const agents = readFileSync(agentsTarget, 'utf8');
+  assert.ok(agents.includes(fenceBegin(2)), 'fence upgraded to the current version');
+  assert.ok(!agents.includes(fenceBegin(1)), 'old version marker gone');
+  assert.ok(agents.includes('`alpha-agent`'), 'tag preserved through the upgrade');
+  assert.ok(agents.includes('`beta-owner`'), 'owner preserved through the upgrade');
+  assert.ok(!agents.includes('Someone Else'), 'git config must not override a preserved identity');
+
+  const expectedBlock = renderWiringTemplate('agents-md.md', { owner: 'beta-owner', tag: 'alpha-agent' });
+  assert.ok(agents.includes(expectedBlock), 'rest of the block matches the current template verbatim');
+});
+
+test('e2e: explicit --owner/--tag flags win over a preserved identity', async (t) => {
+  const repo = repoSandbox(t);
+  const agentsTarget = join(repo, 'AGENTS.md');
+  const first = await runProject(
+    { owner: 'beta-owner', tag: 'alpha-agent', yes: true },
+    { cwd: repo, io: scriptedIo().io },
+  );
+  assert.equal(first.code, 0);
+
+  const second = await runProject(
+    { owner: 'Override Owner', tag: 'override-agent', yes: true },
+    { cwd: repo, io: scriptedIo().io },
+  );
+  assert.equal(second.code, 0);
+
+  const agents = readFileSync(agentsTarget, 'utf8');
+  assert.ok(agents.includes('`Override Owner`'), 'explicit --owner wins over the preserved owner');
+  assert.ok(agents.includes('`override-agent`'), 'explicit --tag wins over the preserved tag');
+  assert.ok(!agents.includes('beta-owner'), 'preserved owner replaced by the override');
+  assert.ok(!agents.includes('alpha-agent'), 'preserved tag replaced by the override');
+});
+
+test('e2e: fresh workspace has no fence to preserve — current default behavior applies', async (t) => {
+  const repo = repoSandbox(t);
+  const agentsTarget = join(repo, 'AGENTS.md');
+  const result = await runProject(
+    { owner: null, tag: null, yes: true },
+    { cwd: repo, io: scriptedIo().io, gitUserName: () => 'Git Alice' },
+  );
+  assert.equal(result.code, 0);
+  const agents = readFileSync(agentsTarget, 'utf8');
+  assert.ok(agents.includes('`Git Alice`'), 'no preserved identity — falls through to git config inference');
+  assert.ok(agents.includes('`<agent-tag>`'), 'no preserved identity — falls through to the default tag');
+});
+
+test('e2e: an AGENTS.md fence whose identity line cannot be parsed falls back to current behavior with one warning', async (t) => {
+  const repo = repoSandbox(t);
+  const agentsTarget = join(repo, 'AGENTS.md');
+  const content = '<!-- banana:begin v1 -->\nno identity line here\n<!-- banana:end -->\n';
+  writeFileSync(agentsTarget, content);
+  const scripted = scriptedIo();
+
+  const result = await runProject(
+    { owner: null, tag: null, yes: true },
+    { cwd: repo, io: scripted.io, gitUserName: () => 'Fallback Owner' },
+  );
+  assert.equal(result.code, 0);
+
+  const agents = readFileSync(agentsTarget, 'utf8');
+  assert.ok(agents.includes('`Fallback Owner`'), 'falls back to normal owner inference');
+  assert.ok(agents.includes('`<agent-tag>`'), 'falls back to the default tag placeholder');
+
+  const warnings = scripted.lines.filter(
+    (line) => line.includes(agentsTarget) && /cannot recover/i.test(line),
+  );
+  assert.equal(warnings.length, 1, 'exactly one warning line naming the file');
 });
 
 test('e2e: a filesystem error mid-run fails gracefully instead of throwing', async (t) => {

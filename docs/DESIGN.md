@@ -144,7 +144,20 @@ adapters) or `compose(opts)` (write-through adapters). File adapters write ONLY 
 (insert-or-replace a version-marked block, `<!-- banana:begin vN -->` … `<!-- banana:end -->`,
 creating the file if missing, preserving everything outside the fence byte-for-byte — idempotency
 is THE contract: second run must be byte-identical). Every shipped wiring template
-(`templates/wiring/*.md`) is currently fenced at `v2`. The hermes adapter never writes files: it
+(`templates/wiring/*.md`) is currently fenced at `v2`. **Identity preservation (#16):** when a
+fence-writing path rewrites or upgrades an EXISTING fence, it reads the agent tag and owner off
+that fence's own identity line (`lib/fence.mjs`'s `readPreservedIdentity`/`extractIdentity` —
+single-sourced there for every fence-writing path: `project`'s own `AGENTS.md` write, `init`'s
+per-adapter wiring, and `sync`'s stale-fence upgrades) and carries them into the new block
+unchanged, even as it upgrades everything else (version, template text). An explicit value the
+command was given for this run (`project`'s and `init`'s `--tag`/`--owner`) wins over a preserved
+one — `init` resolves this per adapter target, so a machine wired at different times with
+different `--owner`/`--tag` values keeps each file's own identity independently; `sync` takes no
+such flags, so a preserved value always wins there. No existing fence, or a fence whose identity
+line can't be parsed, falls back to the command's normal default computation (`init`'s per-adapter
+fallback is this run's resolved owner and the adapter's own default tag) — the unparseable case
+also prints exactly one warning line naming the file, so identity loss is never silent. The hermes
+adapter never writes files: it
 composes a directive (sender header + protocol summary + agent tag) and the one-shot command
 string; delivery only behind an explicit `--deliver` flag. Rationale: another agent's memory is
 written through the agent, never at its files.
