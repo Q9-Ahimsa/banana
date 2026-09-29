@@ -73,3 +73,9 @@ WHAT: `~/.agents/canon/` refreshed — CONTINUITY 1.2 → 1.6, STANDARD 1.2 → 
 DONE: every file sync could touch backed up first; harness files unchanged (hash = backup), identity lines intact; `doctor` stale-canon 0, stale-fence 0. Remaining doctor findings: 11 July ghosts (earlier counted as 10 — `banana.12` was missed) + 2 hyphen-dash NEXTs
 ref: .agents/session.log cli.13
 NEXT: claude — #11 rollout: migrate the 6 project STATE headers (`retired-header` WARN), then #8
+
+## [2026-09-29] claude kit.10 | SESSION — #11 slice: installed STATE headers migrated; retired-header lint catches every wording
+WHAT: the 9 project pages on the owner machine moved from the retired "never patched" header to rebuild-on-close (header line only); RETIRED_HEADER_RE now matches the sentence shape, not one literal (487c82d)
+DONE: 500 → 508 green; on the 9 pre-migration pages the old pattern flagged 7, the fixed one 9, and 0 after migration; the SessionStart hook's first live fire seen (after a compaction)
+ref: .agents/session.log cli.14; .agents/specs/cli-11a-header-migration.md; GitHub #11 (stays open: shim install + v3 fences)
+NEXT: claude — /implement #8 (brief v2), then #6 → #10 → rest of #11

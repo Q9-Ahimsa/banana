@@ -434,3 +434,21 @@ APPROACH: owner go; backups first, then sync, then byte-compare
 VALIDATED: refreshed CONTINUITY 1.2->1.6, STANDARD 1.2->1.3, SESSION-LOG 1.2->1.4, byte-equal to kit; Claude/Codex/Pi files unchanged (hash = backup); identity lines intact; stale-canon findings 0
 STATUS: complete
 NEXT: claude — #11 rollout: migrate the 6 project STATE headers (retired-header WARN), then #8
+
+## [2026-09-29] claude cli.14 | ops — #11 slice: STATE header migration + retired-header pattern fix
+APPROACH: widen RETIRED_HEADER_RE red-first (a real-page wording "Rebuilt, never patched" passes silently today); swap the retired header line on the 9 owner-machine project pages to the rebuild-on-close text; commit only where the page is tracked + otherwise clean; hook first live fire observed post-compact
+STATUS: in-progress
+FILES: lib/state.mjs, test/state.test.mjs, .agents/specs/cli-11a-header-migration.md (487c82d); 9 owner-machine STATE headers (5 committed per repo, 4 left uncommitted: 2 had prior local edits, 2 keep STATE untracked)
+VALIDATED: 500 -> 508 green, check clean; 8 new tests red vs the old literal, mutation re-reds them; real pages: old pattern 7/9, fixed 9/9 on pre-migration copies, 0/9 on migrated pages; each page diff = 1 header line out, 2 in, line endings kept
+VALIDATED: SessionStart hook fired live — its global lint landed in context after /compact (first live fire; closes the Watch item)
+PROBLEM: the rule had shipped in 2 wordings; the header count was 9, not 6, and the lint missed 2
+STATUS: complete
+NEXT: claude — C:/Program Files/Git/implement #8 (brief v2), then #6 -> #10 -> rest of #11 (shim install + sync of v3 fences)
+
+## [2026-09-29] claude cli.15 | build — retired-header: check the header only (regression from cli.14)
+APPROACH: reuse doctor's headerBlock (the ADR 0004 date boundary) in both grains' checks; red-first
+PROBLEM: the widened pattern WARNed on the kit's own STATE, whose Truth bullet describes the rule in the body; clean-page controls could not catch it (none mention the rule)
+FIX: headerBlock exported from lib/doctor.mjs; checkRetiredHeader + checkRetiredHeaderGlobal test only the lines above the first ## heading; DESIGN.md rows corrected
+VALIDATED: 508 -> 510 green, check clean; 2 new body-mention tests red on whole-page scan, re-red on revert; real pages: 9/9 pre-migration flagged, 0/9 migrated, kit page + global page 0
+STATUS: complete
+NEXT: claude — C:/Program Files/Git/implement #8 (brief v2), then #6 -> #10 -> rest of #11
