@@ -515,6 +515,84 @@ test('checkRetiredHeader: the pre-amendment phrase anywhere in the page warns, c
   assert.ok(RETIRED_HEADER_RE.test(retired));
 });
 
+// #11 slice A: the retired rule shipped in more than one wording on real
+// installed pages (ADR 0001's own history) — these pin the sentence-shape
+// match (word "rebuilt", then "never patched" before the next period)
+// rather than the one literal string the pattern used to require.
+
+test('checkRetiredHeader: "Rebuilt, never patched." (no "whole") warns', () => {
+  const retired = CLEAN_STATE.replace(
+    'Rebuilt at session close; mid-arc',
+    'Rebuilt, never patched. Not mid-arc',
+  );
+  assert.notEqual(retired, CLEAN_STATE, 'sanity: the replace must actually hit');
+  const findings = checkRetiredHeader(retired);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'WARN');
+  assert.equal(findings[0].type, 'retired-header');
+  assert.ok(RETIRED_HEADER_RE.test(retired));
+});
+
+test('checkRetiredHeader: "Rebuilt from the logbook, never patched." (historical canon wording) warns', () => {
+  const retired = CLEAN_STATE.replace(
+    'Rebuilt at session close; mid-arc',
+    'Rebuilt from the logbook, never patched. Not mid-arc',
+  );
+  assert.notEqual(retired, CLEAN_STATE, 'sanity: the replace must actually hit');
+  const findings = checkRetiredHeader(retired);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'WARN');
+  assert.equal(findings[0].type, 'retired-header');
+  assert.ok(RETIRED_HEADER_RE.test(retired));
+});
+
+test('checkRetiredHeader: a blockquote line wrap between "rebuilt" and "never patched" still warns', () => {
+  const retired = CLEAN_STATE.replace(
+    '> on conflict. One page, hard cap. Rebuilt at session close; mid-arc\n' +
+      '> section patches are legal and must carry the dirty-marker line.',
+    '> on conflict. One page, hard cap. Rebuilt whole,\n> never patched.',
+  );
+  assert.notEqual(retired, CLEAN_STATE, 'sanity: the replace must actually hit');
+  const findings = checkRetiredHeader(retired);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'WARN');
+  assert.equal(findings[0].type, 'retired-header');
+  assert.ok(RETIRED_HEADER_RE.test(retired));
+});
+
+test('checkRetiredHeader: upper case "REBUILT, NEVER PATCHED." warns', () => {
+  const retired = CLEAN_STATE.replace(
+    'Rebuilt at session close; mid-arc',
+    'REBUILT, NEVER PATCHED. Not mid-arc',
+  );
+  assert.notEqual(retired, CLEAN_STATE, 'sanity: the replace must actually hit');
+  const findings = checkRetiredHeader(retired);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'WARN');
+  assert.equal(findings[0].type, 'retired-header');
+  assert.ok(RETIRED_HEADER_RE.test(retired));
+});
+
+test('checkRetiredHeader: "never patched" with no "rebuilt" in the same sentence does not warn', () => {
+  const text = CLEAN_STATE.replace(
+    'Rebuilt at session close; mid-arc',
+    'The log is never patched. Not mid-arc',
+  );
+  assert.notEqual(text, CLEAN_STATE, 'sanity: the replace must actually hit');
+  assert.deepEqual(checkRetiredHeader(text), []);
+  assert.ok(!RETIRED_HEADER_RE.test(text));
+});
+
+test('checkRetiredHeader: "rebuilt" and "never patched" split across a sentence boundary does not warn', () => {
+  const text = CLEAN_STATE.replace(
+    'Rebuilt at session close; mid-arc',
+    'Rebuilt at close. Old copies were never patched. Not mid-arc',
+  );
+  assert.notEqual(text, CLEAN_STATE, 'sanity: the replace must actually hit');
+  assert.deepEqual(checkRetiredHeader(text), []);
+  assert.ok(!RETIRED_HEADER_RE.test(text));
+});
+
 // checkRetiredHeaderGlobal (#15, ADR 0005): the global-grain counterpart —
 // same RETIRED_HEADER_RE, different migration target (per-thread edits, not
 // rebuild-on-close).
@@ -528,6 +606,20 @@ test('checkRetiredHeaderGlobal: the pre-amendment phrase warns, case-insensitive
     'Edit only your own threads; never rewrite the page.',
     'Rebuilt whole, never patched.',
   );
+  const findings = checkRetiredHeaderGlobal(retired);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'WARN');
+  assert.equal(findings[0].type, 'retired-header');
+  assert.ok(findings[0].message.includes('ADR 0005'));
+  assert.ok(RETIRED_HEADER_RE.test(retired));
+});
+
+test('checkRetiredHeaderGlobal: "Rebuilt, never patched." (no "whole") warns, pointing at ADR 0005', () => {
+  const retired = CLEAN_GLOBAL.replace(
+    'Edit only your own threads; never rewrite the page.',
+    'Rebuilt, never patched.',
+  );
+  assert.notEqual(retired, CLEAN_GLOBAL, 'sanity: the replace must actually hit');
   const findings = checkRetiredHeaderGlobal(retired);
   assert.equal(findings.length, 1);
   assert.equal(findings[0].tier, 'WARN');
@@ -1308,6 +1400,14 @@ test('F1: a duplicated `## Next` heading is scanned under BOTH occurrences — a
 
 test('F1: the retired-header phrase inside a fence is not flagged — it is quoted example text, not the page\'s own header', () => {
   const raw = CLEAN_STATE + '\n```\nRebuilt whole, never patched.\n```\n';
+  const text = prepareText(raw);
+  assert.ok(RETIRED_HEADER_RE.test(raw), 'sanity: the raw text DOES contain the phrase before blanking');
+  const findings = lintProjectState(text, { logbookText: CLEAN_LOGBOOK, sessionEntries: [] });
+  assert.ok(!findings.some((f) => f.type === 'retired-header'));
+});
+
+test('F1: the "Rebuilt, never patched." wording variant inside a fence is not flagged either', () => {
+  const raw = CLEAN_STATE + '\n```\nRebuilt, never patched.\n```\n';
   const text = prepareText(raw);
   assert.ok(RETIRED_HEADER_RE.test(raw), 'sanity: the raw text DOES contain the phrase before blanking');
   const findings = lintProjectState(text, { logbookText: CLEAN_LOGBOOK, sessionEntries: [] });
