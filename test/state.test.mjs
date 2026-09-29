@@ -503,7 +503,7 @@ test('checkRetiredHeader: absent on the clean fixture', () => {
   assert.deepEqual(checkRetiredHeader(CLEAN_STATE), []);
 });
 
-test('checkRetiredHeader: the pre-amendment phrase anywhere in the page warns, case-insensitively', () => {
+test('checkRetiredHeader: the pre-amendment phrase in the header warns, case-insensitively', () => {
   const retired = CLEAN_STATE.replace(
     'Rebuilt at session close; mid-arc',
     'Rebuilt whole, never patched. Not mid-arc',
@@ -593,6 +593,19 @@ test('checkRetiredHeader: "rebuilt" and "never patched" split across a sentence 
   assert.ok(!RETIRED_HEADER_RE.test(text));
 });
 
+// #11 Part 1b (regression from Part 1): the widened sentence-shape pattern
+// must only fire on the page's own HEADER, not on a body bullet that merely
+// discusses or quotes the retired rule in prose.
+test('checkRetiredHeader: a body bullet describing the retired rule (not the page\'s own header) does not warn', () => {
+  const withBodyMention = CLEAN_STATE.replace(
+    '- decided X — widget.1',
+    '- decided X — widget.1\n- the old header said pages are rebuilt whole and never patched',
+  );
+  assert.notEqual(withBodyMention, CLEAN_STATE, 'sanity: the replace must actually hit');
+  assert.ok(RETIRED_HEADER_RE.test(withBodyMention), 'sanity: the body text DOES contain the phrase');
+  assert.deepEqual(checkRetiredHeader(withBodyMention), []);
+});
+
 // checkRetiredHeaderGlobal (#15, ADR 0005): the global-grain counterpart —
 // same RETIRED_HEADER_RE, different migration target (per-thread edits, not
 // rebuild-on-close).
@@ -626,6 +639,17 @@ test('checkRetiredHeaderGlobal: "Rebuilt, never patched." (no "whole") warns, po
   assert.equal(findings[0].type, 'retired-header');
   assert.ok(findings[0].message.includes('ADR 0005'));
   assert.ok(RETIRED_HEADER_RE.test(retired));
+});
+
+test('checkRetiredHeaderGlobal: a body bullet describing the retired rule under "## Active threads" does not warn', () => {
+  const withBodyMention = CLEAN_GLOBAL.replace(
+    '## Active threads\n- **alpha** (as of 2026-09-01) — building the thing → `~/projects/alpha/STATE.md`',
+    '## Active threads\n- **alpha** (as of 2026-09-01) — building the thing → `~/projects/alpha/STATE.md`\n' +
+      '- **beta** (as of 2026-09-01) — old pages said pages are rebuilt whole and never patched → `~/projects/beta/STATE.md`',
+  );
+  assert.notEqual(withBodyMention, CLEAN_GLOBAL, 'sanity: the replace must actually hit');
+  assert.ok(RETIRED_HEADER_RE.test(withBodyMention), 'sanity: the body text DOES contain the phrase');
+  assert.deepEqual(checkRetiredHeaderGlobal(withBodyMention), []);
 });
 
 // =====================================================================

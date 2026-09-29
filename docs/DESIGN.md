@@ -255,9 +255,13 @@ unterminated blanks to EOF) and `<!-- ... -->` HTML comments (single- or
 multi-line) — every line either touches becomes an empty line, so line
 indexes stay stable and every check below sees only real page content, never
 quoted example text or explanatory markup. A section heading (or an as-of/
-stamp date, or the dirty marker, or the retired-header phrase) that exists
-ONLY inside a fence or comment does not count; one that exists for real
-elsewhere on the page is unaffected by a decoy copy sitting in a fence.
+stamp date, or the dirty marker) that exists ONLY inside a fence or comment
+does not count; one that exists for real elsewhere on the page is unaffected
+by a decoy copy sitting in a fence. The retired-header phrase is narrower
+still (#11 Part 1b): it is only ever looked for in the HEADER BLOCK (every
+line before the first `## ` heading — the same boundary `stateAsOf` uses,
+ADR 0004), never the body, so a bullet that merely quotes or describes the
+retired rule in prose does not trip it, fenced or not.
 
 **Project mode** (`banana state lint`, default) lints `<cwd>/STATE.md`;
 `<cwd>/LOGBOOK.md` and `<cwd>/.agents/session.log` are optional comparison
@@ -274,7 +278,7 @@ own).
 | FAIL | `stale-vs-logbook` | the as-of date is older than the newest LOGBOOK.md entry date (equal passes) |
 | WARN | `stale-vs-session-log` | the as-of date is older than the newest `.agents/session.log` entry date (equal passes) — WARN, not FAIL: see ADR 0004 |
 | WARN | `dirty-marker` | the standing rebuild-on-close marker (ADR 0001) is present |
-| WARN | `retired-header` | the page still carries the pre-amendment "rebuilt whole, never patched" rule — this project-mode message points to ADR 0001 (rebuild-on-close); see the global-mode table below for the counterpart message (ADR 0005) |
+| WARN | `retired-header` | the page's HEADER (not the body — #11 Part 1b) still carries the pre-amendment "rebuilt whole, never patched" rule — this project-mode message points to ADR 0001 (rebuild-on-close); see the global-mode table below for the counterpart message (ADR 0005) |
 
 **Heading matcher** (shared machinery — `missing-section` and locating a
 section's body, e.g. `## Next`, for the owner-matcher scan, both use this
@@ -360,7 +364,7 @@ comparison (the global page has none). `home` is always injected through
 | FAIL | `backlog-unowned` | a top-level `## Backlog (owned)` bullet fails the owner matcher |
 | WARN | `thread-unverifiable` | the bullet has a pointer, but it does not resolve to a readable file named `STATE.md` (a memory file, a missing path, a relative path, ...) |
 | WARN | `thread-target-undated` | the pointer resolves to a readable STATE.md with no `as of YYYY-MM-DD` date (incl. the bootstrap placeholder) |
-| WARN | `retired-header` | the page still carries the pre-amendment "rebuilt whole, never patched" rule — this global-mode message points to ADR 0005 (per-thread edits, #15) |
+| WARN | `retired-header` | the page's HEADER (not the body — #11 Part 1b) still carries the pre-amendment "rebuilt whole, never patched" rule — this global-mode message points to ADR 0005 (per-thread edits, #15) |
 
 Global mode never flags `dirty-marker`: ADR 0005's per-thread edits (#15)
 introduced no marker convention for a mid-arc patched global page, so there

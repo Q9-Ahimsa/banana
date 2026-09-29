@@ -52,7 +52,29 @@ local paths in tests, docs or this spec's follow-ups.
 
 Gates: `npm test` (baseline 500 passing), `npm run check` (tsc --checkJs), both green.
 
-## Part 2 — header migration (owner machine, outside this repo)
+## Part 1b — scope the check to the header (regression from Part 1)
+
+Found after Part 1 landed (487c82d): the widened pattern flags a page that only *discusses* the
+rule in its body. The kit's own STATE.md has a Truth bullet saying retired-header matches
+"rebuilt … never patched" in one sentence, and lint now WARNs `retired-header` on it. The old
+literal made this false positive rarer, not impossible: a body line quoting "rebuilt whole,
+never patched" was always flagged.
+
+Fix: both `checkRetiredHeader` and `checkRetiredHeaderGlobal` test only the header block, which
+is every line before the first `## ` heading, the same boundary `stateAsOf` uses (ADR 0004). Reuse
+the one existing definition: export `headerBlock` from `lib/doctor.mjs` and call it. Do not write
+a second header parser. With no `## ` heading, the header block is the whole text, as today.
+
+Tests, red-first (10 and 11 must fail before the fix):
+10. Project grain: the clean fixture plus a body bullet under an existing `## ` section that
+    describes the rule (e.g. `- the old header said pages are rebuilt whole and never patched`
+    or similar sentence-shape text) does NOT warn.
+11. Global grain: the same kind of body mention under `## Active threads` does NOT warn.
+12. The retired rule in the header still warns (the existing tests cover this; their names must
+    no longer claim "anywhere in the page").
+
+Update the JSDoc of both checks, and any `docs/DESIGN.md` text that says the check scans the
+whole page.
 
 On each installed project page that carries the retired rule, replace the retired sentence
 (`Rebuilt whole, never patched.` or `Rebuilt, never patched.`) with the canonical rebuild-on-close
