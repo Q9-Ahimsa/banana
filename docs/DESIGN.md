@@ -97,14 +97,75 @@ continuity files. Include / exclude:
 
 | Include | Exclude |
 |---|---|
-| target feature's session.log entries, full bodies | other features' entry BODIES |
+| target feature's session.log entries: the most recent CLOSED entry and every entry whose own STATUS isn't terminal (open, missing, or off-vocabulary — #8, F4), full bodies; older closed entries, heading only (#8) | other features' entry BODIES; any entry retired by a SAME-STREAM `SUPERSEDES:` reference, whatever its own STATUS, always heading only (#8 follow-up 2, narrowed to same-stream by F3) |
 | headings only of the last 5 entries from other features | other projects' content |
-| `NEXT:` lines owned by `--tag` or unowned | NEXT owned by other agents |
+| the TARGET feature's own `NEXT:` lines whenever Feature history rendered that entry in full (F1); every OTHER feature stream's LATEST entry (by log position, over ALL entries, then skipped if THAT entry is retired by any-stream `SUPERSEDES:` — F5) — its `NEXT:` lines, if owned by `--tag` or unowned (#8 follow-up 3) | NEXT owned by other agents; for other features, any NEXT from a stream's non-latest entry, or from a stream whose latest entry is itself retired |
 | project STATE.md verbatim (one page by contract) | global STATE (machine grain, not project) |
-| ghosts: any in-progress entry older than 48h, flagged | Entries retired by a `SUPERSEDES:` reference are excluded (supersession-aware, canon CONTINUITY v1.4 / ADR 0003). |
+| ghosts: any in-progress entry older than 48h, flagged | Entries retired by a `SUPERSEDES:` reference are excluded (supersession-aware, canon CONTINUITY v1.4 / ADR 0003; stream-agnostic — a cross-stream rename/move still resolves the ghost, F9). |
 
 Every section header carries a `ref:` line naming its source file (the brief is an index into the
 record, not a replacement for it). Deterministic only — no LLM calls, pure text processing.
+
+**Target-feature grain (#8, follow-up 2; narrowed by adversarial-review F3/F4).** Among the target
+feature's own entries, only the most recent CLOSED entry and every entry whose own `STATUS:` is NOT
+terminal show in full (heading, ghost flag where it applies, body); every OLDER closed entry shows as
+its heading line only — log order is kept throughout, entries are never reordered or dropped.
+"Closed" is classified by TERMINAL_STATUSES membership (`complete`/`blocked`/`abandoned`), not by
+`isOpen`'s exact `in-progress` match (F4): an entry whose `STATUS:` line is missing, or off-vocabulary
+(e.g. `STATUS: in progress`), is therefore NOT closed and shows in full too, rather than silently
+losing its body. An entry named by a `SUPERSEDES:` reference from a superseder in the SAME feature
+stream is never shown in full regardless of its own `STATUS:` — excluded from both the
+full-vs-heading decision and from candidacy for "most recent closed" (F3: narrowed from "any
+superseder" — a CROSS-stream supersede, e.g. a rename/move where a different feature's entry retires
+this one, keeps the body in full instead, or briefing the renamed-away feature would carry no content
+at all). Ghost-flag suppression on the inline `[GHOST ...]` line stays on the FULL, stream-agnostic id
+set regardless (F9): the canon's ghost retirement doesn't care which feature did the retiring, so a
+cross-stream-retired open entry still shows its body but never its ghost flag. Same-vs-cross-stream is
+read from `lib/sessionlog.mjs`'s `supersessionSources` (a `Map<id, entry[]>` of superseders per
+retired id); `supersededIds` (the ghost-facing, stream-agnostic id set) is now derived from it. This
+reuses the session-log parsing seam rather than a second parser. The point is compression: a feature
+with a long closed history no longer pays for every past entry's full body on every brief read, only
+its most recent resolution plus whatever is still open. **Duplicate ids (F6):** retirement is
+id-keyed — a `SUPERSEDES:` line retires EVERY entry sharing that id, not just the one instance a
+writer meant. A hand-mangled log with two entries at the same `{feature}.{n}` therefore has both
+retired together; there is no cheap fix for this (see GitHub #18).
+
+**Handoffs — live, not historical (#8 follow-up 3; F1/F5 fix a self-contradiction and a
+resurfacing bug).** Per canon entry-ritual item 5, `NEXT:` lines are drawn from the surfaces the
+brief already exposes — and the target feature's own full bodies (Feature history, above) are one of
+them. So `## Handoffs` uses TWO eligibility rules, not one:
+- **The TARGET feature's own entries (F1):** eligible whenever Feature history rendered that exact
+  entry in full — the SAME set the grain paragraph above computes, not a separate "is it this
+  stream's latest entry" test. Gating the target feature on "latest entry" hid a live NEXT on its
+  last CLOSE whenever a newer OPEN entry (with no NEXT yet) existed — a real bug on the kit's own log
+  (cli.15's NEXT dropped out because cli.16/cli.17 were open with none).
+- **Every OTHER feature stream:** canon's resume rule ("read the latest STATUS/NEXT") still applies.
+  The LATEST entry is taken by LOG POSITION, not by id (F6: retirement is id-keyed, and two entries
+  can share an id after a hand-mangled heading; see GitHub #18) — over ALL entries first, THEN a
+  retired winner is skipped (F5: filtering retirement BEFORE picking "latest" let an older NEXT
+  resurface when the stream's true latest entry was itself retired; a same-stream continuation is
+  unaffected, since it's the last entry by position and therefore never the one retired). Retirement
+  here uses the FULL, stream-agnostic id set (a retired entry's `NEXT:` is dead whoever retired it) —
+  not the same-stream-only set the target-feature grain uses.
+
+Either way, only `NEXT:` lines owned by `--tag` or unowned are eligible (unowned handoffs still
+surface — the canon wants those visible, not just tag-owned ones), and a stream/entry with no `NEXT:`
+at all contributes nothing — including an OPEN entry with no `NEXT:` yet: that means someone is
+already working it, not that the record has nothing to say.
+
+**Kit-version and dirty-status lines (#8, follow-up 4).** Directly under the compiled brief's title
+blockquote — discovery mode has no title blockquote and does not carry these two lines — before the
+blank line and `## State lint`: a `kit: v<version>` line, sourced from `readKitVersion(kitRoot)` in
+`lib/version.mjs` (`kit: unknown` when it returns `null`; never a network call), then a
+`STATE: <status>` line reporting the project STATE.md's dirty-marker status — `STATE: dirty (patched
+since last rebuild; the log is authority)` when the standing marker is present, `STATE: clean` when
+STATE.md exists without it, `STATE: none` when there is no project STATE.md, `STATE: unreadable` when
+it exists but can't be read (kept distinct from `none` so this line never contradicts the
+`## State lint` section's own `unreadable (...)` verdict for the same file, printed a few lines
+below). The marker is detected by reusing `lib/state.mjs`'s own detection
+(`DIRTY_MARKER_LINE`/`checkDirtyMarker`, over the same fence/comment-blanked text `prepareText` gives
+`state lint`), never a second parser. `compileBrief`/`runBrief` take an injected `kitRoot` (default
+the bundled kit's own root) — the same test-seam pattern as `home`; `bin/` never passes it.
 
 **`## State lint` section (#14).** Both modes (a compiled feature brief, and discovery mode with no
 feature) print a `## State lint` section immediately after the brief's header block, before
