@@ -265,7 +265,7 @@ test('auditProject: exactly the four seeded finding types, one each', (t) => {
   );
 });
 
-test('auditProject: superseded ghost entry produces no ghost finding; non-superseded ghost still flags (regression); unowned-next audit unaffected', (t) => {
+test('auditProject: superseded ghost entry produces no ghost finding; non-superseded ghost still flags (regression); unowned-next for the superseded entry excluded too (#17)', (t) => {
   const dir = sandbox(t);
   mkdirSync(join(dir, '.agents'), { recursive: true });
   writeFileSync(
@@ -296,13 +296,115 @@ test('auditProject: superseded ghost entry produces no ghost finding; non-supers
     ghostMessages.some((m) => m.includes('billing.1')),
     'non-superseded ghost still flagged (regression)'
   );
-  // Unowned-NEXT audit is unchanged by supersession: payments.1's own
-  // unowned NEXT still flags even though payments.1 itself is superseded.
+  // Unowned-NEXT audit now honors supersession too (#17): payments.1 is
+  // superseded by payments.2, so its own unowned NEXT is excluded here.
   const unownedMessages = findings.filter((f) => f.type === 'unowned-next').map((f) => f.message);
   assert.ok(
-    unownedMessages.some((m) => m.includes('pick a retry ceiling')),
-    'unowned-NEXT audit is not gated by supersession'
+    !unownedMessages.some((m) => m.includes('pick a retry ceiling')),
+    'unowned-NEXT for a superseded entry is excluded (#17)'
   );
+});
+
+// #17: the unowned-NEXT audit skips entries retired by a SUPERSEDES:
+// reference, the same exemption the ghost audit already had. Canon
+// CONTINUITY rule 3 names a superseding entry as the prescribed remedy for
+// an unowned NEXT; a closed entry is immutable, so without this exemption a
+// malformed NEXT in it could never be cleared even after that remedy landed.
+
+test('auditProject: unowned NEXT (hyphen, no owner) in a non-superseded entry is flagged (#17 characterization)', (t) => {
+  const dir = sandbox(t);
+  mkdirSync(join(dir, '.agents'), { recursive: true });
+  writeFileSync(
+    join(dir, '.agents', 'session.log'),
+    [
+      '# Session Log v2 — #17 fixture',
+      '',
+      '## [2026-06-20] claude widgets.1 | build — Widget queue',
+      'APPROACH: draft only.',
+      'STATUS: complete',
+      'NEXT: someone - do the thing',
+      '',
+    ].join('\n'),
+  );
+  const findings = auditProject(dir, NOW);
+  const unowned = findings.filter((f) => f.type === 'unowned-next');
+  assert.equal(unowned.length, 1, 'the malformed (hyphen) NEXT is flagged');
+  assert.ok(unowned[0].message.includes('someone - do the thing'));
+});
+
+test('auditProject: a superseding entry clears the unowned-NEXT finding for the superseded entry (#17)', (t) => {
+  const dir = sandbox(t);
+  mkdirSync(join(dir, '.agents'), { recursive: true });
+  writeFileSync(
+    join(dir, '.agents', 'session.log'),
+    [
+      '# Session Log v2 — #17 fixture',
+      '',
+      '## [2026-06-20] claude widgets.1 | build — Widget queue',
+      'APPROACH: draft only.',
+      'STATUS: complete',
+      'NEXT: someone - do the thing',
+      '',
+      '## [2026-07-04] claude widgets.2 | build — restate the NEXT with an owner',
+      'SUPERSEDES: widgets.1 (correction — owner restated below)',
+      'STATUS: complete',
+      'NEXT: claude — do the thing, now owned',
+      '',
+    ].join('\n'),
+  );
+  const findings = auditProject(dir, NOW);
+  const unowned = findings.filter((f) => f.type === 'unowned-next');
+  assert.equal(unowned.length, 0, "the superseded entry's unowned NEXT is excluded, and the new NEXT is owned");
+});
+
+test('auditProject: the unowned-NEXT exemption is per entry, not per log — an unrelated superseded entry does not silence a live malformed NEXT (#17)', (t) => {
+  const dir = sandbox(t);
+  mkdirSync(join(dir, '.agents'), { recursive: true });
+  writeFileSync(
+    join(dir, '.agents', 'session.log'),
+    [
+      '# Session Log v2 — #17 fixture',
+      '',
+      '## [2026-06-20] claude widgets.1 | build — Widget queue, still live',
+      'APPROACH: draft only.',
+      'STATUS: complete',
+      'NEXT: someone - do the thing',
+      '',
+      '## [2026-06-21] claude sprockets.1 | build — Sprocket spike, gets superseded',
+      'APPROACH: throwaway spike.',
+      'STATUS: complete',
+      'NEXT: claude — cleanup',
+      '',
+      '## [2026-07-04] claude sprockets.2 | build — restate sprockets.1',
+      'SUPERSEDES: sprockets.1 (correction)',
+      'STATUS: complete',
+      'NEXT: claude — carry on',
+      '',
+    ].join('\n'),
+  );
+  const findings = auditProject(dir, NOW);
+  const unowned = findings.filter((f) => f.type === 'unowned-next');
+  assert.equal(unowned.length, 1, 'widgets.1 is not superseded, so its malformed NEXT still flags');
+  assert.ok(unowned[0].message.includes('someone - do the thing'));
+});
+
+test('auditProject: LOGBOOK.md unowned NEXT is still flagged, unaffected by session-log supersession parsing (#17, unchanged)', (t) => {
+  const dir = sandbox(t);
+  writeFileSync(
+    join(dir, 'LOGBOOK.md'),
+    [
+      '# LOGBOOK — fixture',
+      '',
+      '## [2026-06-20] owner banana.1 | DECISION — Ship the kit',
+      'WHAT: decision body.',
+      'NEXT: someone - x',
+      '',
+    ].join('\n'),
+  );
+  const findings = auditProject(dir, NOW);
+  const unowned = findings.filter((f) => f.type === 'unowned-next');
+  assert.equal(unowned.length, 1, 'LOGBOOK.md unowned NEXT still flags');
+  assert.ok(unowned[0].message.includes('LOGBOOK.md'));
 });
 
 test('clean fixture exits 0 and reports clean audits', async (t) => {
