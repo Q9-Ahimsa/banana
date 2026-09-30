@@ -452,3 +452,72 @@ FIX: headerBlock exported from lib/doctor.mjs; checkRetiredHeader + checkRetired
 VALIDATED: 508 -> 510 green, check clean; 2 new body-mention tests red on whole-page scan, re-red on revert; real pages: 9/9 pre-migration flagged, 0/9 migrated, kit page + global page 0
 STATUS: complete
 NEXT: claude — C:/Program Files/Git/implement #8 (brief v2), then #6 -> #10 -> rest of #11
+
+## [2026-09-30] claude cli.16 | build — parallel: #8 brief v2 + #6 shim (worktrees); ghost hygiene
+APPROACH: shared lib/version.mjs first; then #8 and #6 in separate worktrees, merged + full suite; ghosts superseded meanwhile
+STATUS: in-progress
+
+## [2026-09-30] claude banana.17 | ops — close ghost banana.4
+SUPERSEDES: banana.4 (ghost: never closed; the build loop it tracked landed in banana.16)
+STATUS: complete
+NEXT: none — the work landed (banana.16)
+
+## [2026-09-30] claude banana.18 | ops — close ghost banana.5
+SUPERSEDES: banana.5 (ghost: never closed; the build loop it tracked landed in banana.16)
+STATUS: complete
+NEXT: none — the work landed (banana.16)
+
+## [2026-09-30] claude banana.19 | review — close ghost banana.6
+SUPERSEDES: banana.6 (ghost: never closed; the build loop it tracked landed in banana.16)
+STATUS: complete
+NEXT: none — the work landed (banana.16)
+
+## [2026-09-30] claude banana.20 | review — close ghost banana.9
+SUPERSEDES: banana.9 (ghost: never closed; the build loop it tracked landed in banana.16)
+STATUS: complete
+NEXT: none — the work landed (banana.16)
+
+## [2026-09-30] claude banana.21 | review — close ghost banana.12
+SUPERSEDES: banana.12 (ghost: never closed; the build loop it tracked landed in banana.16)
+STATUS: complete
+NEXT: none — the work landed (banana.16)
+
+## [2026-09-30] claude banana.22 | review — close ghost banana.13
+SUPERSEDES: banana.13 (ghost: never closed; the build loop it tracked landed in banana.16)
+STATUS: complete
+NEXT: none — the work landed (banana.16)
+
+## [2026-09-30] claude banana.23 | review — close ghost banana.14
+SUPERSEDES: banana.14 (ghost: never closed; the build loop it tracked landed in banana.16)
+STATUS: complete
+NEXT: none — the work landed (banana.16)
+
+## [2026-09-30] claude banana.24 | review — close ghost banana.15
+SUPERSEDES: banana.15 (ghost: never closed; the build loop it tracked landed in banana.16)
+STATUS: complete
+NEXT: none — the work landed (banana.16)
+
+## [2026-09-30] claude banana-v2.9 | ops — close ghost banana-v2.2
+SUPERSEDES: banana-v2.2 (ghost: never closed; the v2 loop it tracked shipped in banana-v2.6)
+STATUS: complete
+NEXT: none — the work shipped (banana-v2.6)
+
+## [2026-09-30] claude banana-v2.10 | debug — close ghost banana-v2.3
+SUPERSEDES: banana-v2.3 (ghost: never closed; the v2 loop it tracked shipped in banana-v2.6)
+STATUS: complete
+NEXT: none — the work shipped (banana-v2.6)
+
+## [2026-09-30] claude banana-v2.11 | debug — close ghost banana-v2.4
+SUPERSEDES: banana-v2.4 (ghost: never closed; the v2 loop it tracked shipped in banana-v2.6)
+STATUS: complete
+NEXT: none — the work shipped (banana-v2.6)
+
+## [2026-09-30] claude banana-v2.12 | ops — restate unowned NEXTs of banana-v2.6/v2.7
+SUPERSEDES: banana-v2.6 (banana-v2.7's heading uses ' - ' not ' — ', so its body parses into banana-v2.6 and its 'ahimsa - ' NEXT reads as unowned; both NEXTs resolved: PR #1 merged (banana-v2.8), the files allowlist replaced .npmignore, the version subcommand exists)
+STATUS: complete
+NEXT: none — resolved (banana-v2.8)
+
+## [2026-09-30] claude banana-v2.13 | ops — restate unowned NEXT of banana-v2.8
+SUPERSEDES: banana-v2.8 (NEXT used ' - ' so it reads as unowned; resolved: the registry rename is on main (package name banana-brain); command and repo stayed 'banana' in every later entry)
+STATUS: complete
+NEXT: none — resolved (package name banana-brain on main)
