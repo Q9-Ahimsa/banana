@@ -1,14 +1,15 @@
 # banana — harness-neutral continuity kit
 
-One command, run once:
+Install once:
 
 ```sh
-npx --yes github:Q9-Ahimsa/banana init
+npm install -g github:Q9-Ahimsa/banana
 ```
 
-Your agents handle the rest. `init` wires a small bootstrap block into every
-AI coding agent on your machine (Claude Code, Pi, Codex, Hermes — plus a paste
-block for anything else). The block points each agent at a shared continuity
+Then run any command with no network: `banana init`, `banana project`,
+`banana log`, … `init` wires a small bootstrap block into every AI coding
+agent on your machine (Claude Code, Pi, Codex, Hermes — plus a paste block
+for anything else). The block points each agent at a shared continuity
 canon; from then on your agents initialize their own workspaces, keep the
 logs, compile their own context briefs, and pick up where the last session
 left off — whatever the harness.
@@ -16,12 +17,17 @@ left off — whatever the harness.
 When the protocol changes upstream, one command propagates it everywhere:
 
 ```sh
-npx --yes github:Q9-Ahimsa/banana sync
+banana sync
 ```
 
-`sync` refreshes the kit-owned canon at `~/.agents/canon/` and re-applies any
-stale wiring blocks. Your own files — `STATE.md`, session logs, logbooks —
-are never touched.
+`sync` runs the kit's own update step, then refreshes the kit-owned canon at
+`~/.agents/canon/` and re-applies any stale wiring blocks. Your own files —
+`STATE.md`, session logs, logbooks — are never touched. Offline or npm
+unreachable? Sync warns and still refreshes canon/fences from whatever kit
+you have installed.
+
+No shim installed yet? The cold-bootstrap path still works, just slower —
+`npx --yes github:Q9-Ahimsa/banana init` fetches the kit fresh every call.
 
 That is the whole human surface. Everything below is addressed to agents.
 
@@ -48,16 +54,21 @@ it up yourself: read the canon's agent bootstrap section, then run
 
 ### The six commands
 
-Canonical invocation: `npx --yes github:Q9-Ahimsa/banana <command>` — npx
-always fetches the latest kit, so no update mechanism ships in it.
+Canonical invocation, once installed: `banana <command>`, no network. Cold
+bootstrap, before the shim exists on this machine: `npx --yes
+github:Q9-Ahimsa/banana <command>` — slower (fetches the kit fresh every
+call), but works with nothing installed. Either way, `sync` and `doctor`
+are the only commands that ever reach the network on purpose: `sync` to run
+its own kit-update step, `doctor` for one best-effort remote-version check.
+Both degrade to a silent no-op offline.
 
 | Command | What it does |
 |---|---|
 | `banana init` | detect installed harnesses, install the canon into `~/.agents/canon/`, wire the bootstrap block into each instruction file. Non-interactive: `--owner`, `--tag`, `--harnesses`, `--yes` |
 | `banana project` | initialize the current workspace (git repo or non-code topic dir) with `LOGBOOK.md`, `STATE.md`, `.agents/session.log`, and a wired `AGENTS.md` continuity block |
 | `banana brief <feature> --tag <agent>` | compile a per-intent context brief — feature-scoped, deterministic, no LLM calls. No feature arg lists the active slugs |
-| `banana doctor` | audit wiring versions, canon staleness, and log liveness; stale findings name `sync` as the remediation. `--verify` prints per-harness recital commands |
-| `banana sync` | refresh the kit-owned canon and re-apply any wiring fence older than current |
+| `banana doctor` | audit wiring versions, canon staleness, and log liveness; stale findings name `sync` as the remediation. Also a best-effort remote-version check (silent offline). `--verify` prints per-harness recital commands |
+| `banana sync` | run the kit's own update step (best-effort; silent-warns offline), then refresh the kit-owned canon and re-apply any wiring fence older than current |
 | `banana log stub\|append\|close\|supersede` | stamp session-log entries — the envelope (heading, STATUS/NEXT composition, concurrency-guard continuation) is computed, never hand-typed. `banana log <verb> --help` for usage |
 
 Every write is a fenced, version-marked block (`<!-- banana:begin v2 -->` …

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  cpSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -10,12 +11,15 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import * as claudeCode from '../adapters/claude-code.mjs';
 import * as pi from '../adapters/pi.mjs';
 import * as codex from '../adapters/codex.mjs';
-import { fenceBegin, FENCE_END } from '../lib/fence.mjs';
-import { renderWiringTemplate } from '../lib/wiring.mjs';
+import { fenceBegin, FENCE_END, findFence } from '../lib/fence.mjs';
+import { renderWiringTemplate, wiringTemplateVersion } from '../lib/wiring.mjs';
+
+const KIT_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const CASES = [
   { adapter: claudeCode, dir: '.claude', target: join('.claude', 'CLAUDE.md'), tag: 'claude' },
@@ -131,4 +135,59 @@ test('renderWiringTemplate: requires an agent tag', () => {
     () => renderWiringTemplate('claude-code.md', { owner: 'alice', tag: '' }),
     /agent tag/i,
   );
+});
+
+// #6: sync's fresh-read proof needs renderWiringTemplate, wiringTemplateVersion,
+// and adapter.wire to all be able to read from an injected wiring dir instead
+// of the kit's own bundled templates — the seam a sandbox kitRoot uses.
+// Review N11: derive the real template's current version instead of
+// hardcoding v2, so a future version bump (#10) doesn't break these.
+const REAL_CLAUDE_CODE_FENCE = wiringTemplateVersion('claude-code.md');
+const BUMPED_CLAUDE_CODE_FENCE = REAL_CLAUDE_CODE_FENCE + 1;
+
+test('renderWiringTemplate: an explicit wiringDir overrides the kit-bundled templates dir', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'banana-wiringdir-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  cpSync(join(KIT_ROOT, 'templates', 'wiring'), dir, { recursive: true });
+  const bumped = readFileSync(join(dir, 'claude-code.md'), 'utf8').replace(
+    fenceBegin(REAL_CLAUDE_CODE_FENCE),
+    fenceBegin(BUMPED_CLAUDE_CODE_FENCE),
+  );
+  writeFileSync(join(dir, 'claude-code.md'), bumped);
+
+  const fromReal = renderWiringTemplate('claude-code.md', { owner: 'alice', tag: 'claude' });
+  const fromOverride = renderWiringTemplate('claude-code.md', { owner: 'alice', tag: 'claude' }, dir);
+  assert.ok(findFence(fromReal)?.version === REAL_CLAUDE_CODE_FENCE, 'the real kit template is unaffected');
+  assert.ok(findFence(fromOverride)?.version === BUMPED_CLAUDE_CODE_FENCE, 'the override dir wins when given');
+});
+
+test('wiringTemplateVersion: an explicit wiringDir overrides the kit-bundled templates dir', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'banana-wiringdir-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  cpSync(join(KIT_ROOT, 'templates', 'wiring'), dir, { recursive: true });
+  writeFileSync(
+    join(dir, 'claude-code.md'),
+    readFileSync(join(dir, 'claude-code.md'), 'utf8').replace(fenceBegin(REAL_CLAUDE_CODE_FENCE), fenceBegin(BUMPED_CLAUDE_CODE_FENCE)),
+  );
+
+  assert.equal(wiringTemplateVersion('claude-code.md'), REAL_CLAUDE_CODE_FENCE, 'no override reads the real kit template');
+  assert.equal(wiringTemplateVersion('claude-code.md', dir), BUMPED_CLAUDE_CODE_FENCE, 'override dir wins when given');
+});
+
+test('claude-code: wire accepts a wiringDir override and writes the overridden template content', (t) => {
+  const home = mkdtempSync(join(tmpdir(), 'banana-adapters-'));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const dir = mkdtempSync(join(tmpdir(), 'banana-wiringdir-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  cpSync(join(KIT_ROOT, 'templates', 'wiring'), dir, { recursive: true });
+  writeFileSync(
+    join(dir, 'claude-code.md'),
+    readFileSync(join(dir, 'claude-code.md'), 'utf8').replace(fenceBegin(REAL_CLAUDE_CODE_FENCE), fenceBegin(BUMPED_CLAUDE_CODE_FENCE)),
+  );
+
+  mkdirSync(join(home, '.claude'), { recursive: true });
+  const report = claudeCode.wire(home, { owner: 'alice' }, dir);
+  assert.equal(report.created, true);
+  const text = readFileSync(join(home, '.claude', 'CLAUDE.md'), 'utf8');
+  assert.ok(findFence(text)?.version === BUMPED_CLAUDE_CODE_FENCE, 'the written fence reflects the override dir, not the kit-bundled template');
 });

@@ -557,6 +557,242 @@ test('corrupt fence: dangling begin marker (no end) does not throw, surfaced via
   assert.ok(output.includes('CLAUDE.md'), 'finding names the corrupt file');
 });
 
+// -----------------------------------------------------------------------
+// #6 B: doctor's best-effort remote-vs-local version check (v2 upstream
+// model, ADR 0002). Fake fetch only — no test in this suite touches the
+// network. The advisory is never a Finding: it must never move the exit
+// code, and any failure mode (no fetch injected, a rejection, a non-2xx
+// response, unparseable JSON, a missing/unparseable version on either side,
+// or remote <= local) must print nothing.
+// -----------------------------------------------------------------------
+
+/**
+ * A fake fetch resolving to a JSON body, or rejecting. Only the two members
+ * checkOriginAhead actually reads (`ok`, `json()`) are real; the JSDoc cast
+ * below stands in for the rest of the real `Response` shape.
+ * @param {unknown} body @param {{ ok?: boolean, rejectWith?: unknown }} [opts]
+ * @returns {typeof globalThis.fetch}
+ */
+function fakeFetch(body, { ok = true, rejectWith } = {}) {
+  return async () => {
+    if (rejectWith) throw rejectWith;
+    return /** @type {Response} */ ({ ok, json: async () => body });
+  };
+}
+
+/** A sandbox "installed kit" root: just enough for readKitVersion to work. */
+function sandboxKitRoot(t, version) {
+  const dir = mkdtempSync(join(tmpdir(), 'banana-doctor-kitroot-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'fixture-kit', version }));
+  return dir;
+}
+
+test('origin-ahead: remote newer than local prints the advisory AFTER the Audits block, set off by a blank line; exit code unaffected', async (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  const kitRoot = sandboxKitRoot(t, '0.2.0');
+  const captured = capturedIo();
+  const result = await runDoctor(
+    { verify: false },
+    { cwd: project, home, io: captured.io, now: NOW, env: ENV, fetch: fakeFetch({ version: '0.3.0' }), kitRoot },
+  );
+  assert.equal(result.code, 0, 'origin-ahead alone must not fail the exit code');
+  const lines = captured.lines;
+  const auditsIdx = lines.indexOf('Audits:');
+  assert.notEqual(auditsIdx, -1, 'Audits: heading present');
+  // Review N8: the advisory is its own paragraph AFTER the whole Audits
+  // block (contradicts nothing there — it is not itself a finding), set
+  // off by a blank line, in the "advice: ..." style (not "[origin-ahead]",
+  // which reads as a bracketed finding even though it is never counted as
+  // one).
+  const cleanIdx = lines.indexOf('  clean — no findings', auditsIdx);
+  assert.notEqual(cleanIdx, -1, 'clean audits line present');
+  assert.equal(lines[cleanIdx + 1], '', 'a blank line separates the advice from the Audits block');
+  assert.equal(lines[cleanIdx + 2], 'advice: kit v0.2.0 is behind origin v0.3.0 — run banana sync');
+});
+
+test('origin-ahead: findings present AND remote ahead — both surface, exit code still 1 (from findings alone)', async (t) => {
+  const project = seededProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  const kitRoot = sandboxKitRoot(t, '0.2.0');
+  const captured = capturedIo();
+  const result = await runDoctor(
+    { verify: false },
+    { cwd: project, home, io: captured.io, now: NOW, env: ENV, fetch: fakeFetch({ version: '0.3.0' }), kitRoot },
+  );
+  assert.equal(result.code, 1, 'local findings still fail the exit code');
+  const output = captured.text();
+  assert.ok(output.includes('[ghost]'), 'existing findings still present');
+  assert.ok(
+    output.includes('advice: kit v0.2.0 is behind origin v0.3.0 — run banana sync'),
+    'advisory present alongside findings, in its own advice line — not counted as a finding',
+  );
+});
+
+test('origin-ahead: remote equal to local prints nothing', async (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  const kitRoot = sandboxKitRoot(t, '0.2.0');
+  const captured = capturedIo();
+  const result = await runDoctor(
+    { verify: false },
+    { cwd: project, home, io: captured.io, now: NOW, env: ENV, fetch: fakeFetch({ version: '0.2.0' }), kitRoot },
+  );
+  assert.equal(result.code, 0);
+  assert.ok(!captured.text().includes('origin-ahead'));
+});
+
+test('origin-ahead: remote older than local prints nothing', async (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  const kitRoot = sandboxKitRoot(t, '0.2.0');
+  const captured = capturedIo();
+  await runDoctor(
+    { verify: false },
+    { cwd: project, home, io: captured.io, now: NOW, env: ENV, fetch: fakeFetch({ version: '0.1.0' }), kitRoot },
+  );
+  assert.ok(!captured.text().includes('origin-ahead'));
+});
+
+test('origin-ahead: a non-2xx response prints nothing and does not throw', async (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  const kitRoot = sandboxKitRoot(t, '0.2.0');
+  const captured = capturedIo();
+  const result = await runDoctor(
+    { verify: false },
+    { cwd: project, home, io: captured.io, now: NOW, env: ENV, fetch: fakeFetch({ version: '9.9.9' }, { ok: false }), kitRoot },
+  );
+  assert.equal(result.code, 0);
+  assert.ok(!captured.text().includes('origin-ahead'));
+});
+
+test('origin-ahead: a rejecting fetch (network error / timeout) prints nothing and does not throw', async (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  const kitRoot = sandboxKitRoot(t, '0.2.0');
+  const captured = capturedIo();
+  const result = await runDoctor(
+    { verify: false },
+    {
+      cwd: project,
+      home,
+      io: captured.io,
+      now: NOW,
+      env: ENV,
+      fetch: fakeFetch(null, { rejectWith: new Error('simulated network failure') }),
+      kitRoot,
+    },
+  );
+  assert.equal(result.code, 0);
+  assert.ok(!captured.text().includes('origin-ahead'));
+});
+
+test('origin-ahead: missing remote version prints nothing', async (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  const kitRoot = sandboxKitRoot(t, '0.2.0');
+  const captured = capturedIo();
+  const result = await runDoctor(
+    { verify: false },
+    { cwd: project, home, io: captured.io, now: NOW, env: ENV, fetch: fakeFetch({ notAVersion: true }), kitRoot },
+  );
+  assert.equal(result.code, 0);
+  assert.ok(!captured.text().includes('origin-ahead'));
+  assert.ok(!captured.text().includes('advice:'));
+});
+
+// Review N10: a genuinely malformed body (json() throws, as the real
+// Response.json() does on invalid JSON text), distinct from the case above
+// (valid JSON, just no usable version field).
+test('origin-ahead: malformed JSON (json() throws) prints nothing and does not crash doctor', async (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  const kitRoot = sandboxKitRoot(t, '0.2.0');
+  /** @type {typeof globalThis.fetch} */
+  const throwingFetch = async () =>
+    /** @type {Response} */ (/** @type {unknown} */ ({
+      ok: true,
+      json: async () => {
+        throw new SyntaxError('Unexpected token in JSON');
+      },
+    }));
+  const captured = capturedIo();
+  const result = await runDoctor(
+    { verify: false },
+    { cwd: project, home, io: captured.io, now: NOW, env: ENV, fetch: throwingFetch, kitRoot },
+  );
+  assert.equal(result.code, 0);
+  assert.ok(!captured.text().includes('origin-ahead'));
+  assert.ok(!captured.text().includes('advice:'));
+});
+
+// Review S3: clearTimeout must wrap BOTH the fetch AND the response.json()
+// read in one finally — moving it right after the fetch (before .json())
+// lets a stalled body hang doctor forever. A fake response whose json()
+// only settles when the SAME AbortSignal fires proves this within budget
+// (~2s, doctor's own timeout), rather than hanging the test suite.
+test('origin-ahead: a response whose json() stalls resolves within doctor\'s own budget and prints nothing', async (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  const kitRoot = sandboxKitRoot(t, '0.2.0');
+  /** @type {typeof globalThis.fetch} */
+  const stallingFetch = async (_url, opts) =>
+    /** @type {Response} */ ({
+      ok: true,
+      json: () =>
+        new Promise((_resolve, reject) => {
+          /** @type {RequestInit | undefined} */ (opts)?.signal?.addEventListener('abort', () =>
+            reject(new Error('aborted')),
+          );
+        }),
+    });
+  const captured = capturedIo();
+  const start = Date.now();
+  const result = await runDoctor(
+    { verify: false },
+    { cwd: project, home, io: captured.io, now: NOW, env: ENV, fetch: stallingFetch, kitRoot },
+  );
+  const elapsedMs = Date.now() - start;
+  assert.equal(result.code, 0);
+  assert.ok(!captured.text().includes('origin-ahead'));
+  assert.ok(elapsedMs < 5000, `doctor must resolve within its own ~2s timeout budget, took ${elapsedMs}ms`);
+});
+
+test('origin-ahead: an unreadable local kit version prints nothing', async (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  const badKitRoot = sandbox(t); // no package.json at all
+  const captured = capturedIo();
+  const result = await runDoctor(
+    { verify: false },
+    { cwd: project, home, io: captured.io, now: NOW, env: ENV, fetch: fakeFetch({ version: '9.9.9' }), kitRoot: badKitRoot },
+  );
+  assert.equal(result.code, 0);
+  assert.ok(!captured.text().includes('origin-ahead'));
+});
+
+test('origin-ahead: no fetch dependency injected — never checked (default, back-compat)', async (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  const captured = capturedIo();
+  const result = await runDoctor({ verify: false }, { cwd: project, home, io: captured.io, now: NOW, env: ENV });
+  assert.equal(result.code, 0);
+  assert.ok(!captured.text().includes('origin-ahead'));
+});
+
 test('auditUpstream: current canon + current fences add no finding; both drifts typed', (t) => {
   const cwd = sandbox(t);
   const currentHome = sandbox(t);

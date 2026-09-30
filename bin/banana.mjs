@@ -305,7 +305,7 @@ if (cmd === 'doctor') {
     process.exit(1);
   }
   const io = makeIo();
-  const result = await runDoctor(flags, { cwd: process.cwd(), home: homedir(), io });
+  const result = await runDoctor(flags, { cwd: process.cwd(), home: homedir(), io, fetch: globalThis.fetch });
   process.exit(result.code);
 }
 
@@ -313,6 +313,7 @@ if (cmd === 'sync') {
   const argv = process.argv.slice(3);
   maybeSubHelp(argv, 'Usage: banana sync');
   const { parseSyncArgs, runSync } = await import('../lib/sync.mjs');
+  const { makeExec } = await import('../lib/proc.mjs');
   /** @type {import('../lib/sync.mjs').SyncFlags} */
   let flags;
   try {
@@ -322,7 +323,7 @@ if (cmd === 'sync') {
     process.exit(1);
   }
   const io = makeIo();
-  const result = await runSync(flags, { home: homedir(), io });
+  const result = await runSync(flags, { home: homedir(), io, exec: makeExec() });
   process.exit(result.code);
 }
 

@@ -183,6 +183,66 @@ from printing the rest of the brief — an existing-but-unreadable STATE.md degr
 exists but could not be read)` placeholder in `## Project state` rather than throwing. `brief`'s
 runner takes an injected `home` (only `bin/` resolves `os.homedir()`), same as `state lint --global`.
 
+## `sync` — behavioral contract
+
+`banana sync` is the explicit updater (ADR 0002, `docs/adr/0002-local-shim-sync-as-updater.md`):
+the installed shim never updates itself, and version skew across machines is surfaced, never
+silently prevented. Three moves, in order:
+
+0. **Kit-update step (v2, #6).** When an `exec` dependency is injected (the real CLI always
+   injects `lib/proc.mjs`'s `makeExec()`; library callers/tests may omit it, which skips this step
+   silently — today's callers keep today's behavior), sync runs `npm install -g
+   github:Q9-Ahimsa/banana` ahead of moves 1 and 2. **Resolving the actual install tree.** `npm
+   install -g` writes to the npm global prefix, which is NOT necessarily the launched tree
+   (`kitRoot`) sync started from — never true on the npx cold-bootstrap path, where `kitRoot` is
+   npx's own cache copy of the kit, not the global prefix. Sync resolves the real target via `npm
+   root -g` joined with the kit's own `package.json` `name` (never hard-coded), and reads `before`/
+   `after` from THAT tree (falling back to `kitRoot` when the lookup fails or nothing is installed
+   there yet — on an already-shimmed machine this resolves back to `kitRoot`, so there is no change
+   there). On success (`code === 0`), it prints `kit updated: v<before> -> v<after>` (or `kit
+   current: v<after>` when the two are equal; a null version prints as `unknown`, never the literal
+   `vnull`), and moves 1-2 below read from the resolved tree, not `kitRoot`, so a single sync run
+   propagates what it just installed without a process restart. On failure — non-zero exit, an
+   `error` field set (a spawn failure or a timeout), or anything else short of `code === 0` — it
+   prints one warning line through `err`, `kit update skipped (<reason>) — refreshing from the
+   installed kit`, where `<reason>` is the `error` message, else the first non-empty stderr line,
+   else `exit <code>`, and moves 1-2 proceed from `kitRoot` unchanged. **Exception: a timeout on
+   the tree moves 1-2 are about to read from** (i.e. the resolved tree already equals `kitRoot` —
+   the already-shimmed-machine case) skips moves 1-2 entirely instead, warning `kit update timed
+   out — the kit may be half-installed; re-run banana sync`, because the interrupted install may
+   have left that exact tree half-written. A timeout on a *different* tree than the one about to be
+   read (the npx path, or any other failure kind) is safe and still refreshes — the ticket's own
+   requirement. Either way the exit code is unaffected.
+1. **Fresh reads (load-bearing).** Every canon file and wiring template moves 1-2 use is read from
+   disk during THIS run, after move 0 — via the resolved root above, threaded into the
+   wiring-template lookups too (`lib/wiring.mjs`'s `wiringDir` override on
+   `renderWiringTemplate`/`wiringTemplateVersion`/`adapter.wire`).
+2. **Canon + fence refresh (v1.2, unchanged by #6).** Refreshes `~/.agents/canon/` to the bundled
+   canon byte-for-byte, then re-applies the fenced wiring block to every already-wired harness file
+   whose block version is older than the current template, preserving the owner/tag the block was
+   rendered with (`lib/fence.mjs`'s identity preservation, #16). User-owned surfaces (STATE.md,
+   session logs, logbooks, anything outside a fence) are never touched, and unwired files are never
+   created.
+
+**Known limitation, documented not built around:** a canon file or adapter that is *new* in a
+release is not picked up mid-run — the running process keeps the file list (`CANON_FILES`,
+`FILE_ADAPTERS`) it started with, so a fresh addition lands on the *next* sync invocation, not the
+one that just updated the kit.
+
+The real process runner behind the kit-update step is `lib/proc.mjs`'s `makeExec()`: built on
+`node:child_process` spawn — for trusted, FIXED argument lists only (sync's own hardcoded npm
+invocations), never for untrusted input — never throws or rejects: every failure mode (spawn error,
+non-zero exit, a timeout) resolves to `{ code, stdout, stderr, error? }` so callers branch on the
+result, not `try`/`catch`. On win32 it joins command+args into ONE string for spawn under
+`shell: true` (a separate args array there makes Node concatenate unescaped — Node's own DEP0190
+warning — and corrupts any argument containing a shell metacharacter). A timeout kills the WHOLE
+process tree, not just the immediate child: `shell: true` makes that immediate child a wrapper
+(cmd.exe on win32), and a plain `.kill()` on it leaves whatever it launched running orphaned. win32
+uses `taskkill /T /F`; POSIX spawns the child `detached: true` and kills the process group.
+stdout/stderr are decoded as utf8 at the stream level (`setEncoding('utf8')`), not concatenated as
+raw Buffer chunks — otherwise a multi-byte character split across a chunk boundary corrupts into
+U+FFFD.
+
 ## `doctor` — audit contract
 
 Reports: detected harnesses; fence-block versions found in wired files. Audits (exit 1 if any hit):
@@ -197,6 +257,23 @@ Reports: detected harnesses; fence-block versions found in wired files. Audits (
   template's current version. Both findings name `sync` as the remediation.
 
 `--verify` prints (never executes) per-harness headless recital commands.
+
+**Remote check (v2 upstream model, #6, ADR 0002).** When a `fetch` dependency is injected (the
+real CLI always injects `globalThis.fetch`), doctor makes one best-effort GET of
+`https://raw.githubusercontent.com/Q9-Ahimsa/banana/main/package.json` and compares its `.version`
+against the local kit's (`lib/version.mjs`'s `readKitVersion`/`compareVersions`, single-sourced
+with #8's brief). Remote ahead of local prints one advisory line as its OWN paragraph AFTER the
+whole Audits block, set off by a blank line: `advice: kit v<local> is behind origin v<remote> — run
+banana sync` — never inline inside the Audits block (printing it there, after "clean — no
+findings" or after the finding count, reads as contradicting either one, when it is neither a
+finding nor part of the count). Any failure is silent: no `fetch` injected, a rejection (network
+error or the 2000ms `AbortController` timeout's own abort), a non-2xx response, unparseable JSON,
+or a missing/unparseable version on either side. The `AbortController`'s timer is cleared in a
+`finally` wrapping BOTH the fetch AND the `response.json()` read — clearing it right after the
+fetch alone would leave a stalled response body hanging doctor forever, since nothing would ever
+fire the abort a stuck `.json()` needs to reject. The line is advice only — it is never a `Finding`
+and never affects the exit code: only-origin-ahead still exits 0, existing local findings still
+exit 1 regardless of the remote state.
 
 ## Adapter contract
 
