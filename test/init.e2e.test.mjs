@@ -14,6 +14,7 @@ import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { CANON_FILES, parseInitArgs, runInit } from '../lib/init.mjs';
+import { wiringTemplateVersion } from '../lib/wiring.mjs';
 
 const KIT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -130,9 +131,14 @@ test('e2e: fresh init installs the canon dir and STATE.md plus wiring for detect
   assert.ok(state.includes('alice'), 'owner substituted into STATE.md');
   assert.ok(!state.includes('__OWNER__'), 'no placeholder residue in STATE.md');
 
-  for (const target of [join('.claude', 'CLAUDE.md'), join('.codex', 'AGENTS.md')]) {
+  const wiredTargets = [
+    { target: join('.claude', 'CLAUDE.md'), template: 'claude-code.md' },
+    { target: join('.codex', 'AGENTS.md'), template: 'agents-md.md' },
+  ];
+  for (const { target, template } of wiredTargets) {
     const text = readFileSync(join(home, target), 'utf8');
-    assert.ok(text.includes('<!-- banana:begin v2 -->'), `${target} carries the fence`);
+    const currentVersion = wiringTemplateVersion(template);
+    assert.ok(text.includes(`<!-- banana:begin v${currentVersion} -->`), `${target} carries the fence`);
     assert.ok(text.includes('<!-- banana:end -->'), `${target} fence closed`);
   }
   assert.ok(!existsSync(join(home, '.pi')), 'undetected pi is not wired');

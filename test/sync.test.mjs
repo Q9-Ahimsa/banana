@@ -20,6 +20,9 @@ import { renderWiringTemplate, wiringTemplateVersion } from '../lib/wiring.mjs';
 
 const KIT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
+/** Fence version the current claude-code wiring template declares. */
+const CURRENT_FENCE = wiringTemplateVersion('claude-code.md');
+
 /** @returns {string} a fresh sandbox home, cleaned up when the test ends */
 function sandbox(t) {
   const dir = mkdtempSync(join(tmpdir(), 'banana-sync-'));
@@ -64,7 +67,7 @@ function collectedIo() {
 }
 
 // A v1 wiring block as the v1 kit rendered it (abridged body, real identity
-// line format) — the upgrade fixture sync must carry to v2.
+// line format) — the upgrade fixture sync must carry to the current version.
 const V1_BLOCK = `<!-- banana:begin v1 -->
 ## Continuity protocol (banana)
 
@@ -102,7 +105,7 @@ test('extractIdentity recovers owner and tag from a v1 block', () => {
   assert.deepEqual(extractIdentity(V1_BLOCK), { owner: 'bob smith', tag: 'pi-agent' });
 });
 
-test('extractIdentity round-trips the rendered v2 templates', () => {
+test('extractIdentity round-trips the rendered wiring templates', () => {
   for (const template of ['claude-code.md', 'agents-md.md', 'portable-directive.md']) {
     const block = renderWiringTemplate(template, { owner: 'alice', tag: 'claude' });
     assert.deepEqual(
@@ -113,7 +116,7 @@ test('extractIdentity round-trips the rendered v2 templates', () => {
   }
 });
 
-test('e2e: sync refreshes a stale canon byte-for-byte and upgrades a v1 fence to v2', async (t) => {
+test('e2e: sync refreshes a stale canon byte-for-byte and upgrades a v1 fence to v3', async (t) => {
   const home = sandbox(t);
   const { canonDir, claudeMd } = staleFixture(home);
   const { io, lines } = collectedIo();
@@ -130,12 +133,15 @@ test('e2e: sync refreshes a stale canon byte-for-byte and upgrades a v1 fence to
     );
   }
 
-  // Fence upgraded in place: v2 block, identity preserved, user content untouched.
+  // Fence upgraded in place: current-version block, identity preserved, user content untouched.
   const before = `# My instructions\n\nuser prose above\n\n${V1_BLOCK}\nuser prose below\n`;
   const beforeFence = findFence(before);
   const after = readFileSync(claudeMd, 'utf8');
   const afterFence = findFence(after);
-  assert.ok(afterFence !== null && afterFence.version === 2, 'block must read v2 after sync');
+  assert.ok(
+    afterFence !== null && afterFence.version === CURRENT_FENCE,
+    `block must read v${CURRENT_FENCE} after sync`,
+  );
   assert.equal(
     after.slice(0, afterFence.start),
     before.slice(0, beforeFence.start),
@@ -157,7 +163,7 @@ test('e2e: sync refreshes a stale canon byte-for-byte and upgrades a v1 fence to
   const report = lines.join('\n');
   assert.ok(report.includes('CONTINUITY.md'), 'canon refresh reported');
   assert.ok(report.includes('STANDARD.md'), 'canon install reported');
-  assert.ok(/v1 -> v2/.test(report), 'fence upgrade reported');
+  assert.ok(report.includes(`v1 -> v${CURRENT_FENCE}`), 'fence upgrade reported');
 });
 
 test('e2e: a second sync run reports no changes and leaves the tree byte-identical', async (t) => {
@@ -172,6 +178,77 @@ test('e2e: a second sync run reports no changes and leaves the tree byte-identic
   assert.equal(second.code, 0);
   assert.ok(lines.join('\n').includes('no changes'), 'second run must report no changes');
   assertTreesIdentical(before, snapshot(home));
+});
+
+// #10: a real v2-rendered block, as the v2 kit actually produced it (before
+// this ticket's Kit-bullet rewrite), for a non-default owner/tag pair — the
+// literal upgrade path a machine wired before #10 lands must survive.
+const V2_CLAUDE_CODE_BLOCK = `<!-- banana:begin v2 -->
+## Continuity bootstrap (banana)
+
+- **Identity:** you are \`alpha\`; owner: \`owner-x\`. Sign every entry
+  you author with your tag.
+- **Protocol authority:** \`~/.agents/canon/\` — CONTINUITY.md (protocol),
+  STANDARD.md (logbook), SESSION-LOG.md (task journal). Every continuity rule
+  lives behind this pointer, not in this block; read CONTINUITY.md before your
+  first entry on this machine. On conflict, the canon wins.
+- **Kit:** \`npx --yes github:Q9-Ahimsa/banana <command>\` — commands: init ·
+  project · brief · doctor · sync. npx always fetches the latest kit.
+- **Self-setup:** landing in a workspace (git repo or non-code topic dir) with
+  no continuity files, initialize it yourself per the canon's agent bootstrap
+  section: run \`npx --yes github:Q9-Ahimsa/banana project\` from the workspace
+  root.
+- **Session ritual:** read \`~/.agents/STATE.md\` first (machine grain — the
+  brief does not carry it), then your brief
+  (\`npx --yes github:Q9-Ahimsa/banana brief <feature> --tag alpha\`);
+  end by closing your log entry with an owned \`NEXT:\`.
+<!-- banana:end -->`;
+
+test('e2e (#10): sync upgrades a real v2 block to v3, preserving a non-default owner/tag pair; bytes outside the fence untouched', async (t) => {
+  const home = sandbox(t);
+  const canonDir = join(home, '.agents', 'canon');
+  mkdirSync(canonDir, { recursive: true });
+  for (const name of CANON_FILES) {
+    writeFileSync(join(canonDir, name), readFileSync(join(KIT_ROOT, 'canon', name)));
+  }
+  const claudeMd = join(home, '.claude', 'CLAUDE.md');
+  mkdirSync(dirname(claudeMd), { recursive: true });
+  const before = `# My instructions\n\nuser prose above\n\n${V2_CLAUDE_CODE_BLOCK}\nuser prose below\n`;
+  writeFileSync(claudeMd, before);
+
+  const { io, lines } = collectedIo();
+  const result = await runSync(parseSyncArgs([]), { home, io });
+  assert.equal(result.code, 0);
+
+  const beforeFence = findFence(before);
+  const after = readFileSync(claudeMd, 'utf8');
+  const afterFence = findFence(after);
+  assert.ok(
+    afterFence !== null && afterFence.version === CURRENT_FENCE,
+    `block must read v${CURRENT_FENCE} after sync`,
+  );
+  assert.equal(
+    after.slice(0, afterFence.start),
+    before.slice(0, beforeFence.start),
+    'user content above the fence must be byte-identical',
+  );
+  assert.equal(
+    after.slice(afterFence.end),
+    before.slice(beforeFence.end),
+    'user content below the fence must be byte-identical',
+  );
+  const block = after.slice(afterFence.start, afterFence.end);
+  assert.ok(block.includes('`owner-x`'), 'owner recovered from the v2 block');
+  assert.ok(block.includes('`alpha`'), 'tag recovered from the v2 block');
+  assert.ok(lines.join('\n').includes(`v2 -> v${CURRENT_FENCE}`), 'fence upgrade reported');
+
+  // A second run is byte-identical and reports no changes (idempotency).
+  const snapshotAfterFirst = snapshot(home);
+  const { io: io2, lines: lines2 } = collectedIo();
+  const second = await runSync(parseSyncArgs([]), { home, io: io2 });
+  assert.equal(second.code, 0);
+  assert.ok(lines2.join('\n').includes('no changes'), 'second run must report no changes');
+  assertTreesIdentical(snapshotAfterFirst, snapshot(home));
 });
 
 test('e2e: sync never creates wiring for unwired harnesses', async (t) => {

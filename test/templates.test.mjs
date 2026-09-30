@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
 import { RETIRED_HEADER_RE } from '../lib/state.mjs';
+import { fenceBegin } from '../lib/fence.mjs';
+import { wiringTemplateVersion } from '../lib/wiring.mjs';
 
 const templatesDir = fileURLToPath(new URL('../templates', import.meta.url));
 
@@ -21,11 +23,13 @@ const REQUIRED_FILES = [
 const WIRING_FILES = REQUIRED_FILES.filter((f) => f.startsWith('wiring'));
 
 // Fence markers per docs/DESIGN.md — idempotent insert-or-replace anchors.
-// v2 blocks are thin bootstrap pointers: protocol rules live in the canon.
-const FENCE_BEGIN = '<!-- banana:begin v2 -->';
+// Derived from the template itself (never hardcoded) so a future version
+// bump doesn't silently desync this file from the real kit-bundled fence.
+const CURRENT_WIRING_VERSION = wiringTemplateVersion('claude-code.md');
+const FENCE_BEGIN = fenceBegin(CURRENT_WIRING_VERSION);
 const FENCE_END = '<!-- banana:end -->';
 
-// The stable pointer surface every v2 wiring block must carry.
+// The stable pointer surface every wiring block must carry, current version.
 const CANON_DIR_POINTER = '~/.agents/canon/';
 const NPX_INVOCATION = 'npx --yes github:Q9-Ahimsa/banana';
 const SELF_SETUP_RE = /self-setup/i;
@@ -57,12 +61,36 @@ test('templates/ ships all seven template files', () => {
   }
 });
 
-test('every wiring template carries both v2 fence markers', () => {
+test('every wiring template carries both current fence markers', () => {
   for (const f of WIRING_FILES) {
     const text = readFileSync(join(templatesDir, f), 'utf8');
     assert.ok(text.includes(FENCE_BEGIN), `templates/${f} missing ${FENCE_BEGIN}`);
     assert.ok(text.includes(FENCE_END), `templates/${f} missing ${FENCE_END}`);
     assert.ok(!text.includes('banana:begin v1'), `templates/${f} still carries a v1 marker`);
+  }
+});
+
+// #10: v2 -> v3 — the npx-always-fresh promise is retired; install-once +
+// sync-to-update + skew-surfaced replaces it, and the command roster grows
+// `log` and `state lint`.
+test('every wiring template Kit bullet: v3 opener, install-once + sync-to-update text, npx-always-fresh promise gone', () => {
+  assert.equal(CURRENT_WIRING_VERSION, 3, 'templates/wiring must be bumped to v3 (#10)');
+  for (const f of WIRING_FILES) {
+    const text = readFileSync(join(templatesDir, f), 'utf8');
+    assert.ok(text.includes('<!-- banana:begin v3 -->'), `templates/${f} missing the v3 fence opener`);
+    assert.ok(
+      text.includes('npm install -g github:Q9-Ahimsa/banana'),
+      `templates/${f} missing the global install command`,
+    );
+    assert.ok(text.includes('banana sync'), `templates/${f} missing banana sync`);
+    assert.ok(
+      text.includes('sync · log · state lint'),
+      `templates/${f} command roster missing log and state lint`,
+    );
+    assert.ok(
+      !text.includes('npx always fetches the latest kit'),
+      `templates/${f} still carries the retired npx-always-fresh promise`,
+    );
   }
 });
 

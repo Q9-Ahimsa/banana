@@ -13,7 +13,10 @@ import { tmpdir } from 'node:os';
 
 import { parseProjectArgs, runProject } from '../lib/project.mjs';
 import { fenceBegin, FENCE_END } from '../lib/fence.mjs';
-import { renderWiringTemplate } from '../lib/wiring.mjs';
+import { renderWiringTemplate, wiringTemplateVersion } from '../lib/wiring.mjs';
+
+/** Fence version the current agents-md wiring template declares. */
+const CURRENT_FENCE = wiringTemplateVersion('agents-md.md');
 
 /** @returns {string} a fresh temp dir, cleaned up when the test ends */
 function sandbox(t) {
@@ -125,7 +128,7 @@ test('e2e: fresh run in a git repo creates all continuity files, no note', async
   assert.match(seed, /APPROACH:/, 'seed documents the entry protocol');
 
   const agents = readFileSync(join(repo, 'AGENTS.md'), 'utf8');
-  assert.ok(agents.includes(fenceBegin(2)), 'AGENTS.md carries the begin marker');
+  assert.ok(agents.includes(fenceBegin(CURRENT_FENCE)), 'AGENTS.md carries the begin marker');
   assert.ok(agents.includes(FENCE_END), 'AGENTS.md carries the end marker');
   assert.ok(agents.includes('test-agent'), 'wiring block carries the agent tag');
   assert.ok(!agents.includes('__AGENT_TAG__'), 'no placeholder residue');
@@ -182,7 +185,7 @@ test('e2e: existing files are never overwritten; AGENTS.md content outside the f
 
   const agents = readFileSync(join(repo, 'AGENTS.md'), 'utf8');
   assert.ok(agents.startsWith('# Repo instructions\n\nHand-written content.\n'), 'user content preserved');
-  assert.ok(agents.includes(fenceBegin(2)) && agents.includes(FENCE_END), 'fence appended');
+  assert.ok(agents.includes(fenceBegin(CURRENT_FENCE)) && agents.includes(FENCE_END), 'fence appended');
 });
 
 test('owner inference: git config user.name fills in when --owner is absent', async (t) => {
@@ -276,7 +279,7 @@ test('e2e: project upgrades an old fence version while preserving its custom ide
   assert.equal(result.code, 0);
 
   const agents = readFileSync(agentsTarget, 'utf8');
-  assert.ok(agents.includes(fenceBegin(2)), 'fence upgraded to the current version');
+  assert.ok(agents.includes(fenceBegin(CURRENT_FENCE)), 'fence upgraded to the current version');
   assert.ok(!agents.includes(fenceBegin(1)), 'old version marker gone');
   assert.ok(agents.includes('`alpha-agent`'), 'tag preserved through the upgrade');
   assert.ok(agents.includes('`beta-owner`'), 'owner preserved through the upgrade');

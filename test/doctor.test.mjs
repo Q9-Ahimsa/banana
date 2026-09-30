@@ -528,6 +528,50 @@ test('stale fence: v1 block in a wired home file flagged with exit 1, finding na
   );
 });
 
+// #10: a real v2-rendered block, as the v2 kit actually produced it (before
+// this ticket's Kit-bullet rewrite) — the literal migration case the
+// stale-fence audit must flag once the bundled template moves to v3.
+const V2_CLAUDE_CODE_BLOCK = `<!-- banana:begin v2 -->
+## Continuity bootstrap (banana)
+
+- **Identity:** you are \`alpha\`; owner: \`owner-x\`. Sign every entry
+  you author with your tag.
+- **Protocol authority:** \`~/.agents/canon/\` — CONTINUITY.md (protocol),
+  STANDARD.md (logbook), SESSION-LOG.md (task journal). Every continuity rule
+  lives behind this pointer, not in this block; read CONTINUITY.md before your
+  first entry on this machine. On conflict, the canon wins.
+- **Kit:** \`npx --yes github:Q9-Ahimsa/banana <command>\` — commands: init ·
+  project · brief · doctor · sync. npx always fetches the latest kit.
+- **Self-setup:** landing in a workspace (git repo or non-code topic dir) with
+  no continuity files, initialize it yourself per the canon's agent bootstrap
+  section: run \`npx --yes github:Q9-Ahimsa/banana project\` from the workspace
+  root.
+- **Session ritual:** read \`~/.agents/STATE.md\` first (machine grain — the
+  brief does not carry it), then your brief
+  (\`npx --yes github:Q9-Ahimsa/banana brief <feature> --tag alpha\`);
+  end by closing your log entry with an owned \`NEXT:\`.
+<!-- banana:end -->`;
+
+test('stale fence (#10): a real v2 claude-code block is flagged once the bundled template is v3', async (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  mkdirSync(join(home, '.claude'), { recursive: true });
+  writeFileSync(join(home, '.claude', 'CLAUDE.md'), V2_CLAUDE_CODE_BLOCK + '\n');
+
+  const captured = capturedIo();
+  const result = await runDoctor({ verify: false }, { cwd: project, home, io: captured.io, now: NOW, env: ENV });
+  assert.equal(result.code, 1, 'a v2 fence is a finding once current is v3');
+  const output = captured.text();
+  assert.ok(output.includes('[stale-fence]'), 'stale fence flagged');
+  assert.ok(output.includes('sync'), 'finding names sync as the remediation');
+  assert.ok(output.includes('CLAUDE.md'), 'finding names the wired file');
+  assert.ok(
+    output.includes('v2') && output.includes(`v${CURRENT_FENCE}`),
+    'finding names both the v2 block and the current version',
+  );
+});
+
 test('stale fence: repo-local AGENTS.md audited too', async (t) => {
   const project = cleanProject(t);
   const home = sandbox(t);
