@@ -50,7 +50,19 @@ test('packed tarball includes the runtime set + always-included metadata', () =>
   }
 });
 
-test('packed file count stays lean (guards against future stray files)', () => {
+// Exact shape of the pack, not a file-count ceiling: every packed path is an
+// always-included metadata file, runtime code (.mjs) under bin/, lib/ or
+// adapters/, or markdown under canon/ or templates/. A stray file (a .bak, a
+// scratch note, a fixture) fails here wherever it lands and however small
+// the pack is; adding a real runtime module needs no edit.
+const PACK_SHAPE = [
+  /^(package\.json|README\.md|LICENSE)$/,
+  /^(bin|lib|adapters)\/[\w-]+\.mjs$/,
+  /^(canon|templates)\/([\w-]+\/)?[\w-]+\.md$/,
+];
+
+test('every packed file matches the runtime shape (guards against stray files)', () => {
   const files = packedFiles();
-  assert.ok(files.length <= 30, 'pack has ' + files.length + ' files; ceiling is 30');
+  const stray = files.filter((p) => !PACK_SHAPE.some((re) => re.test(p)));
+  assert.deepEqual(stray, [], 'files outside the runtime shape: ' + stray.join(', '));
 });
