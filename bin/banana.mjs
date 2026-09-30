@@ -305,8 +305,28 @@ if (cmd === 'doctor') {
     process.exit(1);
   }
   const io = makeIo();
-  const result = await runDoctor(flags, { cwd: process.cwd(), home: homedir(), io, fetch: globalThis.fetch });
-  process.exit(result.code);
+  // BANANA_ORIGIN_URL: test seam only, read here and nowhere else in the
+  // command surface — points doctor's remote-version check at a local
+  // node:http server instead of raw.githubusercontent.com (docs/DESIGN.md
+  // `doctor` audit contract). Undefined falls through to lib/doctor.mjs's
+  // own DEFAULT_ORIGIN_URL, so real runs are unaffected.
+  const result = await runDoctor(flags, {
+    cwd: process.cwd(),
+    home: homedir(),
+    io,
+    fetch: globalThis.fetch,
+    originUrl: process.env.BANANA_ORIGIN_URL,
+  });
+  // process.exitCode, not process.exit(): on Windows (Node 24.x observed),
+  // calling process.exit() at any point after a real fetch trips libuv —
+  // `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file
+  // src\win\async.c, line 76` — regardless of AbortController cleanup or
+  // connection: close; idle keep-alive sockets don't hold the loop open, so
+  // letting the module finish and the loop drain naturally is the fix
+  // (docs/DESIGN.md `doctor` audit contract). This is the only dispatch arm
+  // that makes a real network call, so it is the only one that needs this;
+  // see the fallthrough guard below the `state` arm, which this relies on.
+  process.exitCode = result.code;
 }
 
 if (cmd === 'sync') {
@@ -414,7 +434,11 @@ if (cmd === 'state') {
 
 // Unreachable: the COMMANDS guard above already rejects anything not in the
 // seven-command vocabulary, and every member of COMMANDS has a dispatch arm
-// above that exits. This is an internal-invariant guard — if it ever fires,
-// a COMMANDS entry was added without a matching dispatch arm.
-console.error(`banana: internal error — no dispatch arm for '${cmd}'`);
-process.exit(1);
+// above that exits (or, for `doctor` alone, sets process.exitCode and falls
+// through here by design — see its arm above). This is an internal-invariant
+// guard — if it ever fires for any OTHER command, a COMMANDS entry was added
+// without a matching dispatch arm.
+if (cmd !== 'doctor') {
+  console.error(`banana: internal error — no dispatch arm for '${cmd}'`);
+  process.exit(1);
+}

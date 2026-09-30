@@ -275,6 +275,41 @@ fire the abort a stuck `.json()` needs to reject. The line is advice only — it
 and never affects the exit code: only-origin-ahead still exits 0, existing local findings still
 exit 1 regardless of the remote state.
 
+**`BANANA_ORIGIN_URL` — test seam (#6b).** The real bin (`bin/banana.mjs`, doctor arm only) reads
+this env var and threads it through as `deps.originUrl` to `checkOriginAhead`, which prefers it
+over `lib/doctor.mjs`'s exported `DEFAULT_ORIGIN_URL` constant (the real
+`raw.githubusercontent.com` URL). Undefined falls through to the default, so real runs are
+unaffected. This lets a real-bin regression test (`test/bin.e2e.test.mjs`) point doctor's fetch at
+a local `node:http` server instead of the network — the seam is read in exactly one place, the
+doctor dispatch arm, and nowhere else in the command surface.
+
+**Exit via `process.exitCode`, not `process.exit()` (#6b).** The doctor dispatch arm sets
+`process.exitCode = result.code` and lets the module finish, instead of calling `process.exit()`
+like every other dispatch arm. On Windows (Node 24.x observed), calling `process.exit()` at any
+point after a real `fetch` aborts the process — `Assertion failed: !(handle->flags &
+UV_HANDLE_CLOSING), file src\win\async.c, line 76`, a libuv fail-fast abort (0xC0000409; Git Bash
+reports it as exit 127) — regardless of `AbortController` cleanup, a `connection: close` header, or
+idle keep-alive sockets (which don't hold the event loop open on their own). Letting the loop drain
+naturally avoids it; doctor still exits promptly (well under a second against a real network fetch,
+since nothing else holds the loop open once `checkOriginAhead` resolves). Because the doctor arm no
+longer calls `process.exit()`, `bin/banana.mjs`'s bottom-of-file "no dispatch arm" invariant guard
+(originally unconditional, relying on every arm above it to have already exited) is scoped to skip
+`cmd === 'doctor'` — see the guard's own comment.
+
+A LOCAL origin server could not reproduce the crash itself, despite trying plain HTTP, TLS with a
+self-signed cert, hostname-based DNS resolution, a gzip-encoded body matching the real origin's own
+`Content-Encoding: gzip`, an artificial response delay, and the machine's real LAN IP instead of
+loopback — individually and combined. Only the real network trips the assertion. Because of that,
+`test/bin.e2e.test.mjs` carries two tiers for doctor's real fetch: four tests against a local
+`BANANA_ORIGIN_URL` double, always run, that guard the CONTRACT the fix preserves (exact exit codes
+for a clean sandbox and a seeded finding, the advice line, a silent 500, and a ≤5s exit budget — an
+un-cleared timer anywhere in the doctor path blows that budget once `process.exit()` is gone, since
+the loop then waits the timer out instead of being torn down); and one test against the REAL origin,
+opt-in only (skipped unless `BANANA_NETWORK_TESTS=1`), asserting no `Assertion failed` in stderr and
+an exit code in `{0, 1}` — this is the one that actually goes red (the real abort) before the fix
+and green after, meant to be run by hand, never as part of the default gate (no external network in
+the default suite).
+
 ## Adapter contract
 
 Each adapter module exposes `detect(home)`, `describe()`, and either `wire(home, opts)` (file
