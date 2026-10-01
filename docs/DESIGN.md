@@ -553,6 +553,10 @@ comparison (the global page has none). `home` is always injected through
 | WARN | `thread-unverifiable` | the bullet has a pointer, but it does not resolve to a readable file named `STATE.md` (a memory file, a missing path, a relative path, ...) |
 | WARN | `thread-target-undated` | the pointer resolves to a readable STATE.md with no `as of YYYY-MM-DD` date (incl. the bootstrap placeholder) |
 | WARN | `retired-header` | the page's HEADER (not the body — #11 Part 1b) still carries the pre-amendment "rebuilt whole, never patched" rule — this global-mode message points to ADR 0005 (per-thread edits, #15) |
+| WARN | `line-over-limit` | a non-placeholder top-level bullet's FULL text (its own line plus any continuation lines) exceeds its section's char limit (`SECTION_LINE_LIMITS`, #20, ADR 0006): `## Active threads` 400 · `## Backlog (owned)` 300 · `## Watch` 350 · `## Recently closed (context for next session)` 250 |
+| WARN | `closed-undated` | a non-placeholder `## Recently closed` bullet has no valid `(closed YYYY-MM-DD)` stamp (#20) — covers both "no stamp" and "every stamp present is date-shaped but impossible" |
+| WARN | `closed-expired` | a non-placeholder `## Recently closed` bullet's `(closed …)` stamp is more than `CLOSED_EXPIRY_DAYS` (7) before the #20 reference date (equal to 7 passes) — only evaluated when the bullet has a valid stamp and the page has a reference date |
+| WARN | `thread-inactive` | a non-placeholder `## Active threads` bullet's `(as of …)` stamp is more than `THREAD_INACTIVE_DAYS` (30) before the #20 reference date (equal to 30 passes) — only evaluated when the bullet has a valid stamp and the page has a reference date |
 
 Global mode never flags `dirty-marker`: ADR 0005's per-thread edits (#15)
 introduced no marker convention for a mid-arc patched global page, so there
@@ -561,6 +565,36 @@ is no standing-marker state to flag. It DOES flag `retired-header` (added by
 per-thread edits, so a page still carrying the old header is stale — the same
 shape as project mode's own `retired-header` check, just pointing at a
 different migration (ADR 0005, not ADR 0001).
+
+**#20 reference date, line limits, closed expiry, thread inactivity** (ADR
+0006). The global page has no numeric cap on any individual bullet (only
+the whole-page `over-cap`), and nothing ever shrinks it — `line-over-limit`,
+`closed-undated`, `closed-expired`, and `thread-inactive` are the four WARNs
+that surface the residue a model should prune, all deliberately WARN (not
+FAIL): each fix needs judgment (what to cut, what a Backlog line should
+say), so the page-wide `over-cap` FAIL stays the mechanical backstop.
+`line-over-limit` measures a bullet's FULL text — its own marker line plus
+any continuation lines beneath it, up to the next top-level bullet or
+section heading, trailing blank lines dropped — unlike the Active-threads
+stamp/pointer scan above, which deliberately reads a bullet as ONE physical
+line only (a different rule for a different purpose). The **reference
+date** every date comparison here uses is the newest real calendar date
+among the page's own non-placeholder `(as of …)`/`(closed …)` stamps —
+never the clock (this module never reads it) and never just the first stamp
+on the page, since per-thread edits land bullets out of date order; with no
+valid stamp anywhere, both date checks are skipped. A `(closed YYYY-MM-DD)`
+stamp is parsed with the exact same hardened shape/case/real-date rules as
+the Active-threads `(as of YYYY-MM-DD)` stamp (just a different keyword);
+a bullet carrying more than one valid stamp of either kind compares against
+the OLDEST (conservative, mirrors F6). The Recently-closed placeholder's
+wording changed with #20 (the old pointer-only phrasing is replaced by one
+naming the `(closed YYYY-MM-DD)` convention); the OLD text is still
+recognized as a placeholder (a legacy pattern, kept alongside the
+dynamically-loaded current set) so an un-migrated installed page does not
+spuriously WARN `closed-undated`. Removal from the page (what each remedy
+ultimately leads to) is never a deletion: it is a move into the append-only
+`STATE-archive.md`, performed by the separate `banana state archive`
+command (its own contract, ADR 0006).
 
 **Pointer resolution.** Among every `→` in the bullet that is NOT inside a
 backtick span (review hardening 2026-09-28 — an arrow quoted as example text

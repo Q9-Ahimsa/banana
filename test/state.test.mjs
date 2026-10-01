@@ -14,19 +14,25 @@ import {
   checkActiveThreads,
   checkAsOfMalformed,
   checkAsOfMissing,
+  checkClosedExpired,
+  checkClosedUndated,
   checkDirtyMarker,
+  checkLineOverLimit,
   checkMissingSections,
   checkOverCap,
   checkRetiredHeader,
   checkRetiredHeaderGlobal,
   checkStaleVsLogbook,
   checkStaleVsSessionLog,
+  checkThreadInactive,
   checkUnownedBullets,
   classifyOwnerBullet,
+  CLOSED_EXPIRY_DAYS,
   collectStateLint,
   DIRTY_MARKER_LINE,
   emitFindings,
   formatStateLintLines,
+  globalReferenceDate,
   hasSection,
   isPlaceholderBullet,
   lintGlobalState,
@@ -37,7 +43,9 @@ import {
   REQUIRED_PROJECT_SECTIONS,
   RETIRED_HEADER_RE,
   runStateLint,
+  SECTION_LINE_LIMITS,
   STATE_CAP_CHARS,
+  THREAD_INACTIVE_DAYS,
   topLevelBullets,
 } from '../lib/state.mjs';
 import { isRealCalendarDate, stateAsOf, stateAsOfMalformed } from '../lib/doctor.mjs';
@@ -842,7 +850,11 @@ const CLEAN_GLOBAL = [
   '- an assumption needing validation (validate-by: 2026-10-01)',
   '',
   '## Recently closed (context for next session)',
-  '- gamma finished — see alpha\'s logbook',
+  // #20: carries a valid, non-expired (closed YYYY-MM-DD) stamp — same date
+  // as alpha's own (as of) stamp, so this fixture stays a true zero-findings
+  // baseline under the new line-over-limit/closed-undated/closed-expired/
+  // thread-inactive checks too (reference date = 2026-09-01 either way).
+  '- gamma finished (closed 2026-09-01) — see alpha\'s logbook',
   '',
 ].join('\n');
 
@@ -1675,4 +1687,371 @@ test('unreadable input: an existing .agents/session.log that cannot be read (a d
   const res = await run(dir);
   assert.equal(res.code, 2);
   assert.ok(res.lines.some((l) => l.includes('session.log') && l.includes('missing or unreadable')));
+});
+
+// =====================================================================
+// #20 Lane A — four new global-mode WARN checks: `line-over-limit`,
+// `closed-undated`, `closed-expired`, `thread-inactive`, plus the
+// clock-free `globalReferenceDate` they share (newest valid Active-threads
+// `(as of)` / Recently-closed `(closed)` stamp on the page — never the
+// clock, ADR 0004's module invariant, and never just the FIRST stamp,
+// since per-thread edits (ADR 0005) land bullets out of date order).
+// Public-repo hygiene: every fixture below is synthetic.
+// =====================================================================
+
+// The exact literal text #20 ships as templates/global-STATE.md's NEW
+// Recently-closed placeholder — pinned here too so a test using it breaks
+// loudly (not silently) if the template text and this string ever drift.
+const NEW_CLOSED_PLACEHOLDER =
+  '- (last few finished threads, one line each: **name** (closed YYYY-MM-DD) — outcome → pointer)';
+
+/** A single bullet line of exactly `len` chars total, `prefix` kept literal, padded with 'x'. */
+function bulletOfLength(prefix, len) {
+  assert.ok(len >= prefix.length, `bulletOfLength: len ${len} smaller than prefix length ${prefix.length}`);
+  return prefix + 'x'.repeat(len - prefix.length);
+}
+
+// --- checkLineOverLimit ---------------------------------------------------
+
+test('checkLineOverLimit: every section\'s own limit is the exact boundary (limit passes, limit+1 warns)', () => {
+  for (const [name, limit] of Object.entries(SECTION_LINE_LIMITS)) {
+    const atLimit = `## ${name}\n${bulletOfLength('- x ', limit)}\n`;
+    assert.deepEqual(checkLineOverLimit(atLimit), [], `"${name}" at exactly ${limit} chars must pass`);
+
+    const overLimit = `## ${name}\n${bulletOfLength('- x ', limit + 1)}\n`;
+    const findings = checkLineOverLimit(overLimit);
+    assert.equal(findings.length, 1, `"${name}" at ${limit + 1} chars must warn`);
+    assert.equal(findings[0].tier, 'WARN');
+    assert.equal(findings[0].type, 'line-over-limit');
+    assert.ok(findings[0].message.includes(String(limit + 1)));
+    assert.ok(findings[0].message.includes(String(limit)));
+    assert.ok(findings[0].message.includes(name));
+  }
+});
+
+test('checkLineOverLimit: the message names the remedy (archive --reason trimmed, then shorten in place)', () => {
+  const name = 'Active threads';
+  const limit = SECTION_LINE_LIMITS[name];
+  const text = `## ${name}\n${bulletOfLength('- alpha ', limit + 1)}\n`;
+  const findings = checkLineOverLimit(text);
+  assert.equal(findings.length, 1);
+  assert.ok(findings[0].message.includes('banana state archive --global --reason trimmed --match'));
+  assert.ok(findings[0].message.includes('shorten it in place'));
+  assert.ok(findings[0].message.includes('alpha'), 'first-60-chars preview must include the bullet\'s own start');
+});
+
+test('checkLineOverLimit: continuation lines count toward the bullet\'s full length (not just its first physical line)', () => {
+  const name = 'Watch';
+  const limit = SECTION_LINE_LIMITS[name];
+  const firstLine = bulletOfLength('- an assumption ', limit);
+  // Sanity: the first physical line ALONE, with nothing following it, does not warn.
+  assert.deepEqual(checkLineOverLimit(`## ${name}\n${firstLine}\n`), []);
+  const withContinuation = `## ${name}\n${firstLine}\n  a continuation line pushes the full text over the limit\n`;
+  const findings = checkLineOverLimit(withContinuation);
+  assert.equal(findings.length, 1, 'the continuation line must be counted toward the bullet\'s full length');
+  assert.equal(findings[0].type, 'line-over-limit');
+});
+
+test('checkLineOverLimit: a continuation run stops at the next top-level bullet, not past it', () => {
+  const name = 'Backlog (owned)';
+  const limit = SECTION_LINE_LIMITS[name];
+  const first = bulletOfLength('- testagent — a ', 20); // well under the limit alone
+  const second = bulletOfLength('- testagent — b ', limit + 50); // over the limit on its own
+  const text = `## ${name}\n${first}\n${second}\n`;
+  const findings = checkLineOverLimit(text);
+  // Only the second bullet (genuinely over limit) warns; the first bullet's
+  // span must not have absorbed the second bullet's text as "continuation."
+  assert.equal(findings.length, 1);
+  assert.ok(findings[0].message.includes('testagent — b'));
+});
+
+test('checkLineOverLimit: template placeholders across all four sections are exempt, new and legacy alike', () => {
+  assert.deepEqual(checkLineOverLimit(FRESH_GLOBAL), []);
+  assert.deepEqual(checkLineOverLimit(`## Recently closed (context for next session)\n${NEW_CLOSED_PLACEHOLDER}\n`), []);
+});
+
+test('checkLineOverLimit: trailing blank section-spacing lines are not counted as the bullet\'s own continuation', () => {
+  const name = 'Watch';
+  const limit = SECTION_LINE_LIMITS[name];
+  const atLimit = bulletOfLength('- x ', limit);
+  // One blank line, then the next heading — ordinary section spacing, not
+  // part of the bullet's content; must not push an at-limit bullet over.
+  const text = `## ${name}\n${atLimit}\n\n## Recently closed (context for next session)\n- y\n`;
+  assert.deepEqual(checkLineOverLimit(text), []);
+});
+
+test('checkLineOverLimit: CRLF-normalized length decides the limit, not raw CRLF byte length', () => {
+  const name = 'Backlog (owned)';
+  const limit = SECTION_LINE_LIMITS[name];
+  const lf = `## ${name}\n${bulletOfLength('- x ', limit)}\n`;
+  const crlf = lf.replace(/\n/g, '\r\n');
+  assert.ok(crlf.length > lf.length, 'sanity: raw CRLF bytes are longer than the LF form');
+  assert.deepEqual(checkLineOverLimit(prepareText(crlf)), checkLineOverLimit(lf));
+  assert.deepEqual(checkLineOverLimit(prepareText(crlf)), []);
+});
+
+// --- checkClosedUndated ---------------------------------------------------
+
+test('checkClosedUndated: no "(closed ...)" stamp at all warns', () => {
+  const text = '## Recently closed (context for next session)\n- gamma finished, no stamp\n';
+  const findings = checkClosedUndated(text);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'WARN');
+  assert.equal(findings[0].type, 'closed-undated');
+  assert.ok(findings[0].message.includes('gamma finished, no stamp'));
+});
+
+test('checkClosedUndated: a date-shaped-but-impossible "(closed ...)" value is still "no valid stamp" — warns', () => {
+  const text = '## Recently closed (context for next session)\n- gamma finished (closed 2026-13-45)\n';
+  const findings = checkClosedUndated(text);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].type, 'closed-undated');
+});
+
+test('checkClosedUndated: a valid "(closed YYYY-MM-DD)" stamp never warns', () => {
+  const text = '## Recently closed (context for next session)\n- gamma finished (closed 2026-09-01)\n';
+  assert.deepEqual(checkClosedUndated(text), []);
+});
+
+test('checkClosedUndated: case-insensitive "(Closed ...)" still counts as a valid stamp', () => {
+  const text = '## Recently closed (context for next session)\n- gamma finished (Closed 2026-09-01)\n';
+  assert.deepEqual(checkClosedUndated(text), []);
+});
+
+test('checkClosedUndated: extra text before the closing paren keeps the stamp unrecognized — exact by design', () => {
+  const text = '## Recently closed (context for next session)\n- gamma finished (closed 2026-09-01, archived)\n';
+  const findings = checkClosedUndated(text);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].type, 'closed-undated');
+});
+
+test('checkClosedUndated: the NEW template placeholder is exempt', () => {
+  assert.deepEqual(checkClosedUndated(`## Recently closed (context for next session)\n${NEW_CLOSED_PLACEHOLDER}\n`), []);
+});
+
+// #20 spec: "Placeholder detection must keep recognizing the PREVIOUS
+// Recently closed placeholder ... installed pages carry it" — FRESH_GLOBAL
+// still carries that exact legacy text (by design, unchanged above), so
+// this is the dedicated legacy-placeholder test the spec calls for.
+test('checkClosedUndated: the LEGACY (pre-#20) Recently-closed placeholder is still exempt — an old-template page raises no closed-undated', () => {
+  assert.ok(
+    FRESH_GLOBAL.includes('- (last few finished threads, one line each, with pointers)'),
+    'sanity: FRESH_GLOBAL still carries the legacy placeholder text',
+  );
+  assert.deepEqual(checkClosedUndated(FRESH_GLOBAL), []);
+});
+
+// --- globalReferenceDate ---------------------------------------------------
+
+test('globalReferenceDate: the newest valid stamp wins, whether it is an Active-threads (as of) or a Recently-closed (closed) date', () => {
+  const text = [
+    '## Active threads',
+    '- **alpha** (as of 2026-01-01) — old thread → memory a',
+    '',
+    '## Recently closed (context for next session)',
+    '- gamma finished (closed 2026-06-01)',
+  ].join('\n');
+  assert.equal(globalReferenceDate(text), '2026-06-01');
+});
+
+test('globalReferenceDate: the newest stamp wins regardless of document order — not just the FIRST stamp encountered', () => {
+  const firstInDocButOlder = [
+    '## Active threads',
+    '- **alpha** (as of 2026-01-01) — old thread → memory a',
+    '- **beta** (as of 2026-06-01) — newer thread → memory b',
+  ].join('\n');
+  assert.equal(globalReferenceDate(firstInDocButOlder), '2026-06-01');
+
+  const newerFirstInDoc = [
+    '## Active threads',
+    '- **beta** (as of 2026-06-01) — newer thread → memory b',
+    '- **alpha** (as of 2026-01-01) — old thread → memory a',
+  ].join('\n');
+  assert.equal(globalReferenceDate(newerFirstInDoc), '2026-06-01');
+});
+
+test('globalReferenceDate: malformed stamps are never candidates', () => {
+  const text = '## Active threads\n- **alpha** (as of 2026-13-45) — old thread → memory a\n';
+  assert.equal(globalReferenceDate(text), null);
+});
+
+test('globalReferenceDate: placeholder bullets are never candidates', () => {
+  assert.equal(globalReferenceDate(FRESH_GLOBAL), null);
+});
+
+test('globalReferenceDate: no valid stamp anywhere on the page is null', () => {
+  assert.equal(globalReferenceDate('## Active threads\n- alpha, no stamp\n'), null);
+});
+
+// --- checkClosedExpired ---------------------------------------------------
+
+test('checkClosedExpired: the exact boundary — 7 days before the reference date passes, 8 warns', () => {
+  const sevenDays = '## Recently closed (context for next session)\n- gamma finished (closed 2026-01-01)\n';
+  assert.deepEqual(checkClosedExpired(sevenDays, '2026-01-08'), []);
+
+  const eightDays = '## Recently closed (context for next session)\n- gamma finished (closed 2026-01-01)\n';
+  const findings = checkClosedExpired(eightDays, '2026-01-09');
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'WARN');
+  assert.equal(findings[0].type, 'closed-expired');
+  assert.ok(findings[0].message.includes('2026-01-01'));
+  assert.ok(findings[0].message.includes('2026-01-09'));
+});
+
+test('checkClosedExpired: the message names the remedy (archive --reason expired)', () => {
+  const text = '## Recently closed (context for next session)\n- gamma finished (closed 2026-01-01)\n';
+  const findings = checkClosedExpired(text, '2026-02-01');
+  assert.equal(findings.length, 1);
+  assert.ok(findings[0].message.includes('banana state archive --global --reason expired --match'));
+});
+
+test('checkClosedExpired: a null reference date (no valid stamp anywhere) skips the check entirely', () => {
+  const text = '## Recently closed (context for next session)\n- gamma finished (closed 2020-01-01)\n';
+  assert.deepEqual(checkClosedExpired(text, null), []);
+});
+
+test('checkClosedExpired: a bullet with no valid stamp is closed-undated\'s job, not this check\'s', () => {
+  const text = '## Recently closed (context for next session)\n- gamma finished, no stamp\n';
+  assert.deepEqual(checkClosedExpired(text, '2026-01-09'), []);
+});
+
+test('checkClosedExpired: the NEW and LEGACY placeholders are both exempt', () => {
+  assert.deepEqual(checkClosedExpired(FRESH_GLOBAL, '2026-01-09'), []);
+  assert.deepEqual(
+    checkClosedExpired(`## Recently closed (context for next session)\n${NEW_CLOSED_PLACEHOLDER}\n`, '2026-01-09'),
+    [],
+  );
+});
+
+test('checkClosedExpired: two stamps on one bullet compare against the OLDEST (conservative, mirrors Active-threads F6)', () => {
+  const text =
+    '## Recently closed (context for next session)\n- gamma (closed 2026-01-01) then (closed 2026-01-20)\n';
+  // Oldest (2026-01-01) is 8 days before 2026-01-09 -> expired, even though
+  // the newer co-stamp (2026-01-20) alone would not be.
+  const findings = checkClosedExpired(text, '2026-01-09');
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].type, 'closed-expired');
+});
+
+// --- checkThreadInactive ---------------------------------------------------
+
+test('checkThreadInactive: the exact boundary — 30 days before the reference date passes, 31 warns', () => {
+  const thirtyDays = '## Active threads\n- **alpha** (as of 2026-01-01) — building the thing → memory a\n';
+  assert.deepEqual(checkThreadInactive(thirtyDays, '2026-01-31'), []);
+
+  const thirtyOneDays = '## Active threads\n- **alpha** (as of 2026-01-01) — building the thing → memory a\n';
+  const findings = checkThreadInactive(thirtyOneDays, '2026-02-01');
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'WARN');
+  assert.equal(findings[0].type, 'thread-inactive');
+  assert.ok(findings[0].message.includes('2026-01-01'));
+  assert.ok(findings[0].message.includes('2026-02-01'));
+});
+
+test('checkThreadInactive: the message names the remedy (archive --reason inactive, then a Backlog line)', () => {
+  const text = '## Active threads\n- **alpha** (as of 2026-01-01) — building the thing → memory a\n';
+  const findings = checkThreadInactive(text, '2026-03-01');
+  assert.equal(findings.length, 1);
+  assert.ok(findings[0].message.includes('banana state archive --global --reason inactive --match'));
+  assert.ok(findings[0].message.includes('Backlog'));
+});
+
+test('checkThreadInactive: a null reference date (no valid stamp anywhere) skips the check entirely', () => {
+  const text = '## Active threads\n- **alpha** (as of 2020-01-01) — building the thing → memory a\n';
+  assert.deepEqual(checkThreadInactive(text, null), []);
+});
+
+test('checkThreadInactive: a bullet with no valid stamp is thread-unstamped/-malformed\'s job, not this check\'s', () => {
+  const text = '## Active threads\n- **alpha** — building the thing, no stamp → memory a\n';
+  assert.deepEqual(checkThreadInactive(text, '2026-06-01'), []);
+});
+
+test('checkThreadInactive: the NEW and LEGACY placeholders are both exempt', () => {
+  assert.deepEqual(checkThreadInactive(FRESH_GLOBAL, '2026-06-01'), []);
+});
+
+test('checkThreadInactive: two stamps on one bullet compare against the OLDEST (conservative, mirrors Active-threads F6)', () => {
+  const text =
+    '## Active threads\n- **alpha** (as of 2026-01-01) was (as of 2026-01-20) — building the thing → memory a\n';
+  const findings = checkThreadInactive(text, '2026-02-01');
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].type, 'thread-inactive');
+});
+
+// --- Wiring into lintGlobalState / runStateLint --global -------------------
+
+test('lintGlobalState: a bullet over its section\'s char limit WARNs line-over-limit through the composed findings', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const name = 'Watch';
+  const limit = SECTION_LINE_LIMITS[name];
+  const text = CLEAN_GLOBAL.replace(
+    '## Watch\n- an assumption needing validation (validate-by: 2026-10-01)',
+    `## Watch\n${bulletOfLength('- an assumption ', limit + 1)}`,
+  );
+  const findings = lintGlobalState(text, { home });
+  assert.ok(findings.some((f) => f.type === 'line-over-limit'), `expected line-over-limit: ${JSON.stringify(findings)}`);
+});
+
+test('lintGlobalState: an undated Recently-closed bullet WARNs closed-undated through the composed findings', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const text = CLEAN_GLOBAL.replace(
+    '- gamma finished (closed 2026-09-01) — see alpha\'s logbook',
+    '- gamma finished — see alpha\'s logbook',
+  );
+  const findings = lintGlobalState(text, { home });
+  assert.ok(findings.some((f) => f.type === 'closed-undated'), `expected closed-undated: ${JSON.stringify(findings)}`);
+});
+
+test('lintGlobalState: a closed bullet 8+ days before the page\'s newest stamp WARNs closed-expired', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-09');
+  const text = CLEAN_GLOBAL
+    .replace('(as of 2026-09-01)', '(as of 2026-09-09)')
+    .replace('- gamma finished (closed 2026-09-01) — see alpha\'s logbook', '- gamma finished (closed 2026-08-01) — see alpha\'s logbook');
+  const findings = lintGlobalState(text, { home });
+  assert.ok(findings.some((f) => f.type === 'closed-expired'), `expected closed-expired: ${JSON.stringify(findings)}`);
+});
+
+test('lintGlobalState: an Active thread stamped 31+ days before the page\'s newest stamp WARNs thread-inactive', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const text = CLEAN_GLOBAL.replace('(closed 2026-09-01)', '(closed 2026-10-10)');
+  const findings = lintGlobalState(text, { home });
+  assert.ok(findings.some((f) => f.type === 'thread-inactive'), `expected thread-inactive: ${JSON.stringify(findings)}`);
+});
+
+test('lintGlobalState: the clean global fixture stays zero-findings under all four new #20 checks, CRLF or LF', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  assert.deepEqual(lintGlobalState(CLEAN_GLOBAL, { home }), []);
+  const crlf = CLEAN_GLOBAL.replace(/\n/g, '\r\n');
+  assert.deepEqual(lintGlobalState(crlf, { home }), []);
+});
+
+test('runStateLint --global: a line-over-limit WARN exits 0, and the finding prints before the summary', async (t) => {
+  const name = 'Backlog (owned)';
+  const limit = SECTION_LINE_LIMITS[name];
+  const text = CLEAN_GLOBAL.replace(
+    '- testagent — sweep the backlog',
+    bulletOfLength('- testagent — sweep the backlog ', limit + 1),
+  );
+  const home = makeGlobalHome(t, text);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const res = await runGlobal(home);
+  assert.equal(res.code, 0, `expected WARN-only exit 0, got: ${res.lines.join('\n')}`);
+  assert.ok(res.lines.some((l) => l.startsWith('WARN [line-over-limit]')));
+  assert.ok(res.lines.at(-1)?.startsWith('state lint: WARN'));
+});
+
+test('SECTION_LINE_LIMITS / CLOSED_EXPIRY_DAYS / THREAD_INACTIVE_DAYS match the spec\'s exact shared constants', () => {
+  assert.deepEqual(SECTION_LINE_LIMITS, {
+    'Active threads': 400,
+    'Backlog (owned)': 300,
+    Watch: 350,
+    'Recently closed (context for next session)': 250,
+  });
+  assert.equal(CLOSED_EXPIRY_DAYS, 7);
+  assert.equal(THREAD_INACTIVE_DAYS, 30);
 });

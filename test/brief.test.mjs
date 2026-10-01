@@ -265,7 +265,9 @@ test('brief: global STATE.md body content never leaks into the brief — only it
       '## Watch',
       '',
       '## Recently closed (context for next session)',
-      '- nothing yet',
+      // #20: a bare bullet with no "(closed YYYY-MM-DD)" stamp would now WARN
+      // closed-undated — this fixture is meant to stay lint-clean (PASS).
+      '- nothing yet (closed 2026-07-01)',
       '',
     ].join('\n'),
     'utf8',
@@ -690,7 +692,9 @@ const STALE_GLOBAL = [
   '- an assumption needing validation (validate-by: 2026-08-01)',
   '',
   '## Recently closed (context for next session)',
-  '- nothing yet',
+  // #20: a valid, non-expired (closed YYYY-MM-DD) stamp (same date as
+  // gamma's own as-of) — keeps this fixture at exactly "1 fail, 0 warn".
+  '- nothing yet (closed 2026-07-01)',
   '',
 ].join('\n');
 

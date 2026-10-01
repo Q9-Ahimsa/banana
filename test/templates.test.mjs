@@ -190,3 +190,38 @@ test('global-STATE.md header moves to per-thread edits, retired rebuild-whole ru
     'global-STATE.md header missing the per-thread-edits rule'
   );
 });
+
+// #20 (ADR 0006): line limits, the closed-stamp/expiry convention, and the
+// archive pointer all land in the global template's header; the
+// Recently-closed placeholder's wording changes to name the new convention.
+test('global-STATE.md header teaches the #20 line limits and archive pointer', () => {
+  const text = readFileSync(join(templatesDir, 'global-STATE.md'), 'utf8');
+  assert.ok(
+    text.includes('Line limits: thread 400 · backlog 300 · watch 350 · closed 250 chars.'),
+    'global-STATE.md header missing the #20 line-limits line'
+  );
+  assert.ok(
+    text.includes('(closed YYYY-MM-DD)') && text.includes('expire after 7 days'),
+    'global-STATE.md header missing the closed-stamp expiry rule'
+  );
+  assert.ok(
+    text.includes('a thread idle 30+ days becomes a Backlog line'),
+    'global-STATE.md header missing the thread-inactivity rule'
+  );
+  assert.ok(
+    text.includes('banana state archive') && text.includes('STATE-archive.md'),
+    'global-STATE.md header missing the archive-move pointer'
+  );
+});
+
+test('global-STATE.md Recently-closed placeholder names the (closed YYYY-MM-DD) convention (#20)', () => {
+  const text = readFileSync(join(templatesDir, 'global-STATE.md'), 'utf8');
+  assert.ok(
+    text.includes('- (last few finished threads, one line each: **name** (closed YYYY-MM-DD) — outcome → pointer)'),
+    'global-STATE.md Recently-closed placeholder not updated to the #20 (closed YYYY-MM-DD) wording'
+  );
+  assert.ok(
+    !text.includes('- (last few finished threads, one line each, with pointers)'),
+    'global-STATE.md still ships the pre-#20 Recently-closed placeholder text'
+  );
+});

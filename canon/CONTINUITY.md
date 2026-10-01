@@ -1,5 +1,5 @@
-<!-- banana:canon rev 1.6 -->
-# CONTINUITY — cross-harness protocol (canonical) — v1.6
+<!-- banana:canon rev 1.7 -->
+# CONTINUITY — cross-harness protocol (canonical) — v1.7
 
 Any agent working on this machine or its repos follows this. The record is
 **file-based and harness-neutral**: no agent's private memory is the source of
@@ -92,6 +92,9 @@ report yet keep their single placeholder line rather than being omitted):
 > Chronology lives in project logbooks; this file only answers "what's live and
 > what's queued across everything." Owner: {owner}. Protocol:
 > `~/.agents/canon/CONTINUITY.md`.
+> Line limits: thread 400 · backlog 300 · watch 350 · closed 250 chars. Closed lines carry
+> `(closed YYYY-MM-DD)` and expire after 7 days; a thread idle 30+ days becomes a Backlog line.
+> Never delete a line: `banana state archive` moves it to STATE-archive.md.
 
 ## Active threads
 - (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)
@@ -103,7 +106,7 @@ report yet keep their single placeholder line rather than being omitted):
 - (assumptions and deadlines needing attention, each with a validate-by date)
 
 ## Recently closed (context for next session)
-- (last few finished threads, one line each, with pointers)
+- (last few finished threads, one line each: **name** (closed YYYY-MM-DD) — outcome → pointer)
 ```
 - **Session start:** read it — allowlist item 1 of the entry ritual (machine
   grain, so it sits outside any project brief and is read directly).
@@ -119,6 +122,22 @@ report yet keep their single placeholder line rather than being omitted):
   YYYY-MM-DD)`, the newest source it was rebuilt from (normally its project
   STATE's as-of); a project STATE dated later than the stamp means the
   thread is stale, and `banana state lint --global` FAILs it.
+- **Limits, closed stamp, inactivity, and the archive move** (v1.7, ADR
+  0006) — every top-level bullet carries a per-section char limit (thread
+  400 · backlog 300 · watch 350 · closed 250); a Recently-closed bullet
+  carries `(closed YYYY-MM-DD)`, parsed with the same hardened rules as the
+  freshness stamp above, and expires 7 days after the page's own reference
+  date (the newest valid stamp on the page — never the clock); an
+  Active-threads bullet idle 30+ days by that same reference date becomes a
+  Backlog line instead of staying put. `banana state lint --global` WARNs
+  all four (judgment calls, not mechanical defects — the page-wide cap stays
+  the FAIL backstop). Removal from the page is never a deletion: any line
+  leaving it — or the long form of a line being trimmed in place — is first
+  copied verbatim into the append-only `~/.agents/STATE-archive.md`, via
+  `banana state archive`, before it is removed; the archive is never loaded
+  at session start, searched with `grep` only. Exception to "edit only your
+  own threads" above: any session may archive an `expired` closed line on
+  sight — no judgment is needed to recognize one.
 
 ## Project grain — Logbook Standard
 
@@ -480,3 +499,27 @@ Nothing else changes.
     whole-page write from a stale read silently deletes a concurrent session's
     update — the failure whole-page rebuilds could not detect and, once several
     sessions write concurrently, actively cause.
+
+v1.7 amends the **global-grain limits, expiry, and archive** rule (ADR 0006 in
+the kit repo). Nothing else changes.
+
+17. **Line limits, closed stamp, inactivity, and the archive move** — every
+    top-level bullet carries a per-section character limit (`## Active
+    threads` 400 · `## Backlog (owned)` 300 · `## Watch` 350 · `## Recently
+    closed (context for next session)` 250); a Recently-closed bullet carries
+    `(closed YYYY-MM-DD)`, parsed with the same hardened rules as the v1.5
+    freshness stamp, and expires 7 days after the page's own reference date
+    (the newest valid stamp on the page, never the clock); an Active-threads
+    bullet idle 30+ days by that same reference date becomes a Backlog line
+    instead. `banana state lint --global` WARNs all four — judgment calls,
+    not mechanical defects, so the page cap stays the FAIL backstop. Removal
+    from the page is never a deletion: any line leaving it — or the long form
+    of a line trimmed in place — is first copied verbatim into the
+    append-only `~/.agents/STATE-archive.md`, via `banana state archive`,
+    before it is removed; the archive is never loaded at session start,
+    searched with `grep` only. Exception to item 16's "edit only your own
+    threads": any session may archive an `expired` closed line on sight — no
+    judgment is needed to recognize one. Counter-failure: a line removed from
+    the global page used to leave no trace at all — unlike every other record
+    on this machine (session.log and LOGBOOK.md are append-only with ids,
+    project STATE lines cite logbook ids), it simply vanished.

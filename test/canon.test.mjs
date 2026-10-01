@@ -34,7 +34,7 @@ const VERSION_MARKER_RE = /<!-- banana:canon rev (\d+\.\d+) -->/;
 
 // Per-file revisions — a file's marker bumps when its protocol text changes.
 const EXPECTED_REVS = {
-  'CONTINUITY.md': '1.6',
+  'CONTINUITY.md': '1.7',
   'STANDARD.md': '1.3',
   'SESSION-LOG.md': '1.4',
 };
@@ -181,9 +181,29 @@ test('CONTINUITY.md carries the v1.6 per-thread-edits amendment (ADR 0005)', () 
     text.includes('silently deletes a concurrent session\'s'),
     'CONTINUITY.md missing the Per-thread edits Counter-failure sentence'
   );
+  // No title-version assertion here: the exact current title is pinned once,
+  // by the newest amendment's own test (below) and by the generic
+  // 'every canon file carries its expected version marker' test — coupling
+  // it here too would break this v1.6-specific test on every later bump.
+});
+
+test('CONTINUITY.md carries the v1.7 limits/expiry/archive amendment (ADR 0006)', () => {
+  const text = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
   assert.ok(
-    text.includes('— v1.6'),
-    'CONTINUITY.md title not bumped to v1.6'
+    text.includes('Line limits, closed stamp, inactivity, and the archive move'),
+    'CONTINUITY.md missing the v1.7 limits/expiry/archive amendment'
+  );
+  assert.ok(
+    text.includes('STATE-archive.md'),
+    'CONTINUITY.md missing the archive-file pointer'
+  );
+  assert.ok(
+    text.includes('it simply vanished'),
+    'CONTINUITY.md missing the v1.7 Counter-failure sentence'
+  );
+  assert.ok(
+    text.includes('— v1.7'),
+    'CONTINUITY.md title not bumped to v1.7'
   );
 });
 
@@ -213,6 +233,41 @@ test('canon Global-grain embedded template agrees with templates/global-STATE.md
   assert.ok(
     template.includes(ACTIVE_THREADS_LINE),
     'templates/global-STATE.md missing the freshness-stamped Active-threads placeholder'
+  );
+});
+
+// #20 (ADR 0006): the global template gains a line-limits header line and a
+// new Recently-closed placeholder naming the `(closed YYYY-MM-DD)`
+// convention — both must agree byte-for-byte between the canon's embedded
+// template and templates/global-STATE.md, same rationale as the two tests
+// above.
+test('canon Global-grain embedded template agrees with templates/global-STATE.md on the #20 line-limits header line', () => {
+  const continuity = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
+  const template = readFileSync(join(templatesDir, 'global-STATE.md'), 'utf8');
+  const LIMITS_LINE =
+    '> Line limits: thread 400 · backlog 300 · watch 350 · closed 250 chars. Closed lines carry';
+  assert.ok(
+    continuity.includes(LIMITS_LINE),
+    'CONTINUITY.md Global-grain template missing the #20 line-limits header line'
+  );
+  assert.ok(
+    template.includes(LIMITS_LINE),
+    'templates/global-STATE.md missing the #20 line-limits header line'
+  );
+});
+
+test('canon Global-grain embedded template agrees with templates/global-STATE.md on the #20 Recently-closed placeholder', () => {
+  const continuity = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
+  const template = readFileSync(join(templatesDir, 'global-STATE.md'), 'utf8');
+  const CLOSED_LINE =
+    '- (last few finished threads, one line each: **name** (closed YYYY-MM-DD) — outcome → pointer)';
+  assert.ok(
+    continuity.includes(CLOSED_LINE),
+    'CONTINUITY.md Global-grain template missing the #20 Recently-closed placeholder'
+  );
+  assert.ok(
+    template.includes(CLOSED_LINE),
+    'templates/global-STATE.md missing the #20 Recently-closed placeholder'
   );
 });
 

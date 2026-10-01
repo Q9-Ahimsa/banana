@@ -3,6 +3,9 @@
 > Chronology lives in project logbooks; this file only answers "what's live and
 > what's queued across everything." Owner: __OWNER__. Protocol:
 > `~/.agents/canon/CONTINUITY.md`.
+> Line limits: thread 400 · backlog 300 · watch 350 · closed 250 chars. Closed lines carry
+> `(closed YYYY-MM-DD)` and expire after 7 days; a thread idle 30+ days becomes a Backlog line.
+> Never delete a line: `banana state archive` moves it to STATE-archive.md.
 
 ## Active threads
 - (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)
@@ -14,4 +17,4 @@
 - (assumptions and deadlines needing attention, each with a validate-by date)
 
 ## Recently closed (context for next session)
-- (last few finished threads, one line each, with pointers)
+- (last few finished threads, one line each: **name** (closed YYYY-MM-DD) — outcome → pointer)
