@@ -574,3 +574,10 @@ PROBLEM: lanes defined a bullet's extent differently (lint: to next bullet/headi
 FIX (dispatched): one shared range helper in state.mjs, archive maps it onto raw offsets; STATE_VERBS = lint|archive with truthful error text.
 VALIDATED: review workflow (247 agents, 3 rounds, 3-lens verify) -> 61 confirmed + 3 critic: 0 blocker, 23 should-fix; round 3 still found 14 (not dry). Two finders stalled ~10h each (likely a hung permission prompt).
 DECISION (claude, technical): global page = one physical line per bullet (bullet-wrapped WARN, archive refuses multi-line); comments blank only the comment; archive is the clock-aware gate for expired/inactive; atomic temp+rename write. Spec: .agents/specs/cli-20b-review-fixes.md
+DECISION (ahimsa, 2026-10-02): approved rule 1 (kit may remove exactly one named line from the global page, after copying it to the archive) and rule 2 (a pasted secret is deleted outright, never archived; also deleted from the archive if it got there).
+STATUS: complete
+NEXT: claude — #20b fix lanes (cli.21): lane 1 + 3 running, then lane 2, re-review, dogfood the global-page cleanup, owner go on push 0.4.0
+
+## [2026-10-02] claude cli.21 | build — #20b review fixes, re-review, release 0.4.0
+APPROACH: spec cli-20b; lanes 1+3 parallel then lane 2; re-review workflow; cleanup via the new command
+STATUS: in-progress

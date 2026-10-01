@@ -204,12 +204,12 @@ test('global-STATE.md header teaches the #20b one-line rule, limits, and archive
     'global-STATE.md header missing the #20b one-line-per-bullet + limits line'
   );
   assert.ok(
-    text.includes('(closed YYYY-MM-DD)') &&
-      text.includes('dates measured against the page\'s newest stamp'),
+    text.includes('> Closed lines carry `(closed YYYY-MM-DD)`. By the page\'s newest stamp, closed lines expire') &&
+      text.includes('> at 8+ days and threads idle 31+ days move to Backlog. Never delete a line:'),
     'global-STATE.md header missing the closed-stamp + reference-date framing'
   );
   assert.ok(
-    text.includes('Never delete a line: `banana state archive` moves it to STATE-archive.md.'),
+    text.includes('> `banana state archive` moves it to STATE-archive.md.'),
     'global-STATE.md header missing the never-delete archive-move line'
   );
   assert.ok(

@@ -236,19 +236,20 @@ test('canon Global-grain embedded template agrees with templates/global-STATE.md
   );
 });
 
-// #20b review: the header's limits/expiry/archive block is exactly three
+// #20b review: the header's limits/expiry/archive block is exactly four
 // blockquote lines, each <=100 chars, restating D1-D3's corrected wording —
 // pinned here, byte-for-byte, in both the canon's embedded template and
 // templates/global-STATE.md. The old backwards-expiry wording ("expire
 // after 7 days", "idle 30+ days") is gone from the header entirely; the
 // precise day thresholds live in the Global-grain body instead (next test).
-test('canon Global-grain embedded template agrees with templates/global-STATE.md on all three #20b header lines', () => {
+test('canon Global-grain embedded template agrees with templates/global-STATE.md on all four #20b header lines', () => {
   const continuity = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
   const template = readFileSync(join(templatesDir, 'global-STATE.md'), 'utf8');
   const HEADER_LINES = [
     '> One line per bullet: thread 400 · backlog 300 · watch 350 · closed 250 chars.',
-    '> Closed lines carry `(closed YYYY-MM-DD)`; dates measured against the page\'s newest stamp.',
-    '> Never delete a line: `banana state archive` moves it to STATE-archive.md.',
+    '> Closed lines carry `(closed YYYY-MM-DD)`. By the page\'s newest stamp, closed lines expire',
+    '> at 8+ days and threads idle 31+ days move to Backlog. Never delete a line:',
+    '> `banana state archive` moves it to STATE-archive.md.',
   ];
   for (const line of HEADER_LINES) {
     assert.ok(line.length <= 100, `header line exceeds 100 chars (${line.length}): "${line}"`);
