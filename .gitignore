@@ -2,3 +2,5 @@ node_modules/
 
 .agents/loop/logs/
 .agents/loop/.last-branch
+
+.claude/worktrees/

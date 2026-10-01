@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const readmePath = fileURLToPath(new URL('../README.md', import.meta.url));
 const binPath = fileURLToPath(new URL('../bin/banana.mjs', import.meta.url));
+const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 // The canonical invocation per the v2 wiring templates (templates.test.mjs NPX_INVOCATION).
 const NPX_COMMAND = 'npx --yes github:Q9-Ahimsa/banana';
@@ -58,7 +59,7 @@ test('README.md human section is 40 lines or fewer', () => {
   );
 });
 
-test('banana --version prints 0.2.0', () => {
+test('banana --version prints the package version', () => {
   const out = execFileSync(process.execPath, [binPath, '--version'], { encoding: 'utf8' });
-  assert.equal(out.trim(), '0.2.0');
+  assert.equal(out.trim(), pkg.version);
 });
