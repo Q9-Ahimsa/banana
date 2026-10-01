@@ -568,3 +568,7 @@ ASSUMED (claude): limits thread 400 / watch 350 / backlog 300 / closed 250 chars
 OPEN: owner asks that everything stay traceable and searchable after removal (provenance) — design in discussion.
 STATUS: in-progress
 DECISION (ahimsa): removal from the global page becomes a move into an append-only archive, done by a `banana state archive` command ("Yes, with the command"). File name delegated ("you decide") -> claude: ~/.agents/STATE-archive.md.
+FILES: lane A 0e8a776 (4 WARN checks, canon v1.7, ADR 0006, template), lane B a7ab878 (state archive); rebase clean, merged on main.
+VALIDATED: merged main 675 pass + 1 skipped (605+43+27), tsc clean; every mutation in both lanes caught.
+PROBLEM: lanes defined a bullet's extent differently (lint: to next bullet/heading; archive: to first blank line) -> archive could orphan a paragraph the lint counted. Also archive kept the stale '(expected lint)' verb error to preserve a pinned test.
+FIX (dispatched): one shared range helper in state.mjs, archive maps it onto raw offsets; STATE_VERBS = lint|archive with truthful error text.

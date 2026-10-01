@@ -155,7 +155,7 @@ test('bin: `banana state lint --help` prints lint usage and exits 0', () => {
 test('bin: `banana state <unknown verb>` exits 2 naming the vocabulary', () => {
   const { status, stderr } = run(['state', 'frobnicate']);
   assert.equal(status, 2);
-  assert.ok(stderr.includes("unknown state verb 'frobnicate' (expected lint)"), `stderr: ${stderr}`);
+  assert.ok(stderr.includes("unknown state verb 'frobnicate' (expected lint|archive)"), `stderr: ${stderr}`);
 });
 
 test('bin: `banana state lint --global` runs against a sandboxed home (env HOME/USERPROFILE) and exits 0 on a clean global page', (t) => {

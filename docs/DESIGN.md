@@ -646,8 +646,8 @@ module (ADR 0004 — no check in `lib/state.mjs` may read `now`). `home` and
 discriminated union — `{ verb: 'lint', global }` or `{ verb: 'archive',
 global, match, reason, tag, dryRun }` — reusing `lib/state.mjs`'s exported
 bullet/section helpers (`prepareText`, `topLevelBullets`,
-`isPlaceholderBullet`, `REQUIRED_GLOBAL_SECTIONS`) rather than re-parsing
-the page.
+`topLevelBulletRanges`, `isPlaceholderBullet`, `REQUIRED_GLOBAL_SECTIONS`)
+rather than re-parsing the page.
 
 `--global` is required (project pages keep their history in LOGBOOK.md
 instead) — its absence, like any other usage problem (a missing
@@ -657,11 +657,14 @@ state — unlike `state lint`, there is no FAIL/`1` tier here: archive moves
 bytes, it never grades them.
 
 **Matching.** `--match` is a case-sensitive substring of a non-placeholder
-top-level bullet's FULL text — its own line plus any continuation lines
-(every immediately-following line that is itself neither blank, a new
-top-level bullet, nor a level-1/2 heading) — searched across all four
-global sections (`Active threads`, `Backlog (owned)`, `Watch`, `Recently
-closed (context for next session)`). Exactly one match proceeds; zero exits
+top-level bullet's FULL text — its own marker line plus any continuation
+lines beneath it, up to the next top-level bullet or section heading,
+trailing blank lines dropped — the SAME span `line-over-limit` measures
+(`topLevelBulletRanges`, `lib/state.mjs`; integration fix, 2026-10-01: the
+archive must move exactly what the lint measures, so both read this one
+shared definition instead of two that could drift apart) — searched across
+all four global sections (`Active threads`, `Backlog (owned)`, `Watch`,
+`Recently closed (context for next session)`). Exactly one match proceeds; zero exits
 `2` ("no line matches"); more than one exits `2`, listing every candidate's
 section and first 60 characters — ambiguity is never resolved by picking
 the first, only by a tighter `--match`.

@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { parseStateArgs, prepareText, topLevelBullets } from '../lib/state.mjs';
+import { parseStateArgs, prepareText, topLevelBulletSpans, topLevelBullets } from '../lib/state.mjs';
 import { ARCHIVE_HEADER_LINES, runStateArchive } from '../lib/state-archive.mjs';
 
 const KIT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -201,11 +201,11 @@ test('parseStateArgs archive: a valued flag with no following value throws', () 
   assert.throws(() => parseStateArgs(['archive', '--global', '--match']), /--match requires a value/);
 });
 
-test('parseStateArgs: `lint`/unknown-verb vocabulary is unaffected by the archive branch (regression)', () => {
-  // Pinned byte-exact in test/state.test.mjs/test/bin.e2e.test.mjs, which
-  // this ticket's Lane B scope excludes editing — this is a sanity check
-  // that adding 'archive' never widened STATE_VERBS's own vocabulary text.
-  assert.throws(() => parseStateArgs(['frobnicate']), /unknown state verb 'frobnicate' \(expected lint\)/);
+test('parseStateArgs: `lint`/unknown-verb vocabulary names both verbs truthfully (integration fix, cli-20)', () => {
+  // Pinned (updated) alongside test/state.test.mjs/test/bin.e2e.test.mjs:
+  // 'archive' is a real STATE_VERBS member now, so the vocabulary text
+  // names it instead of pinning the stale pre-#20 "(expected lint)" wording.
+  assert.throws(() => parseStateArgs(['frobnicate']), /unknown state verb 'frobnicate' \(expected lint\|archive\)/);
 });
 
 // =====================================================================
@@ -420,4 +420,132 @@ test('runStateArchive: a missing global page exits 2', async (t) => {
   const result = await archive(home, { match: 'anything' });
   assert.equal(result.code, 2);
   assert.ok(result.err.some((l) => l.includes('missing or unreadable')));
+});
+
+// =====================================================================
+// Consistency: the archive must move EXACTLY what the lint measures
+// (integration fix, cli-20-global-page-limits.md). A bullet's extent used
+// to be defined twice — the lint's `line-over-limit` check (topLevelBulletSpans
+// / now topLevelBulletRanges, lib/state.mjs): own line up to the next
+// top-level bullet or heading, trailing blanks dropped; a hand-mirrored
+// scan here that stopped at the FIRST blank line. The two disagree on a
+// bullet followed by a blank line and then a paragraph before the next
+// bullet — the lint counts the paragraph in, the old archive orphaned it on
+// the page. Both now read `topLevelBulletRanges`, the one shared
+// definition.
+// =====================================================================
+
+/**
+ * One synthetic `## Watch` section exercising every bullet shape the two
+ * definitions could disagree on: (a) a single-line bullet, (b) a bullet
+ * with a lazy (non-indented) continuation line, (c) a bullet, blank line,
+ * indented second paragraph, (d) a bullet, blank line, plain paragraph,
+ * then another bullet, (e) a fenced code block holding a `- ` line. `eol`
+ * lets the same fixture run under CRLF/lone-CR too; `bom` prefixes a BOM.
+ * @param {{ eol?: string, bom?: boolean }} [opts]
+ */
+function buildSpanFixture({ eol = '\n', bom = false } = {}) {
+  const lines = [
+    '# GLOBAL STATE — cross-project projection',
+    '> One page, hard cap. Edit only your own threads; never rewrite the page.',
+    '> Chronology lives in project logbooks; this file only answers "what\'s live and',
+    '> what\'s queued across everything." Owner: testagent. Protocol:',
+    '> `~/.agents/canon/CONTINUITY.md`.',
+    '',
+    '## Active threads',
+    templatePlaceholder('Active threads'),
+    '',
+    '## Backlog (owned)',
+    templatePlaceholder('Backlog (owned)'),
+    '',
+    '## Watch',
+    '- bullet-a-marker: a single-line bullet, nothing follows it',
+    '- bullet-b-marker: a bullet with a lazy (non-indented) continuation line',
+    'lazy continuation line for bullet-b-marker, not indented, not a bullet',
+    '- bullet-c-marker: a bullet, blank line, then an indented second paragraph',
+    '',
+    '  indented second paragraph for bullet-c-marker',
+    '- bullet-d-marker: a bullet, blank line, then a plain paragraph, then another bullet',
+    '',
+    'plain paragraph for bullet-d-marker, not indented, not a bullet itself',
+    '- sibling-marker: a plain bullet that terminates the previous one\'s span',
+    '```',
+    '- fenced-marker: looks like a bullet but lives inside a fenced code block',
+    '```',
+    '',
+    '## Recently closed (context for next session)',
+    templatePlaceholder('Recently closed (context for next session)'),
+    '',
+  ];
+  return (bom ? '﻿' : '') + lines.join(eol);
+}
+
+/** The lint's `fullText` (topLevelBulletSpans) for the `## Watch` bullet whose own line includes `marker`. */
+function lintWatchFullText(raw, marker) {
+  const spans = topLevelBulletSpans(prepareText(raw), 'Watch');
+  const found = spans.find((s) => s.line.includes(marker));
+  assert.ok(found, `lint found no "Watch" bullet containing "${marker}"`);
+  return found.fullText;
+}
+
+/**
+ * The text `banana state archive` would move for the bullet matching
+ * `marker`, via `--dry-run` (writes nothing, so the same fixture can be
+ * probed bullet by bullet), normalized to LF for comparison against the
+ * lint's (already CRLF-normalized) `fullText`.
+ * @param {string} home
+ * @param {string} marker
+ * @returns {Promise<string>}
+ */
+async function archivedFullText(home, marker) {
+  const result = await archive(home, { match: marker, reason: 'removed', dryRun: true });
+  assert.equal(result.code, 0, `dry-run for "${marker}" failed: ${result.err.join('\n')}`);
+  const headingIdx = result.out.findIndex((l) => l.startsWith('## ['));
+  assert.ok(headingIdx !== -1, `no record heading in dry-run output: ${result.out.join('\n')}`);
+  const actionIdx = result.out.findIndex((l) => l.startsWith('archived ('));
+  assert.ok(actionIdx !== -1, `no action line in dry-run output: ${result.out.join('\n')}`);
+  return result.out
+    .slice(headingIdx + 1, actionIdx)
+    .join('\n')
+    .replace(/\r\n|\r/g, '\n');
+}
+
+const SPAN_MARKERS = ['bullet-a-marker', 'bullet-b-marker', 'bullet-c-marker', 'bullet-d-marker', 'sibling-marker'];
+
+/** Run the full (a)-(e) consistency check against one built fixture. */
+async function assertSpanConsistency(t, opts) {
+  const page = buildSpanFixture(opts);
+  const { home } = makeHome(t, page);
+
+  for (const marker of SPAN_MARKERS) {
+    const expected = lintWatchFullText(page, marker);
+    const actual = await archivedFullText(home, marker);
+    assert.equal(actual, expected, `mismatch for "${marker}" (opts: ${JSON.stringify(opts)})`);
+  }
+
+  // (e): a bullet-looking line inside a fenced code block is never matched
+  // or moved — neither the lint nor the archive ever sees it as a bullet.
+  const fenced = await archive(home, { match: 'fenced-marker', dryRun: true });
+  assert.equal(fenced.code, 2, `fenced-marker must not match: ${fenced.out.join('\n')}`);
+  assert.ok(fenced.err.some((l) => l.includes('no line matches')));
+}
+
+test(
+  'runStateArchive: moves exactly what the lint measures, for every bullet shape (a-e) — ' +
+    'single line, lazy continuation, blank+indented paragraph, blank+plain paragraph, fenced lookalike',
+  async (t) => {
+    await assertSpanConsistency(t, { eol: '\n' });
+  },
+);
+
+test('runStateArchive: the same consistency holds on a CRLF page (f)', async (t) => {
+  await assertSpanConsistency(t, { eol: '\r\n' });
+});
+
+test('runStateArchive: the same consistency holds on a lone-CR page', async (t) => {
+  await assertSpanConsistency(t, { eol: '\r' });
+});
+
+test('runStateArchive: the same consistency holds on a BOM-prefixed page', async (t) => {
+  await assertSpanConsistency(t, { eol: '\n', bom: true });
 });

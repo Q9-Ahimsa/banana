@@ -192,11 +192,11 @@ function stateWithLength(targetLen) {
 // =====================================================================
 
 test('parseStateArgs: missing verb throws', () => {
-  assert.throws(() => parseStateArgs([]), /missing verb \(expected lint\)/);
+  assert.throws(() => parseStateArgs([]), /missing verb \(expected lint\|archive\)/);
 });
 
 test('parseStateArgs: unknown verb names the vocabulary', () => {
-  assert.throws(() => parseStateArgs(['frobnicate']), /unknown state verb 'frobnicate' \(expected lint\)/);
+  assert.throws(() => parseStateArgs(['frobnicate']), /unknown state verb 'frobnicate' \(expected lint\|archive\)/);
 });
 
 test('parseStateArgs: bare `lint` defaults global to false', () => {
