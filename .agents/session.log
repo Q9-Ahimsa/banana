@@ -560,3 +560,11 @@ PROBLEM: the 3 canon files reported 'refreshed' but only CRLF->LF changed (the e
 FILES: repo AGENTS.md re-fenced to v3 via 'banana project --owner ahimsa --tag claude' (identity was testagent/tester); SessionStart hook now runs the installed kit, falling back to the checkout (0.41 s)
 STATUS: complete
 NEXT: claude — #19 (sync line endings, doctor remedy text), then #18 (supersede duplicate ids)
+
+## [2026-10-01] claude cli.20 | discuss — global page keeps hitting its cap: line limits, expiry, inactive demotion
+APPROACH: measure (9,908/10,000; no rule ever shrinks the page), propose lint-checkable rules, owner rules on forks, then spec + task-worker
+DECISION (ahimsa, via question forks): all three rules; inactive threshold 30 days; Recently closed expires after 7 days; claude does the one-time cleanup of today's page.
+ASSUMED (claude): limits thread 400 / watch 350 / backlog 300 / closed 250 chars; simulated today's page under them = ~6,800.
+OPEN: owner asks that everything stay traceable and searchable after removal (provenance) — design in discussion.
+STATUS: in-progress
+DECISION (ahimsa): removal from the global page becomes a move into an append-only archive, done by a `banana state archive` command ("Yes, with the command"). File name delegated ("you decide") -> claude: ~/.agents/STATE-archive.md.
