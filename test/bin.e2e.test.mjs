@@ -101,6 +101,27 @@ test('bin: no-arg invocation exits 1', () => {
   assert.equal(status, 1);
 });
 
+// #20b review item 8: the top-level `state` entry names BOTH verbs.
+test('bin: top-level --help lists `lint · archive` on the `state` entry', () => {
+  const { stdout } = run(['--help']);
+  assert.ok(stdout.includes('lint · archive'), `stdout: ${stdout}`);
+});
+
+test('bin: `banana state --help` names non-usage causes of exit 2 (D1/D3 safety gates), not just "usage error"', () => {
+  const { status, stdout } = run(['state', '--help']);
+  assert.equal(status, 0);
+  assert.ok(stdout.includes('D1') && stdout.includes('D3'), `stdout: ${stdout}`);
+});
+
+test('bin: `banana state archive --help` gives PowerShell (single quotes), cmd.exe (double quotes), and POSIX examples, plus a secrets note', () => {
+  const { status, stdout } = run(['state', 'archive', '--help']);
+  assert.equal(status, 0);
+  assert.ok(stdout.includes('PowerShell:\n  banana state archive --global --match \'stale-thread-name\''), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('cmd.exe:\n  banana state archive --global --match "stale-thread-name"'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('POSIX:\n  banana state archive --global --match \'stale-thread-name\''), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('deleted outright, never'), `stdout: ${stdout}`);
+});
+
 test('bin: unknown command exits non-zero', () => {
   const { status, stderr } = run(['peel']);
   assert.notEqual(status, 0);
@@ -256,10 +277,96 @@ test('bin: `banana state archive --help` prints archive usage and exits 0', () =
   assert.equal(stderr, '');
 });
 
-test('bin: `banana state archive` without `--global` exits 2 naming it', () => {
-  const { status, stderr } = run(['state', 'archive', '--match', 'x', '--reason', 'expired', '--tag', 'testagent']);
+// Runs with HOME/USERPROFILE pointed at a sandbox (not the real home) even
+// though this invocation never touches a STATE.md — a usage error that
+// exits before any file access is still no excuse to run against the real
+// home; every subprocess run in this file that reaches the `archive` verb
+// must be sandboxed, no exceptions.
+test('bin: `banana state archive` without `--global` exits 2 naming it', (t) => {
+  const home = sandbox(t, 'banana-bin-state-archive-noglobal-');
+  const { status, stderr } = run(
+    ['state', 'archive', '--match', 'x', '--reason', 'expired', '--tag', 'testagent'],
+    { env: { ...process.env, HOME: home, USERPROFILE: home } },
+  );
   assert.equal(status, 2);
   assert.ok(stderr.includes('--global is required'), `stderr: ${stderr}`);
+});
+
+test('bin: `banana state archive --global` with a bad flag form exits 2 through the real bin (not a REAL move)', (t) => {
+  const home = sandbox(t, 'banana-bin-state-archive-badflag-');
+  mkdirSync(join(home, '.agents'), { recursive: true });
+  const pagePath = join(home, '.agents', 'STATE.md');
+  const page = [
+    '# GLOBAL STATE — cross-project projection',
+    '> One page, hard cap. Edit only your own threads; never rewrite the page.',
+    '> Chronology lives in project logbooks; this file only answers "what\'s live and',
+    '> what\'s queued across everything." Owner: testagent. Protocol:',
+    '> `~/.agents/canon/CONTINUITY.md`.',
+    '',
+    '## Active threads',
+    '- (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)',
+    '',
+    '## Backlog (owned)',
+    '- testagent — a synthetic fixture backlog item',
+    '',
+    '## Watch',
+    '- (assumptions and deadlines needing attention, each with a validate-by date)',
+    '',
+    '## Recently closed (context for next session)',
+    '- (last few finished threads, one line each, with pointers)',
+    '',
+  ].join('\n');
+  writeFileSync(pagePath, page, 'utf8');
+
+  // The motivating #20b bug: `--tag --dry-run` must not silently swallow
+  // `--dry-run` as the literal tag value and go on to perform a real move.
+  const { status, stderr } = run(
+    [
+      'state', 'archive', '--global', '--match', 'a synthetic fixture backlog item',
+      '--reason', 'removed', '--tag', '--dry-run',
+    ],
+    { env: { ...process.env, HOME: home, USERPROFILE: home } },
+  );
+  assert.equal(status, 2);
+  assert.ok(stderr.includes('--tag requires a value'), `stderr: ${stderr}`);
+  assert.equal(readFileSync(pagePath, 'utf8'), page, 'page untouched — no real move happened');
+});
+
+test('bin: `banana state archive --global` a refused D1 move exits 2 and writes nothing, through the real bin', (t) => {
+  const home = sandbox(t, 'banana-bin-state-archive-d1-');
+  mkdirSync(join(home, '.agents'), { recursive: true });
+  const pagePath = join(home, '.agents', 'STATE.md');
+  const page = [
+    '# GLOBAL STATE — cross-project projection',
+    '> One page, hard cap. Edit only your own threads; never rewrite the page.',
+    '> Chronology lives in project logbooks; this file only answers "what\'s live and',
+    '> what\'s queued across everything." Owner: testagent. Protocol:',
+    '> `~/.agents/canon/CONTINUITY.md`.',
+    '',
+    '## Active threads',
+    '- (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)',
+    '',
+    '## Backlog (owned)',
+    '- testagent — a wrapped backlog item',
+    '  a continuation line that makes this bullet span two lines',
+    '',
+    '## Watch',
+    '- (assumptions and deadlines needing attention, each with a validate-by date)',
+    '',
+    '## Recently closed (context for next session)',
+    '- (last few finished threads, one line each, with pointers)',
+    '',
+  ].join('\n');
+  writeFileSync(pagePath, page, 'utf8');
+
+  const { status, stdout, stderr } = run(
+    ['state', 'archive', '--global', '--match', 'a wrapped backlog item', '--reason', 'removed', '--tag', 'testagent'],
+    { env: { ...process.env, HOME: home, USERPROFILE: home } },
+  );
+  assert.equal(status, 2);
+  assert.equal(stdout, '');
+  assert.ok(stderr.includes('join it into one line first'), `stderr: ${stderr}`);
+  assert.equal(readFileSync(pagePath, 'utf8'), page, 'page untouched');
 });
 
 test('bin: `banana state archive --global` moves a matched bullet into STATE-archive.md on a sandboxed home', (t) => {
