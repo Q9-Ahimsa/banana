@@ -521,3 +521,32 @@ NEXT: none — resolved (banana-v2.8)
 SUPERSEDES: banana-v2.8 (NEXT used ' - ' so it reads as unowned; resolved: the registry rename is on main (package name banana-brain); command and repo stayed 'banana' in every later entry)
 STATUS: complete
 NEXT: none — resolved (package name banana-brain on main)
+
+## [2026-09-30] claude cli.17 | build — parallel: #8 brief v2 + #6 shim (worktrees); ghost hygiene
+SUPERSEDES: cli.16 (continuation — closes the entry left open above)
+STATUS: in-progress
+FILES: lib/version.mjs + test (eb15efe): shared KIT_ROOT/readKitVersion/compareVersions; pack guard = exact shape rule, not a 30-file ceiling (a planted lib/scratch.txt fails it); 526 green
+FILES: .agents/session.log (308df6f): 11 July ghosts closed as complete (their work landed in banana.16 / shipped in banana-v2.6), 2 hyphen NEXTs restated; filed #17 (doctor's unowned-next ignores supersession, against canon rule 3)
+DECISION: #8, #6 and #17 are built in parallel in separate worktrees from 308df6f; #10 waits for #6 (wiring must not promise the shim before it exists)
+
+## [2026-09-30] claude us-009.2 | build — retire stale story NEXT us-009.1
+SUPERSEDES: us-009.1 (the July loops moved on under other entries; this 'pick up the next story' NEXT was consumed and the kit shipped (banana-v2.6))
+STATUS: complete
+NEXT: none — consumed by the loop (banana-v2.6)
+
+## [2026-09-30] claude us-010.2 | build — retire stale story NEXT us-010.1
+SUPERSEDES: us-010.1 (the July loops moved on under other entries; this 'pick up the next story' NEXT was consumed and the kit shipped (banana-v2.6))
+STATUS: complete
+NEXT: none — consumed by the loop (banana-v2.6)
+
+## [2026-10-01] claude cli.18 | build — parallel: #8 brief v2 + #6 shim (worktrees); ghost hygiene
+SUPERSEDES: cli.17 (continuation — closes the entry left open above)
+STATUS: in-progress
+FILES: main 308df6f -> 16f5540: #17 f8a73cc, #8 0bed826, #6 25147af + 0b2ad09 (doctor exit crash) + 55d6bf4 (re-review fixes), #10 bab93aa, release 0.3.0 16f5540; 4 worktrees, merged by rebase + fast-forward
+VALIDATED: 605 pass + 1 opt-in skipped, check clean; opt-in real-network doctor test green; kit brief 30,779 -> 8,618 chars; doctor on the kit: clean except 3 stale v2 fences that #11's sync upgrades
+REVIEW: adversarial Opus reviews: #8 (1 blocker, 4 should-fix), #6 (6 should-fix, 10 nits), #6 re-review (4 code defects, 2 test-integrity); all fixed red-first + mutation-verified
+PROBLEM: real doctor aborted after its fetch (0xC0000409; Git Bash shows 127): process.exit after any real fetch on Windows Node 24; not reproducible locally. FIX: process.exitCode, opt-in network test
+PROBLEM: worktrees branch from the last pushed commit, not local HEAD; workers now fast-forward first. cli.14/cli.15 NEXT text was mangled by Git Bash path conversion ('/implement' -> 'C:/Program Files/Git/implement'); the meaning is 'implement #8'
+FILED: #18 (supersede can't target duplicate same-agent ids; 7 stale us-00N NEXTs wait on it)
+STATUS: complete
+NEXT: ahimsa — go on the push of 0.3.0, then on #11's machine step: npm install -g + banana sync on this machine

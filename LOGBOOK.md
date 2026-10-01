@@ -79,3 +79,9 @@ WHAT: the 9 project pages on the owner machine moved from the retired "never pat
 DONE: 500 → 508 green; on the 9 pre-migration pages the old pattern flagged 7, the fixed one 9, and 0 after migration; the SessionStart hook's first live fire seen (after a compaction)
 ref: .agents/session.log cli.14; .agents/specs/cli-11a-header-migration.md; GitHub #11 (stays open: shim install + v3 fences)
 NEXT: claude — /implement #8 (brief v2), then #6 → #10 → rest of #11
+
+## [2026-10-01] claude kit.11 | SESSION — 0.3.0 built: local install + sync as updater (#6), brief v2 (#8), wiring v3 (#10), doctor supersession (#17)
+WHAT: banana installs once and `sync` updates it (it reads canon from the tree npm installed, and the newer of the launched and installed trees wins); doctor checks origin's version; the brief shows the last close + open entries in full and only live handoffs; the bootstrap blocks teach install-once + sync; unowned NEXTs clear once superseded (local, unpushed: 308df6f..16f5540)
+DONE: 526 -> 605 green + 1 opt-in network test; the kit's own brief 30,779 -> 8,618 chars; 3 adversarial reviews fixed red-first; a real-world doctor abort after fetch (Windows, Node 24) found and fixed; 11 July ghosts closed, #18 filed
+ref: .agents/session.log cli.16-cli.18; .agents/specs/cli-6-*, cli-8-*, cli-10-*, cli-17-*, cli-6b-*, cli-6c-*, cli-release-0.3.0.md; GitHub #6 #8 #10 #17 #18
+NEXT: ahimsa — go on the push; then on #11's machine step (npm install -g + `banana sync` here, which re-fences the home harness files to v3)
