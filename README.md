@@ -42,7 +42,10 @@ hot/cold context tiers — lives in the canon:
   journal). Kit-owned: `sync` may overwrite it freely. On conflict, the
   canon wins.
 - **User-owned surfaces:** `~/.agents/STATE.md`, session logs, logbooks —
-  created if missing, never overwritten by the kit.
+  created if missing, their content never rewritten by the kit. The one
+  exception: `banana state archive` removes exactly the one line its caller
+  named from the global `STATE.md`, after copying it to `STATE-archive.md`
+  first.
 
 ### Bootstrap model
 

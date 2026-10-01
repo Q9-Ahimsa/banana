@@ -236,23 +236,63 @@ test('canon Global-grain embedded template agrees with templates/global-STATE.md
   );
 });
 
-// #20 (ADR 0006): the global template gains a line-limits header line and a
-// new Recently-closed placeholder naming the `(closed YYYY-MM-DD)`
-// convention — both must agree byte-for-byte between the canon's embedded
-// template and templates/global-STATE.md, same rationale as the two tests
-// above.
-test('canon Global-grain embedded template agrees with templates/global-STATE.md on the #20 line-limits header line', () => {
+// #20b review: the header's limits/expiry/archive block is exactly three
+// blockquote lines, each <=100 chars, restating D1-D3's corrected wording —
+// pinned here, byte-for-byte, in both the canon's embedded template and
+// templates/global-STATE.md. The old backwards-expiry wording ("expire
+// after 7 days", "idle 30+ days") is gone from the header entirely; the
+// precise day thresholds live in the Global-grain body instead (next test).
+test('canon Global-grain embedded template agrees with templates/global-STATE.md on all three #20b header lines', () => {
   const continuity = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
   const template = readFileSync(join(templatesDir, 'global-STATE.md'), 'utf8');
-  const LIMITS_LINE =
-    '> Line limits: thread 400 · backlog 300 · watch 350 · closed 250 chars. Closed lines carry';
+  const HEADER_LINES = [
+    '> One line per bullet: thread 400 · backlog 300 · watch 350 · closed 250 chars.',
+    '> Closed lines carry `(closed YYYY-MM-DD)`; dates measured against the page\'s newest stamp.',
+    '> Never delete a line: `banana state archive` moves it to STATE-archive.md.',
+  ];
+  for (const line of HEADER_LINES) {
+    assert.ok(line.length <= 100, `header line exceeds 100 chars (${line.length}): "${line}"`);
+    assert.ok(
+      continuity.includes(line),
+      `CONTINUITY.md Global-grain template missing header line: "${line}"`
+    );
+    assert.ok(template.includes(line), `templates/global-STATE.md missing header line: "${line}"`);
+  }
   assert.ok(
-    continuity.includes(LIMITS_LINE),
-    'CONTINUITY.md Global-grain template missing the #20 line-limits header line'
+    !continuity.includes('expire after 7 days') && !continuity.includes('idle 30+ days'),
+    'CONTINUITY.md header still carries the #20b backwards expiry/inactivity wording'
+  );
+});
+
+// #20b review (D3): the precise day thresholds and their corrected
+// direction live in the Global-grain BODY prose, not the header — pinned
+// here as the normative rule sentences themselves, distinct wording from
+// the v1.7 changelog entry's own restatement, so deleting the body rule
+// fails this test even though the changelog still "sounds similar".
+test('CONTINUITY.md Global-grain body states the corrected closed-expiry and thread-inactivity direction (#20b, ADR 0006)', () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  assert.ok(
+    flat.includes('more than 7 days before the page\'s own reference date'),
+    'CONTINUITY.md Global-grain body missing the corrected closed-expiry direction'
   );
   assert.ok(
-    template.includes(LIMITS_LINE),
-    'templates/global-STATE.md missing the #20 line-limits header line'
+    flat.includes('more than 30 days before that same reference date — 31 or more'),
+    'CONTINUITY.md Global-grain body missing the corrected thread-inactivity direction'
+  );
+});
+
+// #20b review (item 3): the kit-ownership promise in "Upstream and sync"
+// gets a precise carve-out for `state archive` — the one kit command
+// allowed to touch the global page's content, and only the one named line.
+test('CONTINUITY.md Upstream-and-sync carve-out names state archive as the one content exception (#20b)', () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  assert.ok(
+    flat.includes('the kit never rewrites their content'),
+    'CONTINUITY.md Upstream-and-sync bullet missing the amended kit-ownership promise'
+  );
+  assert.ok(
+    flat.includes('the single kit command permitted to touch the global page\'s content'),
+    'CONTINUITY.md Upstream-and-sync bullet missing the state-archive carve-out'
   );
 });
 

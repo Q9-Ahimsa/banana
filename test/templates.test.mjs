@@ -191,26 +191,30 @@ test('global-STATE.md header moves to per-thread edits, retired rebuild-whole ru
   );
 });
 
-// #20 (ADR 0006): line limits, the closed-stamp/expiry convention, and the
-// archive pointer all land in the global template's header; the
-// Recently-closed placeholder's wording changes to name the new convention.
-test('global-STATE.md header teaches the #20 line limits and archive pointer', () => {
+// #20b review: the header's limits/expiry/archive block names the one-line
+// rule, the four per-section limits, the closed stamp + reference-date
+// framing, and the never-delete archive pointer — NOT specific day counts
+// (those moved to the canon's Global-grain body; see test/canon.test.mjs).
+// The old backwards-expiry wording ("expire after 7 days", "idle 30+ days")
+// must be gone.
+test('global-STATE.md header teaches the #20b one-line rule, limits, and archive pointer', () => {
   const text = readFileSync(join(templatesDir, 'global-STATE.md'), 'utf8');
   assert.ok(
-    text.includes('Line limits: thread 400 · backlog 300 · watch 350 · closed 250 chars.'),
-    'global-STATE.md header missing the #20 line-limits line'
+    text.includes('One line per bullet: thread 400 · backlog 300 · watch 350 · closed 250 chars.'),
+    'global-STATE.md header missing the #20b one-line-per-bullet + limits line'
   );
   assert.ok(
-    text.includes('(closed YYYY-MM-DD)') && text.includes('expire after 7 days'),
-    'global-STATE.md header missing the closed-stamp expiry rule'
+    text.includes('(closed YYYY-MM-DD)') &&
+      text.includes('dates measured against the page\'s newest stamp'),
+    'global-STATE.md header missing the closed-stamp + reference-date framing'
   );
   assert.ok(
-    text.includes('a thread idle 30+ days becomes a Backlog line'),
-    'global-STATE.md header missing the thread-inactivity rule'
+    text.includes('Never delete a line: `banana state archive` moves it to STATE-archive.md.'),
+    'global-STATE.md header missing the never-delete archive-move line'
   );
   assert.ok(
-    text.includes('banana state archive') && text.includes('STATE-archive.md'),
-    'global-STATE.md header missing the archive-move pointer'
+    !text.includes('expire after 7 days') && !text.includes('idle 30+ days'),
+    'global-STATE.md header still carries the #20b backwards expiry/inactivity wording'
   );
 });
 

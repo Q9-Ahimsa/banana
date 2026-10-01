@@ -49,9 +49,11 @@ removed. Mirrors canon's "Changes from v1" items 9-12 (`canon/CONTINUITY.md`):
    or non-code topic dir) from the canon alone: which files to create, the entry envelope, the
    session ritual. Counter-failure: cold landings producing ad-hoc or absent record-keeping.
 10. **Upstream/sync surface ownership.** `~/.agents/canon/` is kit-owned and sync-overwritable
-    (`sync` refreshes it freely); STATE pages, session logs, and logbooks are user-owned and never
-    overwritten by the kit — created only if missing. Counter-failure: stale-protocol drift on
-    wired machines, and updaters trampling user record surfaces.
+    (`sync` refreshes it freely); STATE pages, session logs, and logbooks are user-owned — the kit
+    creates them only if missing and never rewrites their content, except `banana state archive`,
+    which removes exactly the one line its caller named from the global STATE.md, after copying it
+    into STATE-archive.md first. Counter-failure: stale-protocol drift on wired machines, and
+    updaters trampling user record surfaces.
 11. **Version markers.** Every canon file opens with a machine-readable marker,
     `<!-- banana:canon rev X.Y -->`, giving `doctor` and `sync` a mechanical staleness check.
     Counter-failure: undetectable canon drift.
@@ -553,7 +555,8 @@ comparison (the global page has none). `home` is always injected through
 | WARN | `thread-unverifiable` | the bullet has a pointer, but it does not resolve to a readable file named `STATE.md` (a memory file, a missing path, a relative path, ...) |
 | WARN | `thread-target-undated` | the pointer resolves to a readable STATE.md with no `as of YYYY-MM-DD` date (incl. the bootstrap placeholder) |
 | WARN | `retired-header` | the page's HEADER (not the body — #11 Part 1b) still carries the pre-amendment "rebuilt whole, never patched" rule — this global-mode message points to ADR 0005 (per-thread edits, #15) |
-| WARN | `line-over-limit` | a non-placeholder top-level bullet's FULL text (its own line plus any continuation lines) exceeds its section's char limit (`SECTION_LINE_LIMITS`, #20, ADR 0006): `## Active threads` 400 · `## Backlog (owned)` 300 · `## Watch` 350 · `## Recently closed (context for next session)` 250 |
+| WARN | `line-over-limit` | a non-placeholder top-level bullet's OWN physical line (continuation lines, if any, are a separate `bullet-wrapped` finding, not folded into this length) exceeds its section's char limit (`SECTION_LINE_LIMITS`, #20/#20b, ADR 0006): `## Active threads` 400 · `## Backlog (owned)` 300 · `## Watch` 350 · `## Recently closed (context for next session)` 250 |
+| WARN | `bullet-wrapped` | a non-placeholder top-level bullet in any of the four sections has one or more continuation lines at all (#20b, ADR 0006, decision D1) — remedy: join it back onto one line |
 | WARN | `closed-undated` | a non-placeholder `## Recently closed` bullet has no valid `(closed YYYY-MM-DD)` stamp (#20) — covers both "no stamp" and "every stamp present is date-shaped but impossible" |
 | WARN | `closed-expired` | a non-placeholder `## Recently closed` bullet's `(closed …)` stamp is more than `CLOSED_EXPIRY_DAYS` (7) before the #20 reference date (equal to 7 passes) — only evaluated when the bullet has a valid stamp and the page has a reference date |
 | WARN | `thread-inactive` | a non-placeholder `## Active threads` bullet's `(as of …)` stamp is more than `THREAD_INACTIVE_DAYS` (30) before the #20 reference date (equal to 30 passes) — only evaluated when the bullet has a valid stamp and the page has a reference date |
@@ -566,35 +569,59 @@ per-thread edits, so a page still carrying the old header is stale — the same
 shape as project mode's own `retired-header` check, just pointing at a
 different migration (ADR 0005, not ADR 0001).
 
-**#20 reference date, line limits, closed expiry, thread inactivity** (ADR
-0006). The global page has no numeric cap on any individual bullet (only
-the whole-page `over-cap`), and nothing ever shrinks it — `line-over-limit`,
-`closed-undated`, `closed-expired`, and `thread-inactive` are the four WARNs
-that surface the residue a model should prune, all deliberately WARN (not
-FAIL): each fix needs judgment (what to cut, what a Backlog line should
-say), so the page-wide `over-cap` FAIL stays the mechanical backstop.
-`line-over-limit` measures a bullet's FULL text — its own marker line plus
-any continuation lines beneath it, up to the next top-level bullet or
-section heading, trailing blank lines dropped — unlike the Active-threads
-stamp/pointer scan above, which deliberately reads a bullet as ONE physical
-line only (a different rule for a different purpose). The **reference
-date** every date comparison here uses is the newest real calendar date
-among the page's own non-placeholder `(as of …)`/`(closed …)` stamps —
-never the clock (this module never reads it) and never just the first stamp
-on the page, since per-thread edits land bullets out of date order; with no
-valid stamp anywhere, both date checks are skipped. A `(closed YYYY-MM-DD)`
-stamp is parsed with the exact same hardened shape/case/real-date rules as
-the Active-threads `(as of YYYY-MM-DD)` stamp (just a different keyword);
-a bullet carrying more than one valid stamp of either kind compares against
-the OLDEST (conservative, mirrors F6). The Recently-closed placeholder's
-wording changed with #20 (the old pointer-only phrasing is replaced by one
-naming the `(closed YYYY-MM-DD)` convention); the OLD text is still
-recognized as a placeholder (a legacy pattern, kept alongside the
-dynamically-loaded current set) so an un-migrated installed page does not
-spuriously WARN `closed-undated`. Removal from the page (what each remedy
-ultimately leads to) is never a deletion: it is a move into the append-only
-`STATE-archive.md`, performed by the separate `banana state archive`
-command (its own contract, ADR 0006).
+**#20/#20b reference date, line limits, closed expiry, thread inactivity**
+(ADR 0006). The global page has no numeric cap on any individual bullet
+(only the whole-page `over-cap`), and nothing ever shrinks it —
+`line-over-limit`, `bullet-wrapped`, `closed-undated`, `closed-expired`, and
+`thread-inactive` are the five WARNs that surface the residue a model
+should prune, all deliberately WARN (not FAIL): each fix needs judgment
+(what to cut, what a Backlog line should say), so the page-wide `over-cap`
+FAIL stays the mechanical backstop.
+
+**One physical line per bullet (#20b, decision D1).** A bullet's
+continuation lines are the non-blank lines directly after it that are NOT a
+heading of any level, a thematic break (`---`/`***`/`___`, 3+), a fence
+opener, an HTML-comment-only line, or another top-level bullet; plus, after
+a blank line, lines indented 2+ spaces or a tab (a loose item's next
+paragraph) — anything else ends the bullet. This replaces the earlier
+greedy `topLevelBulletRanges`/`topLevelBulletSpans` helper, which walked
+forward through anything that wasn't the next top-level bullet and could
+fold an unrelated paragraph several lines down into the same "bullet."
+`line-over-limit` now measures ONLY the bullet's own physical line (its own
+marker line, nothing beneath it); `bullet-wrapped` fires separately the
+moment a bullet has any continuation lines at all, independent of length —
+the remedy for both is the same: join the bullet back onto one line. `state
+archive`'s `--match` inherits this: a matched bullet must be exactly one
+physical line, or the command refuses (see its own contract below) — the
+archive never has to guess how much trailing text belongs to a bullet.
+
+The **reference date** every date comparison here uses is the newest real
+calendar date among the page's own non-placeholder `(as of …)`/`(closed …)`
+stamps — never the clock (this module never reads it) and never just the
+first stamp on the page, since per-thread edits land bullets out of date
+order; with no valid stamp anywhere, both date checks are skipped. A
+`(closed YYYY-MM-DD)` stamp is parsed with the exact same hardened
+shape/case/real-date rules as the Active-threads `(as of YYYY-MM-DD)` stamp
+(just a different keyword), and, like it, is never read out of an inline
+code span (a stamp quoted as example text inside backticks does not count,
+in any check or in the reference date itself); a bullet carrying more than
+one valid stamp of either kind compares against the OLDEST — conservative,
+the same OLDEST-wins rule ADR 0004's review hardening (its finding F6)
+already established for the Active-threads freshness stamp. `closed-expired`
+fires when a closed stamp is more than `CLOSED_EXPIRY_DAYS` (7) days before
+the reference date; `thread-inactive` fires when an `(as of)` stamp is more
+than `THREAD_INACTIVE_DAYS` (30) days before it — both WARN the moment the
+gap exceeds the threshold (8 and 31 days respectively), never at the
+threshold itself.
+
+The Recently-closed placeholder's wording changed with #20 (the old
+pointer-only phrasing is replaced by one naming the `(closed YYYY-MM-DD)`
+convention); the OLD text is still recognized as a placeholder (a legacy
+pattern, kept alongside the dynamically-loaded current set) so an
+un-migrated installed page does not spuriously WARN `closed-undated`.
+Removal from the page (what each remedy ultimately leads to) is never a
+deletion: it is a move into the append-only `STATE-archive.md`, performed by
+the separate `banana state archive` command (its own contract below).
 
 **Pointer resolution.** Among every `→` in the bullet that is NOT inside a
 backtick span (review hardening 2026-09-28 — an arrow quoted as example text
@@ -639,15 +666,15 @@ non-placeholder top-level bullet off the global page
 (`<home>/.agents/STATE-archive.md`) — the canon rule "removal from the
 global page is a MOVE, never a silent delete" (ticket #20). It lives in its
 own module (`lib/state-archive.mjs`, not `lib/state.mjs`): it reads the
-clock for the record date, so it must stay out of the clock-free lint
-module (ADR 0004 — no check in `lib/state.mjs` may read `now`). `home` and
-`now` are injected through deps; only `bin/` resolves
-`os.homedir()`/`Date.now()`. `parseStateArgs` (`lib/state.mjs`) returns a
-discriminated union — `{ verb: 'lint', global }` or `{ verb: 'archive',
-global, match, reason, tag, dryRun }` — reusing `lib/state.mjs`'s exported
-bullet/section helpers (`prepareText`, `topLevelBullets`,
-`topLevelBulletRanges`, `isPlaceholderBullet`, `REQUIRED_GLOBAL_SECTIONS`)
-rather than re-parsing the page.
+clock, both for the record date and for the D3 safety gate below, so it
+must stay out of the clock-free lint module (ADR 0004 — no check in
+`lib/state.mjs` may read `now`). `home` and `now` are injected through deps;
+only `bin/` resolves `os.homedir()`/`Date.now()`. `parseStateArgs`
+(`lib/state.mjs`) returns a discriminated union — `{ verb: 'lint', global }`
+or `{ verb: 'archive', global, match, reason, tag, dryRun }` — reusing
+`lib/state.mjs`'s exported bullet/section helpers (`prepareText`,
+`topLevelBullets`, the D1 continuation-line helper, `isPlaceholderBullet`,
+`REQUIRED_GLOBAL_SECTIONS`) rather than re-parsing the page.
 
 `--global` is required (project pages keep their history in LOGBOOK.md
 instead) — its absence, like any other usage problem (a missing
@@ -656,18 +683,30 @@ five-value vocabulary), exits `2`. Exit codes: `0` ok, `2` usage or
 state — unlike `state lint`, there is no FAIL/`1` tier here: archive moves
 bytes, it never grades them.
 
-**Matching.** `--match` is a case-sensitive substring of a non-placeholder
-top-level bullet's FULL text — its own marker line plus any continuation
-lines beneath it, up to the next top-level bullet or section heading,
-trailing blank lines dropped — the SAME span `line-over-limit` measures
-(`topLevelBulletRanges`, `lib/state.mjs`; integration fix, 2026-10-01: the
-archive must move exactly what the lint measures, so both read this one
-shared definition instead of two that could drift apart) — searched across
-all four global sections (`Active threads`, `Backlog (owned)`, `Watch`,
-`Recently closed (context for next session)`). Exactly one match proceeds; zero exits
-`2` ("no line matches"); more than one exits `2`, listing every candidate's
-section and first 60 characters — ambiguity is never resolved by picking
-the first, only by a tighter `--match`.
+**Matching (#20b, decision D1).** `--match` is a case-sensitive substring of
+a non-placeholder top-level bullet's OWN physical line — the same single
+line `line-over-limit` measures, never its continuation lines — searched
+across all four global sections (`Active threads`, `Backlog (owned)`,
+`Watch`, `Recently closed (context for next session)`). Exactly one match
+proceeds; zero exits `2` ("no line matches"); more than one exits `2`,
+listing every candidate's section and first 60 characters — ambiguity is
+never resolved by picking the first, only by a tighter `--match`. If the
+matched bullet HAS continuation lines, the command refuses instead of
+guessing how much trailing text belongs to it: exit `2`, "bullet spans N
+lines; join it into one line first" — the archive only ever moves one
+physical line.
+
+**The clock-aware safety gate (#20b, decision D3).** `state lint` stays
+clock-free (ADR 0004); `state archive` is the one place in this feature
+allowed to read `now`, and it uses that to double-check a reason before
+acting, reusing `lib/state.mjs`'s own stamp parser rather than a second one.
+`--reason expired` refuses (exit `2`) unless the matched line's own
+`(closed …)` stamp is more than 7 days before today; `--reason inactive`
+refuses unless its `(as of …)` stamp is more than 30 days before today.
+Either reason refuses on a missing stamp, suggesting `--reason removed`
+instead. If any stamp on the page is dated after today, the refusal names
+it — "fix that stamp first" — rather than silently comparing against a
+clock-confusing value.
 
 **Record.** The archive file is created with this header if it doesn't
 exist yet:
@@ -688,40 +727,52 @@ one blank line:
 
 `<section name>` is the canonical name (`REQUIRED_GLOBAL_SECTIONS`, never a
 qualified heading); the date is `formatLocalDate(now)` (the local calendar
-day, not UTC).
+day, not UTC). An existing archive that is empty gets the header written
+first; one that exists but has no trailing newline gets one inserted before
+the new record; the archive's own line ending is whatever it already uses,
+or the page's dominant ending at the moment the archive file is created.
 
-**Write order and the re-read guard.** Read the page once, compute the new
-page text from that read, THEN re-read the page from disk a second time: if
-its bytes differ from the first read, abort — exit `2`, nothing written (a
-concurrent edit happened; retry). Past that guard, the archive record is
-appended BEFORE the page is rewritten, so a crash between the two can
-duplicate a line onto both files but can never lose it — the reverse order
-would risk exactly that loss.
+**Atomic write and the two re-read guards (#20b, lane 2 item 2).** The page
+is never edited in place: the new page text is written to a temp file in
+the SAME directory as the page, then renamed over it — a single-file
+rename, never a directory operation — and the temp file is unlinked on any
+failure along the way. Order: read the page → validate (the match, the
+one-physical-line rule above, the D3 gate, and that the page is valid UTF-8
+— bytes that don't round-trip refuse outright, exit `2`, nothing written) →
+write the computed new page to the temp file → **re-read guard 1**: re-read
+the live page from disk; if its bytes differ from the first read, unlink
+the temp file and exit `2` with nothing appended (a concurrent edit
+happened; retry) → append the archive record → **re-read guard 2**: re-read
+the live page again; if it changed between the two guards, unlink the temp
+file, exit `2`, and say the archive already holds a copy while the line is
+still on the page (never silently rename over a page that moved under the
+guard) → rename the temp file over the page. `trimmed` skips the temp file
+and rename entirely: validate → guard → append the record; the page is
+never touched for that reason.
 
 **`trimmed` copies only** — the page is never modified for this reason,
 only read and recorded; the CLI prints a reminder to shorten the line in
 place instead. Every other reason (`expired`, `inactive`, `closed`,
-`removed`) removes the matched bullet, and its continuation lines, from the
-page. If removing it leaves its section with no top-level bullet left, that
-section's placeholder line is inserted in its place — read from
-`templates/global-STATE.md` AT RUNTIME (never cached, never hardcoded),
-since Lane A of this same ticket changes the `Recently closed` placeholder
-text.
+`removed`) removes the matched bullet (exactly one physical line — see
+Matching above) from the page. If removing it leaves its section with no
+top-level bullet left, that section's placeholder line is inserted in its
+place — read from `templates/global-STATE.md` AT RUNTIME (never cached,
+never hardcoded), since lane A of #20 changed the `Recently closed`
+placeholder text.
 
 **Line endings.** The page keeps whatever line ending it already had (a
-CRLF page stays CRLF); no byte outside the matched bullet's own lines (and,
+CRLF page stays CRLF); no byte outside the matched bullet's own line (and,
 when a placeholder is inserted, the one new placeholder line) ever changes
-— the write path slices the original bytes directly rather than splitting
-and rejoining the whole file, so this holds even on a page with mixed
-endings. The archive file's own line ending matches its existing content
-when it already exists, or the page's dominant ending at the moment it's
-created.
+— the temp-file write carries the original bytes through directly rather
+than splitting and rejoining the whole file, so this holds even on a page
+with mixed endings.
 
 **Output.** On success: `archived (<reason>): <section> · "<first 60
 chars>" → <archive path>`; `inactive` additionally prints a reminder to add
-an owned `Backlog (owned)` line for the thread. `--dry-run` prints the
-record that would be appended plus the same action/reminder lines, and
-writes nothing.
+an owned `Backlog (owned)` line for the thread. `--dry-run` prints the same
+record and action/reminder lines but prefixes every one of them with
+`dry run — `, so the output can never be mistaken for the real success
+wording, and writes nothing.
 
 ## Hard rules for this build
 

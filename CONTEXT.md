@@ -39,4 +39,18 @@
   re-stamping each touched thread's `(as of)` from its own source, never rewriting the whole
   page. Drift is caught, not prevented: the freshness stamp and `banana state lint --global`
   (`thread-stale`, and now `retired-header` for a page still carrying the old rule) are the
-  backstop (#15).
+  backstop (#15). Exception (canon v1.7, ADR 0006): any session may archive an `expired`
+  Recently-closed line on sight — no judgment is needed to recognize one, so it falls outside
+  the "own threads only" restriction.
+- **Reference date** — the newest real calendar date among a global-STATE page's own
+  `(as of YYYY-MM-DD)` and `(closed YYYY-MM-DD)` stamps (canon CONTINUITY v1.7, ADR 0006):
+  never the clock, since `lib/state.mjs` stays clock-free (ADR 0004), and never just the
+  first stamp found, since per-thread edits land bullets out of date order. `closed-expired`
+  and `thread-inactive` compare every stamp against it; with no valid stamp anywhere, both
+  checks are skipped.
+- **Archive move** — removing a line from the global-STATE page is never a plain delete
+  (canon CONTINUITY v1.7, ADR 0006): the line's full text is copied verbatim into the
+  append-only `~/.agents/STATE-archive.md` first, via `banana state archive --reason
+  <expired|inactive|trimmed|closed|removed>`, then removed from the page — or, for
+  `trimmed`, copied only, with the live line shortened in place by hand. The archive is
+  never loaded at session start, searched with `grep` only.
