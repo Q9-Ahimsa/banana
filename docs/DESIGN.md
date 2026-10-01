@@ -630,6 +630,96 @@ tier as an unreadable target STATE.md — `runStateLint` reports it and exits
 `2`, naming the file. It is never silently swallowed to "absent" (which
 would silently drop `stale-vs-logbook`/its date comparisons).
 
+## `state archive` — contract
+
+`banana state archive --global --match <text> --reason <expired|inactive|trimmed|closed|removed>
+--tag <agent> [--dry-run]` moves (or, for `trimmed`, copies) exactly one
+non-placeholder top-level bullet off the global page
+(`<home>/.agents/STATE.md`) into an append-only archive
+(`<home>/.agents/STATE-archive.md`) — the canon rule "removal from the
+global page is a MOVE, never a silent delete" (ticket #20). It lives in its
+own module (`lib/state-archive.mjs`, not `lib/state.mjs`): it reads the
+clock for the record date, so it must stay out of the clock-free lint
+module (ADR 0004 — no check in `lib/state.mjs` may read `now`). `home` and
+`now` are injected through deps; only `bin/` resolves
+`os.homedir()`/`Date.now()`. `parseStateArgs` (`lib/state.mjs`) returns a
+discriminated union — `{ verb: 'lint', global }` or `{ verb: 'archive',
+global, match, reason, tag, dryRun }` — reusing `lib/state.mjs`'s exported
+bullet/section helpers (`prepareText`, `topLevelBullets`,
+`isPlaceholderBullet`, `REQUIRED_GLOBAL_SECTIONS`) rather than re-parsing
+the page.
+
+`--global` is required (project pages keep their history in LOGBOOK.md
+instead) — its absence, like any other usage problem (a missing
+`--match`/`--reason`/`--tag`, an unknown flag, or a `--reason` outside the
+five-value vocabulary), exits `2`. Exit codes: `0` ok, `2` usage or
+state — unlike `state lint`, there is no FAIL/`1` tier here: archive moves
+bytes, it never grades them.
+
+**Matching.** `--match` is a case-sensitive substring of a non-placeholder
+top-level bullet's FULL text — its own line plus any continuation lines
+(every immediately-following line that is itself neither blank, a new
+top-level bullet, nor a level-1/2 heading) — searched across all four
+global sections (`Active threads`, `Backlog (owned)`, `Watch`, `Recently
+closed (context for next session)`). Exactly one match proceeds; zero exits
+`2` ("no line matches"); more than one exits `2`, listing every candidate's
+section and first 60 characters — ambiguity is never resolved by picking
+the first, only by a tighter `--match`.
+
+**Record.** The archive file is created with this header if it doesn't
+exist yet:
+
+```
+# GLOBAL STATE — archive
+> Append-only. Lines moved off ~/.agents/STATE.md (or the long form of trimmed ones), verbatim,
+> newest last. Never loaded at session start. Search: grep -i "<term>" ~/.agents/STATE-archive.md
+```
+
+then every move/copy appends one record, separated from the next by exactly
+one blank line:
+
+```
+## [YYYY-MM-DD] <tag> — <reason> · <section name>
+<the bullet's lines, byte-verbatim>
+```
+
+`<section name>` is the canonical name (`REQUIRED_GLOBAL_SECTIONS`, never a
+qualified heading); the date is `formatLocalDate(now)` (the local calendar
+day, not UTC).
+
+**Write order and the re-read guard.** Read the page once, compute the new
+page text from that read, THEN re-read the page from disk a second time: if
+its bytes differ from the first read, abort — exit `2`, nothing written (a
+concurrent edit happened; retry). Past that guard, the archive record is
+appended BEFORE the page is rewritten, so a crash between the two can
+duplicate a line onto both files but can never lose it — the reverse order
+would risk exactly that loss.
+
+**`trimmed` copies only** — the page is never modified for this reason,
+only read and recorded; the CLI prints a reminder to shorten the line in
+place instead. Every other reason (`expired`, `inactive`, `closed`,
+`removed`) removes the matched bullet, and its continuation lines, from the
+page. If removing it leaves its section with no top-level bullet left, that
+section's placeholder line is inserted in its place — read from
+`templates/global-STATE.md` AT RUNTIME (never cached, never hardcoded),
+since Lane A of this same ticket changes the `Recently closed` placeholder
+text.
+
+**Line endings.** The page keeps whatever line ending it already had (a
+CRLF page stays CRLF); no byte outside the matched bullet's own lines (and,
+when a placeholder is inserted, the one new placeholder line) ever changes
+— the write path slices the original bytes directly rather than splitting
+and rejoining the whole file, so this holds even on a page with mixed
+endings. The archive file's own line ending matches its existing content
+when it already exists, or the page's dominant ending at the moment it's
+created.
+
+**Output.** On success: `archived (<reason>): <section> · "<first 60
+chars>" → <archive path>`; `inactive` additionally prints a reminder to add
+an owned `Backlog (owned)` line for the thread. `--dry-run` prints the
+record that would be appended plus the same action/reminder lines, and
+writes nothing.
+
 ## Hard rules for this build
 
 - Zero runtime dependencies. Node >= 18, ESM (`.mjs`), built-in `node:test`.

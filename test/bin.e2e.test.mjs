@@ -244,6 +244,65 @@ test('bin: `banana state lint` exits 2 when STATE.md is missing', (t) => {
   assert.ok(stderr.includes('missing or unreadable'), `stderr: ${stderr}`);
 });
 
+// Ticket #20, Lane B dispatch-only slices: behavior itself lives at the
+// lib/state.mjs (parseStateArgs) and lib/state-archive.mjs (runStateArchive)
+// seams (test/state-archive.test.mjs) — these just prove the bin wires the
+// `archive` verb, its usage-error exit code (2, same as `lint`), and a real
+// injected `home` end to end through the compiled binary.
+test('bin: `banana state archive --help` prints archive usage and exits 0', () => {
+  const { status, stdout, stderr } = run(['state', 'archive', '--help']);
+  assert.equal(status, 0);
+  assert.ok(stdout.startsWith('Usage: banana state archive'), `stdout: ${stdout}`);
+  assert.equal(stderr, '');
+});
+
+test('bin: `banana state archive` without `--global` exits 2 naming it', () => {
+  const { status, stderr } = run(['state', 'archive', '--match', 'x', '--reason', 'expired', '--tag', 'testagent']);
+  assert.equal(status, 2);
+  assert.ok(stderr.includes('--global is required'), `stderr: ${stderr}`);
+});
+
+test('bin: `banana state archive --global` moves a matched bullet into STATE-archive.md on a sandboxed home', (t) => {
+  const home = sandbox(t, 'banana-bin-state-archive-');
+  mkdirSync(join(home, '.agents'), { recursive: true });
+  const pagePath = join(home, '.agents', 'STATE.md');
+  writeFileSync(
+    pagePath,
+    [
+      '# GLOBAL STATE — cross-project projection',
+      '> One page, hard cap. Edit only your own threads; never rewrite the page.',
+      '> Chronology lives in project logbooks; this file only answers "what\'s live and',
+      '> what\'s queued across everything." Owner: testagent. Protocol:',
+      '> `~/.agents/canon/CONTINUITY.md`.',
+      '',
+      '## Active threads',
+      '- (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)',
+      '',
+      '## Backlog (owned)',
+      '- testagent — a synthetic fixture backlog item',
+      '',
+      '## Watch',
+      '- (assumptions and deadlines needing attention, each with a validate-by date)',
+      '',
+      '## Recently closed (context for next session)',
+      '- (last few finished threads, one line each, with pointers)',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+
+  const { status, stdout, stderr } = run(
+    ['state', 'archive', '--global', '--match', 'a synthetic fixture backlog item', '--reason', 'removed', '--tag', 'testagent'],
+    { env: { ...process.env, HOME: home, USERPROFILE: home } },
+  );
+  assert.equal(status, 0, `stderr: ${stderr}`);
+  assert.ok(stdout.includes('archived (removed): Backlog (owned)'), `stdout: ${stdout}`);
+  assert.ok(!readFileSync(pagePath, 'utf8').includes('a synthetic fixture backlog item'));
+  assert.ok(
+    readFileSync(join(home, '.agents', 'STATE-archive.md'), 'utf8').includes('a synthetic fixture backlog item'),
+  );
+});
+
 // #14 dispatch-only slice: the section content itself is covered by
 // test/brief.test.mjs (lib/brief.mjs) — this just proves bin.mjs threads a
 // real `home` (env HOME/USERPROFILE, same override other state-lint e2e

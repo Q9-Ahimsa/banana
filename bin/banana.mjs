@@ -108,13 +108,17 @@ const LOG_VERB_USAGE = {
 // lib/state.mjs owns zero help text (contract: docs/DESIGN.md `state lint`
 // — verdict contract).
 
-const STATE_USAGE = `Usage: banana state <lint> [options]
+const STATE_USAGE = `Usage: banana state <lint|archive> [options]
 
   lint       lint a STATE.md page against the canon's mechanical invariants
+  archive    move a bullet off the global page into the append-only
+             STATE-archive.md (never grades content, never deletes)
 
-Run \`banana state lint --help\` for lint-specific usage.
+Run \`banana state lint --help\` or \`banana state archive --help\` for
+verb-specific usage and exit codes.
 
-Exit codes: 0 PASS or WARN-only, 1 any FAIL, 2 usage error or missing/unreadable target`;
+Exit codes: 0 ok, 2 usage error; \`lint\` also exits 1 on any FAIL — see each
+verb's own --help for its exact tiers.`;
 
 const STATE_LINT_USAGE = `Usage: banana state lint [--global]
 
@@ -130,6 +134,31 @@ Verdict tiers:
   PASS   neither
 
 Exit codes: 0 PASS or WARN-only, 1 any FAIL, 2 usage error or the target STATE.md is missing/unreadable`;
+
+const STATE_ARCHIVE_USAGE = `Usage: banana state archive --global --match <text> --reason <reason> --tag <agent> [--dry-run]
+
+Move a top-level bullet off <home>/.agents/STATE.md into the append-only
+<home>/.agents/STATE-archive.md — removal from the global page is a MOVE,
+never a silent delete. \`--match\` is a case-sensitive substring of a
+non-placeholder bullet's full text (its own line plus any continuation
+lines); it must identify exactly one bullet across Active threads, Backlog
+(owned), Watch, and Recently closed. \`--reason trimmed\` copies only — the
+page itself is left unmodified, as a reminder to shorten the line in place;
+every other reason removes the bullet from the page.
+
+  --global        required — project pages keep their history in LOGBOOK.md instead
+  --match <text>  case-sensitive substring identifying exactly one bullet
+  --reason <r>    one of: expired | inactive | trimmed | closed | removed
+  --tag <agent>   the agent recording the move
+  --dry-run       print the record and the action, write nothing
+
+PowerShell:
+  banana state archive --global --match "stale-thread-name" --reason inactive --tag testagent
+
+POSIX:
+  banana state archive --global --match 'stale-thread-name' --reason inactive --tag testagent
+
+Exit codes: 0 ok, 2 usage or state`;
 
 /** Owner inference rung shared by init and project: git config user.name. */
 function gitUserName() {
@@ -418,6 +447,10 @@ if (cmd === 'state') {
     console.log(STATE_LINT_USAGE);
     process.exit(0);
   }
+  if (argv[0] === 'archive' && (argv[1] === '--help' || argv[1] === '-h')) {
+    console.log(STATE_ARCHIVE_USAGE);
+    process.exit(0);
+  }
   const { parseStateArgs, runStateLint } = await import('../lib/state.mjs');
   /** @type {import('../lib/state.mjs').StateFlags} */
   let flags;
@@ -428,6 +461,11 @@ if (cmd === 'state') {
     process.exit(2);
   }
   const io = makeIo();
+  if (flags.verb === 'archive') {
+    const { runStateArchive } = await import('../lib/state-archive.mjs');
+    const result = await runStateArchive(flags, { home: homedir(), now: Date.now(), io });
+    process.exit(result.code);
+  }
   const result = await runStateLint(flags, { cwd: process.cwd(), io, home: homedir() });
   process.exit(result.code);
 }
