@@ -85,3 +85,9 @@ WHAT: banana installs once and `sync` updates it (it reads canon from the tree n
 DONE: 526 -> 605 green + 1 opt-in network test; the kit's own brief 30,779 -> 8,618 chars; 3 adversarial reviews fixed red-first; a real-world doctor abort after fetch (Windows, Node 24) found and fixed; 11 July ghosts closed, #18 filed
 ref: .agents/session.log cli.16-cli.18; .agents/specs/cli-6-*, cli-8-*, cli-10-*, cli-17-*, cli-6b-*, cli-6c-*, cli-release-0.3.0.md; GitHub #6 #8 #10 #17 #18
 NEXT: ahimsa — go on the push; then on #11's machine step (npm install -g + `banana sync` here, which re-fences the home harness files to v3)
+
+## [2026-10-01] claude kit.12 | RELEASE — 0.3.0 pushed; first real install + sync on the owner machine (#11 done here)
+WHAT: origin 76385c2..0c6fcca; npx serves 0.3.0; `npx … sync` installed the kit globally ("kit installed: v0.3.0") and re-fenced the home harness blocks v2 -> v3; this repo's own block re-fenced by `banana project` (identity corrected to the current agent/owner); the SessionStart lint hook runs the installed kit
+DONE: bytes outside every fence unchanged, identities kept, second sync a no-op, doctor clean at home; #6 #8 #10 #17 closed. Found on the real run: CRLF-only "refreshes" and a wrong doctor remedy for project fences (#19)
+ref: .agents/session.log cli.19; GitHub #11 #19
+NEXT: claude — #19, then #18

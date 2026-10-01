@@ -550,3 +550,13 @@ PROBLEM: worktrees branch from the last pushed commit, not local HEAD; workers n
 FILED: #18 (supersede can't target duplicate same-agent ids; 7 stale us-00N NEXTs wait on it)
 STATUS: complete
 NEXT: ahimsa — go on the push of 0.3.0, then on #11's machine step: npm install -g + banana sync on this machine
+
+## [2026-10-01] claude cli.19 | ops — push 0.3.0 + #11 machine step: global install, sync, verify
+APPROACH: owner go; push, confirm npx serves 0.3.0; back up home harness files + canon; npx sync (installs globally, re-fences v2->v3); verify byte-level; second sync must be a no-op
+STATUS: in-progress
+VALIDATED: pushed 76385c2..0c6fcca, npx serves 0.3.0, #6 #8 #10 #17 auto-closed
+VALIDATED: npx sync (nothing installed) -> 'kit installed: v0.3.0', exit 0, 14 s; the 2 fenced home harness files re-fenced v2->v3, bytes outside the fence identical, identities claude/ahimsa + codex/ahimsa kept; the Pi file (no fence) untouched; second sync via the installed banana -> 'kit current', no changes; home doctor clean
+PROBLEM: the 3 canon files reported 'refreshed' but only CRLF->LF changed (the earlier deploy ran from a Windows checkout); doctor told a project fence to 'run sync'. FILED: #19
+FILES: repo AGENTS.md re-fenced to v3 via 'banana project --owner ahimsa --tag claude' (identity was testagent/tester); SessionStart hook now runs the installed kit, falling back to the checkout (0.41 s)
+STATUS: complete
+NEXT: claude — #19 (sync line endings, doctor remedy text), then #18 (supersede duplicate ids)
