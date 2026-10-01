@@ -690,8 +690,11 @@ across all four global sections (`Active threads`, `Backlog (owned)`,
 `Watch`, `Recently closed (context for next session)`). Exactly one match
 proceeds; zero exits `2` ("no line matches"); more than one exits `2`,
 listing every candidate's section and first 60 characters — ambiguity is
-never resolved by picking the first, only by a tighter `--match`. If the
-matched bullet HAS continuation lines, the command refuses instead of
+never resolved by picking the first, only by a tighter `--match` — UNLESS
+every matched line is byte-identical: that is not a real ambiguity, so the
+command archives the first occurrence and says so (naming the match count
+and that candidate's section) instead of refusing. If the matched bullet
+HAS continuation lines, the command refuses instead of
 guessing how much trailing text belongs to it: exit `2`, "bullet spans N
 lines; join it into one line first" — the archive only ever moves one
 physical line.
