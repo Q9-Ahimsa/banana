@@ -688,6 +688,7 @@ test('origin-ahead: remote equal to local prints nothing', async (t) => {
   );
   assert.equal(result.code, 0);
   assert.ok(!captured.text().includes('origin-ahead'));
+  assert.ok(!captured.text().includes('advice:'));
 });
 
 test('origin-ahead: remote older than local prints nothing', async (t) => {
@@ -701,6 +702,7 @@ test('origin-ahead: remote older than local prints nothing', async (t) => {
     { cwd: project, home, io: captured.io, now: NOW, env: ENV, fetch: fakeFetch({ version: '0.1.0' }), kitRoot },
   );
   assert.ok(!captured.text().includes('origin-ahead'));
+  assert.ok(!captured.text().includes('advice:'));
 });
 
 test('origin-ahead: a non-2xx response prints nothing and does not throw', async (t) => {
@@ -715,6 +717,7 @@ test('origin-ahead: a non-2xx response prints nothing and does not throw', async
   );
   assert.equal(result.code, 0);
   assert.ok(!captured.text().includes('origin-ahead'));
+  assert.ok(!captured.text().includes('advice:'));
 });
 
 test('origin-ahead: a rejecting fetch (network error / timeout) prints nothing and does not throw', async (t) => {
@@ -737,6 +740,7 @@ test('origin-ahead: a rejecting fetch (network error / timeout) prints nothing a
   );
   assert.equal(result.code, 0);
   assert.ok(!captured.text().includes('origin-ahead'));
+  assert.ok(!captured.text().includes('advice:'));
 });
 
 test('origin-ahead: missing remote version prints nothing', async (t) => {
@@ -785,7 +789,7 @@ test('origin-ahead: malformed JSON (json() throws) prints nothing and does not c
 // lets a stalled body hang doctor forever. A fake response whose json()
 // only settles when the SAME AbortSignal fires proves this within budget
 // (~2s, doctor's own timeout), rather than hanging the test suite.
-test('origin-ahead: a response whose json() stalls resolves within doctor\'s own budget and prints nothing', async (t) => {
+test('origin-ahead: a response whose json() stalls resolves within doctor\'s own budget and prints nothing', { timeout: 10000 }, async (t) => {
   const project = cleanProject(t);
   const home = sandbox(t);
   installCanon(home);
@@ -810,6 +814,7 @@ test('origin-ahead: a response whose json() stalls resolves within doctor\'s own
   const elapsedMs = Date.now() - start;
   assert.equal(result.code, 0);
   assert.ok(!captured.text().includes('origin-ahead'));
+  assert.ok(!captured.text().includes('advice:'));
   assert.ok(elapsedMs < 5000, `doctor must resolve within its own ~2s timeout budget, took ${elapsedMs}ms`);
 });
 
@@ -825,6 +830,7 @@ test('origin-ahead: an unreadable local kit version prints nothing', async (t) =
   );
   assert.equal(result.code, 0);
   assert.ok(!captured.text().includes('origin-ahead'));
+  assert.ok(!captured.text().includes('advice:'));
 });
 
 test('origin-ahead: no fetch dependency injected — never checked (default, back-compat)', async (t) => {

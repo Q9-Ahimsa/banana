@@ -324,10 +324,10 @@ function kitOwnName(kitRoot) {
   return JSON.parse(readFileSync(join(kitRoot, 'package.json'), 'utf8')).name;
 }
 
-/** A fake `npm root -g` responder: succeeds with a bare prefix that, joined
- * with `own`, resolves to a path with nothing installed there yet — the
- * degrade-quietly default for tests that aren't exercising S1 themselves. */
-function rootLookupResolvesToNothing() {
+/** A fake `npm root -g` responder: the lookup itself fails (non-zero exit)
+ * — the degrade-quietly-to-kitRoot default for tests that aren't
+ * exercising S1 themselves. */
+function rootLookupFails() {
   return { code: 1, stdout: '', stderr: '' };
 }
 
@@ -348,7 +348,7 @@ test('#6 A: a succeeding exec with a version bump prints "kit updated: vX -> vY"
   const calls = [];
   const exec = async (command, args) => {
     calls.push({ command, args });
-    if (args[0] === 'root') return rootLookupResolvesToNothing();
+    if (args[0] === 'root') return rootLookupFails();
     writeFileSync(join(kitRoot, 'package.json'), JSON.stringify({ name: 'fixture-kit', version: '1.0.1' }));
     return { code: 0, stdout: '', stderr: '' };
   };
@@ -366,7 +366,7 @@ test('#6 A: a succeeding exec with no version change prints "kit current: vX"', 
   const home = sandbox(t);
   const kitRoot = sandboxKitRoot(t, '1.0.0');
   const exec = async (command, args) => {
-    if (args[0] === 'root') return rootLookupResolvesToNothing();
+    if (args[0] === 'root') return rootLookupFails();
     return { code: 0, stdout: '', stderr: '' };
   };
   const { io, lines } = collectedIo();
@@ -382,7 +382,7 @@ test('#6 A: a failing exec (non-zero exit, no stderr) degrades to a warning nami
   const { io, lines, errLines } = collectedIo();
   const result = await runSync(parseSyncArgs([]), { home, io, exec, kitRoot });
   assert.equal(result.code, 0, 'a kit-update failure must not fail sync');
-  assert.ok(errLines.join('\n').includes('kit update skipped (exit 1) — refreshing from the installed kit'));
+  assert.ok(errLines.join('\n').includes('kit update skipped (exit 1) — refreshing from the launched copy'));
   assert.ok(!lines.join('\n').includes('kit updated'), 'no success line on failure');
 });
 
@@ -393,7 +393,7 @@ test('#6 A: a failing exec with stderr text names the first non-empty stderr lin
   const { io, errLines } = collectedIo();
   const result = await runSync(parseSyncArgs([]), { home, io, exec, kitRoot });
   assert.equal(result.code, 0);
-  assert.ok(errLines.join('\n').includes('kit update skipped (npm ERR! network timeout) — refreshing from the installed kit'));
+  assert.ok(errLines.join('\n').includes('kit update skipped (npm ERR! network timeout) — refreshing from the launched copy'));
 });
 
 test('#6 A: a spawn failure (error field set) names the error message as the reason', async (t) => {
@@ -403,7 +403,7 @@ test('#6 A: a spawn failure (error field set) names the error message as the rea
   const { io, errLines } = collectedIo();
   const result = await runSync(parseSyncArgs([]), { home, io, exec, kitRoot });
   assert.equal(result.code, 0);
-  assert.ok(errLines.join('\n').includes('kit update skipped (ENOENT: npm not found) — refreshing from the installed kit'));
+  assert.ok(errLines.join('\n').includes('kit update skipped (ENOENT: npm not found) — refreshing from the launched copy'));
 });
 
 test('#6 A: a failing kit-update still refreshes canon/fences from whatever is already on disk', async (t) => {
@@ -434,7 +434,7 @@ test('#6 A (load-bearing): canon and wiring-template reads happen AFTER the upda
   const REWRITTEN_CANON = 'REWRITTEN-CANON-CONTENT\n';
   let installCalls = 0;
   const exec = async (command, args) => {
-    if (args[0] === 'root') return rootLookupResolvesToNothing();
+    if (args[0] === 'root') return rootLookupFails();
     installCalls += 1;
     assert.equal(command, 'npm');
     assert.deepEqual(args, ['install', '-g', 'github:Q9-Ahimsa/banana']);
@@ -495,30 +495,39 @@ test('#6 A (load-bearing): canon and wiring-template reads happen AFTER the upda
 // npx's own cache copy, never the global prefix.
 // -----------------------------------------------------------------------
 
-test('#6 S1: a fresh global install lands in a DIFFERENT tree than kitRoot — canon/fence content comes from there, and the line says "kit updated"', async (t) => {
+// Review F4 (orchestrator ruling): between a kit-shaped install tree and
+// the launched tree, the NEWER version wins — a downgrade must never be
+// silent. This is the fixture that used to lock in the downgrade: an
+// install tree landing at v0.9.9 while the launched tree (kitRoot) is
+// already at v1.0.0 must now keep the launched tree's canon, and the
+// version line must name both versions as "older".
+test('#6 S1 / F4: an install tree OLDER than kitRoot — the launched tree\'s canon wins, and the line names both versions', async (t) => {
   const home = sandbox(t);
   // The LAUNCHED tree (e.g. npx's cache) — the fake exec below never
   // touches this at all, and its canon is deliberately DIFFERENT from the
-  // resolved global tree's below, so a regression that reads from kitRoot
-  // instead of the resolved tree is guaranteed to fail this assertion, not
-  // silently pass because both trees happened to carry the same bytes.
+  // resolved global tree's below, so a regression that reads from the
+  // install tree instead of the launched one is guaranteed to fail this
+  // assertion, not silently pass because both trees happened to carry the
+  // same bytes.
   const kitRoot = sandboxKitRoot(t, '1.0.0');
   const own = kitOwnName(kitRoot);
-  const LAUNCHED_TREE_CANON = 'LAUNCHED-TREE-CANON (must never land in home)\n';
+  const LAUNCHED_TREE_CANON = 'LAUNCHED-TREE-CANON (must land in home)\n';
   writeFileSync(join(kitRoot, 'canon', 'CONTINUITY.md'), LAUNCHED_TREE_CANON);
 
   const globalPrefix = mkdtempSync(join(tmpdir(), 'banana-globalprefix-'));
   t.after(() => rmSync(globalPrefix, { recursive: true, force: true }));
   const installedDir = join(globalPrefix, own);
-  const INSTALLED_TREE_CANON = 'INSTALLED-TREE-CANON (must land in home)\n';
-  // Nothing installed globally yet — this is a first-ever global install.
+  const INSTALLED_TREE_CANON = 'INSTALLED-TREE-CANON (must never land in home)\n';
 
   let installCalls = 0;
   const exec = async (command, args) => {
-    if (args[0] === 'root') return { code: 0, stdout: globalPrefix, stderr: '' };
+    // Review F6: the `\r\n` proves `.trim()` on the `npm root -g` output is
+    // load-bearing — dropping it would leave a trailing CRLF baked into
+    // every joined path below, and nothing would resolve.
+    if (args[0] === 'root') return { code: 0, stdout: `${globalPrefix}\r\n`, stderr: '' };
     installCalls += 1;
-    // A real release lands at globalPrefix/<own> — never at kitRoot — with
-    // its own DISTINCT canon content.
+    // A real release lands at globalPrefix/<own> — never at kitRoot — but
+    // this one is OLDER than the launched tree.
     cpSync(join(KIT_ROOT, 'canon'), join(installedDir, 'canon'), { recursive: true });
     cpSync(join(KIT_ROOT, 'templates'), join(installedDir, 'templates'), { recursive: true });
     writeFileSync(join(installedDir, 'canon', 'CONTINUITY.md'), INSTALLED_TREE_CANON);
@@ -529,9 +538,62 @@ test('#6 S1: a fresh global install lands in a DIFFERENT tree than kitRoot — c
   const { io, lines } = collectedIo();
   const result = await runSync(parseSyncArgs([]), { home, io, exec, kitRoot });
 
+  assert.equal(result.code, 0, 'an older install tree is not a failure');
+  assert.equal(installCalls, 1);
+  assert.ok(
+    lines.join('\n').includes("kit: the installed copy is v0.9.9, older than this run's v1.0.0 — refreshing from v1.0.0"),
+    `the line must name both versions, got: ${lines.join('\n')}`,
+  );
+
+  assert.equal(
+    readFileSync(join(home, '.agents', 'canon', 'CONTINUITY.md'), 'utf8'),
+    LAUNCHED_TREE_CANON,
+    'canon must come from the launched (newer) tree, never the older install tree',
+  );
+  // kitRoot's own canon/package.json were never touched by the fake exec.
+  assert.equal(readFileSync(join(kitRoot, 'canon', 'CONTINUITY.md'), 'utf8'), LAUNCHED_TREE_CANON);
+  assert.equal(
+    JSON.parse(readFileSync(join(kitRoot, 'package.json'), 'utf8')).version,
+    '1.0.0',
+    'the launched tree (npx cache) must be untouched by a global install elsewhere',
+  );
+});
+
+// Review F4: the mirror case — a REAL, distinct install tree (proving S1's
+// tree-resolution concern still holds) that is NEWER than the launched
+// tree, with nothing installed there before this run. Both "install canon
+// wins" and "kit installed" fire from the same fixture: before is null
+// (nothing at installRoot yet), after is newer than the launched tree.
+test('#6 S1 / F4: a first-ever install landing NEWER than kitRoot — install canon wins, and the line says "kit installed"', async (t) => {
+  const home = sandbox(t);
+  const kitRoot = sandboxKitRoot(t, '1.0.0');
+  const own = kitOwnName(kitRoot);
+  const LAUNCHED_TREE_CANON = 'LAUNCHED-TREE-CANON (must never land in home)\n';
+  writeFileSync(join(kitRoot, 'canon', 'CONTINUITY.md'), LAUNCHED_TREE_CANON);
+
+  const globalPrefix = mkdtempSync(join(tmpdir(), 'banana-globalprefix-'));
+  t.after(() => rmSync(globalPrefix, { recursive: true, force: true }));
+  const installedDir = join(globalPrefix, own);
+  const INSTALLED_TREE_CANON = 'INSTALLED-TREE-CANON (must land in home)\n';
+  // Nothing installed globally yet — this is a genuine first-ever install.
+
+  let installCalls = 0;
+  const exec = async (command, args) => {
+    if (args[0] === 'root') return { code: 0, stdout: globalPrefix, stderr: '' };
+    installCalls += 1;
+    cpSync(join(KIT_ROOT, 'canon'), join(installedDir, 'canon'), { recursive: true });
+    cpSync(join(KIT_ROOT, 'templates'), join(installedDir, 'templates'), { recursive: true });
+    writeFileSync(join(installedDir, 'canon', 'CONTINUITY.md'), INSTALLED_TREE_CANON);
+    writeFileSync(join(installedDir, 'package.json'), JSON.stringify({ name: own, version: '1.5.0' }));
+    return { code: 0, stdout: '', stderr: '' };
+  };
+
+  const { io, lines } = collectedIo();
+  const result = await runSync(parseSyncArgs([]), { home, io, exec, kitRoot });
+
   assert.equal(result.code, 0);
   assert.equal(installCalls, 1);
-  assert.ok(lines.join('\n').includes('kit updated:'), 'a first-ever global install still reports "kit updated"');
+  assert.ok(lines.join('\n').includes('kit installed: v1.5.0'), `expected "kit installed: v1.5.0", got: ${lines.join('\n')}`);
 
   assert.equal(
     readFileSync(join(home, '.agents', 'canon', 'CONTINUITY.md'), 'utf8'),
@@ -545,12 +607,77 @@ test('#6 S1: a fresh global install lands in a DIFFERENT tree than kitRoot — c
       `${name} must come from the resolved GLOBAL install tree too`,
     );
   }
-  // kitRoot's own canon/package.json were never touched by the fake exec.
   assert.equal(readFileSync(join(kitRoot, 'canon', 'CONTINUITY.md'), 'utf8'), LAUNCHED_TREE_CANON);
-  assert.equal(
-    JSON.parse(readFileSync(join(kitRoot, 'package.json'), 'utf8')).version,
-    '1.0.0',
-    'the launched tree (npx cache) must be untouched by a global install elsewhere',
+});
+
+// Review F4: an install tree that is genuinely newer than a PRIOR install
+// (not a first-ever install) still wins, and reports "kit updated".
+test('#6 F4: an install tree newer than both its own prior version and kitRoot wins, reporting "kit updated"', async (t) => {
+  const home = sandbox(t);
+  const kitRoot = sandboxKitRoot(t, '1.0.0');
+  const own = kitOwnName(kitRoot);
+
+  const globalPrefix = mkdtempSync(join(tmpdir(), 'banana-globalprefix-'));
+  t.after(() => rmSync(globalPrefix, { recursive: true, force: true }));
+  const installedDir = join(globalPrefix, own);
+  // A previous install already sits here, older than both kitRoot and the
+  // version this run's `npm install -g` will bump it to.
+  cpSync(join(KIT_ROOT, 'canon'), join(installedDir, 'canon'), { recursive: true });
+  cpSync(join(KIT_ROOT, 'templates'), join(installedDir, 'templates'), { recursive: true });
+  writeFileSync(join(installedDir, 'package.json'), JSON.stringify({ name: own, version: '0.9.0' }));
+  const UPDATED_TREE_CANON = 'UPDATED-TREE-CANON (must land in home)\n';
+
+  const exec = async (command, args) => {
+    if (args[0] === 'root') return { code: 0, stdout: globalPrefix, stderr: '' };
+    writeFileSync(join(installedDir, 'canon', 'CONTINUITY.md'), UPDATED_TREE_CANON);
+    writeFileSync(join(installedDir, 'package.json'), JSON.stringify({ name: own, version: '2.0.0' }));
+    return { code: 0, stdout: '', stderr: '' };
+  };
+
+  const { io, lines } = collectedIo();
+  const result = await runSync(parseSyncArgs([]), { home, io, exec, kitRoot });
+
+  assert.equal(result.code, 0);
+  assert.ok(lines.join('\n').includes('kit updated: v0.9.0 -> v2.0.0'), `got: ${lines.join('\n')}`);
+  assert.equal(readFileSync(join(home, '.agents', 'canon', 'CONTINUITY.md'), 'utf8'), UPDATED_TREE_CANON);
+});
+
+// Review F4: a resolved install path that exists but is NOT kit-shaped
+// (e.g. a partial/corrupt install, or something unrelated occupying that
+// path) must fall back to the launched tree, exit 0, and say so — never
+// an exit-1 ENOENT crash reading a missing canon/templates dir.
+test('#6 F4: a non-kit-shaped install tree falls back to the launched tree, exit 0, one-line notice', async (t) => {
+  const home = sandbox(t);
+  const kitRoot = sandboxKitRoot(t, '1.0.0');
+  const own = kitOwnName(kitRoot);
+
+  const globalPrefix = mkdtempSync(join(tmpdir(), 'banana-globalprefix-'));
+  t.after(() => rmSync(globalPrefix, { recursive: true, force: true }));
+  const installedDir = join(globalPrefix, own);
+
+  const exec = async (command, args) => {
+    if (args[0] === 'root') return { code: 0, stdout: globalPrefix, stderr: '' };
+    // A broken/partial install: package.json present (and a HIGH version,
+    // so a version-only comparison would wrongly prefer it), but no
+    // canon/ or templates/wiring/ — not kit-shaped.
+    mkdirSync(installedDir, { recursive: true });
+    writeFileSync(join(installedDir, 'package.json'), JSON.stringify({ name: own, version: '9.9.9' }));
+    return { code: 0, stdout: '', stderr: '' };
+  };
+
+  const { io, lines, errLines } = collectedIo();
+  const result = await runSync(parseSyncArgs([]), { home, io, exec, kitRoot });
+
+  assert.equal(result.code, 0, 'a non-kit-shaped install tree must not fail the exit code');
+  for (const name of CANON_FILES) {
+    assert.ok(
+      readFileSync(join(home, '.agents', 'canon', name)).equals(readFileSync(join(kitRoot, 'canon', name))),
+      `${name} must fall back to the launched tree`,
+    );
+  }
+  assert.ok(
+    [...lines, ...errLines].join('\n').includes('not kit-shaped'),
+    'the fallback must be reported in one line',
   );
 });
 
@@ -579,7 +706,7 @@ test('#6 S2: a timed-out update on the global path (resolved root === kitRoot) s
   const home = sandbox(t);
   const { canonDir } = staleFixture(home);
   const exec = async (command, args) => {
-    if (args[0] === 'root') return rootLookupResolvesToNothing();
+    if (args[0] === 'root') return rootLookupFails();
     return { code: null, stdout: '', stderr: '', error: 'timed out after 120000ms' };
   };
   const { io, lines, errLines } = collectedIo();
@@ -634,7 +761,7 @@ test('#6 S2: every OTHER failure (non-timeout) still refreshes, even when resolv
   const home = sandbox(t);
   const { canonDir } = staleFixture(home);
   const exec = async (command, args) => {
-    if (args[0] === 'root') return rootLookupResolvesToNothing();
+    if (args[0] === 'root') return rootLookupFails();
     return { code: 1, stdout: '', stderr: 'offline\n' };
   };
   const { io } = collectedIo();
@@ -646,6 +773,132 @@ test('#6 S2: every OTHER failure (non-timeout) still refreshes, even when resolv
       `${name} must still refresh — a plain non-zero exit is not a timeout`,
     );
   }
+});
+
+// -----------------------------------------------------------------------
+// Review F1 + F7: the timeout guard keys on the install TARGET, with path
+// identity normalized — "the resolved root fell back to kitRoot" is NOT
+// the same thing as "the resolved root IS the global path". On the npx
+// cold-bootstrap path (nothing installed yet), a timeout must still
+// refresh safely from kitRoot, never skip the whole run.
+// -----------------------------------------------------------------------
+
+test('#6 F1: npx cold-bootstrap (installRoot resolves, nothing installed yet) timing out still refreshes from kitRoot', async (t) => {
+  const home = sandbox(t);
+  const { canonDir } = staleFixture(home);
+  const kitRoot = sandboxKitRoot(t, '1.0.0');
+  const globalPrefix = mkdtempSync(join(tmpdir(), 'banana-globalprefix-'));
+  t.after(() => rmSync(globalPrefix, { recursive: true, force: true }));
+  // installRoot resolves to a REAL, DIFFERENT path than kitRoot — but
+  // nothing is installed there yet (no package.json), same as the npx
+  // cold-bootstrap case. The old bug: `readKitVersion(installRoot)` being
+  // null there made the resolved root fall back to kitRoot, which then
+  // got mistaken for "the global path" and skipped the whole refresh.
+  const exec = async (command, args) => {
+    if (args[0] === 'root') return { code: 0, stdout: globalPrefix, stderr: '' };
+    return { code: null, stdout: '', stderr: '', error: 'timed out after 120000ms' };
+  };
+  const { io, errLines } = collectedIo();
+  const result = await runSync(parseSyncArgs([]), { home, io, exec, kitRoot });
+  assert.equal(result.code, 0);
+  assert.ok(
+    !errLines.join('\n').includes('half-installed'),
+    'installRoot resolved to a DIFFERENT path than kitRoot — the timeout there must not block refreshing the stable, untouched kitRoot',
+  );
+  for (const name of CANON_FILES) {
+    assert.ok(
+      readFileSync(join(canonDir, name)).equals(readFileSync(join(kitRoot, 'canon', name))),
+      `${name} must refresh from kitRoot despite the timeout`,
+    );
+  }
+});
+
+test('#6 F1: the install root spelled with a different drive-letter case still counts as kitRoot — a timeout there warns half-installed', async (t) => {
+  if (process.platform !== 'win32') {
+    t.skip('drive-letter case-folding is a win32-only concern');
+    return;
+  }
+  const home = sandbox(t);
+  const { canonDir } = staleFixture(home);
+  const globalPrefix = mkdtempSync(join(tmpdir(), 'banana-globalprefix-'));
+  const own = 'fixture-kit';
+  const kitRoot = join(globalPrefix, own);
+  mkdirSync(kitRoot, { recursive: true });
+  cpSync(join(KIT_ROOT, 'canon'), join(kitRoot, 'canon'), { recursive: true });
+  cpSync(join(KIT_ROOT, 'templates'), join(kitRoot, 'templates'), { recursive: true });
+  writeFileSync(join(kitRoot, 'package.json'), JSON.stringify({ name: own, version: '1.0.0' }));
+  t.after(() => rmSync(globalPrefix, { recursive: true, force: true }));
+
+  // Same physical location as kitRoot's parent, spelled with every letter's
+  // case flipped — win32 filesystems are case-insensitive, so this must
+  // still resolve to the SAME install target as kitRoot.
+  const exec = async (command, args) => {
+    if (args[0] === 'root') return { code: 0, stdout: globalPrefix.toUpperCase(), stderr: '' };
+    return { code: null, stdout: '', stderr: '', error: 'timed out after 120000ms' };
+  };
+  const { io, errLines } = collectedIo();
+  const result = await runSync(parseSyncArgs([]), { home, io, exec, kitRoot });
+  assert.equal(result.code, 0);
+  assert.ok(
+    errLines.join('\n').includes('kit update timed out — the kit may be half-installed; re-run banana sync'),
+    'a different-case spelling of the SAME path must still count as the global path',
+  );
+  assert.equal(
+    readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'),
+    '<!-- banana:canon rev 1.1 -->\nstale\n',
+    'the refresh must be skipped — canon left exactly as the stale fixture',
+  );
+});
+
+// -----------------------------------------------------------------------
+// Review F2: only an ABSOLUTE `npm root -g` output is ever trusted. Empty
+// stdout joined with `own` is a RELATIVE path, resolved against cwd by
+// every fs read that follows — a kit-shaped directory that happens to sit
+// in the working directory must never be picked up as the install root.
+// -----------------------------------------------------------------------
+
+test('#6 F2: npm root -g succeeding with EMPTY stdout is never trusted — a kit-shaped dir planted in cwd is not used', async (t) => {
+  const home = sandbox(t);
+  const kitRoot = sandboxKitRoot(t, '1.0.0');
+  const own = kitOwnName(kitRoot);
+
+  // A kit-shaped directory named exactly `own`, planted in a throwaway
+  // cwd — `join('', own)` would resolve to this RELATIVE path if empty
+  // stdout were ever trusted (the F2 bug).
+  const fakeCwd = mkdtempSync(join(tmpdir(), 'banana-cwd-'));
+  const plantedDir = join(fakeCwd, own);
+  cpSync(join(KIT_ROOT, 'canon'), join(plantedDir, 'canon'), { recursive: true });
+  cpSync(join(KIT_ROOT, 'templates'), join(plantedDir, 'templates'), { recursive: true });
+  writeFileSync(join(plantedDir, 'canon', 'CONTINUITY.md'), 'PLANTED-CWD-CANON (must never land in home)\n');
+  writeFileSync(join(plantedDir, 'package.json'), JSON.stringify({ name: own, version: '9.9.9' }));
+
+  const previousCwd = process.cwd();
+  process.chdir(fakeCwd);
+  // Restore cwd BEFORE removing it — Windows refuses to delete a directory
+  // that is still any process's current working directory (EPERM), so
+  // these two must run in this order, in the SAME hook.
+  t.after(() => {
+    process.chdir(previousCwd);
+    rmSync(fakeCwd, { recursive: true, force: true });
+  });
+
+  const exec = async (command, args) => {
+    if (args[0] === 'root') return { code: 0, stdout: '', stderr: '' };
+    writeFileSync(join(kitRoot, 'package.json'), JSON.stringify({ name: own, version: '1.0.1' }));
+    return { code: 0, stdout: '', stderr: '' };
+  };
+  const { io, lines } = collectedIo();
+  const result = await runSync(parseSyncArgs([]), { home, io, exec, kitRoot });
+  assert.equal(result.code, 0);
+  assert.ok(
+    lines.join('\n').includes('kit updated: v1.0.0 -> v1.0.1'),
+    'empty stdout must fall back to kitRoot, never a relative path resolved against cwd',
+  );
+  assert.equal(
+    readFileSync(join(home, '.agents', 'canon', 'CONTINUITY.md'), 'utf8'),
+    readFileSync(join(kitRoot, 'canon', 'CONTINUITY.md'), 'utf8'),
+    'canon must come from kitRoot, never the planted cwd dir',
+  );
 });
 
 // -----------------------------------------------------------------------

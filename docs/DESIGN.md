@@ -189,30 +189,45 @@ runner takes an injected `home` (only `bin/` resolves `os.homedir()`), same as `
 the installed shim never updates itself, and version skew across machines is surfaced, never
 silently prevented. Three moves, in order:
 
-0. **Kit-update step (v2, #6).** When an `exec` dependency is injected (the real CLI always
-   injects `lib/proc.mjs`'s `makeExec()`; library callers/tests may omit it, which skips this step
-   silently — today's callers keep today's behavior), sync runs `npm install -g
+0. **Kit-update step (v2, #6; re-reviewed #6c).** When an `exec` dependency is injected (the real
+   CLI always injects `lib/proc.mjs`'s `makeExec()`; library callers/tests may omit it, which skips
+   this step silently — today's callers keep today's behavior), sync runs `npm install -g
    github:Q9-Ahimsa/banana` ahead of moves 1 and 2. **Resolving the actual install tree.** `npm
    install -g` writes to the npm global prefix, which is NOT necessarily the launched tree
    (`kitRoot`) sync started from — never true on the npx cold-bootstrap path, where `kitRoot` is
-   npx's own cache copy of the kit, not the global prefix. Sync resolves the real target via `npm
-   root -g` joined with the kit's own `package.json` `name` (never hard-coded), and reads `before`/
-   `after` from THAT tree (falling back to `kitRoot` when the lookup fails or nothing is installed
-   there yet — on an already-shimmed machine this resolves back to `kitRoot`, so there is no change
-   there). On success (`code === 0`), it prints `kit updated: v<before> -> v<after>` (or `kit
-   current: v<after>` when the two are equal; a null version prints as `unknown`, never the literal
-   `vnull`), and moves 1-2 below read from the resolved tree, not `kitRoot`, so a single sync run
-   propagates what it just installed without a process restart. On failure — non-zero exit, an
-   `error` field set (a spawn failure or a timeout), or anything else short of `code === 0` — it
-   prints one warning line through `err`, `kit update skipped (<reason>) — refreshing from the
-   installed kit`, where `<reason>` is the `error` message, else the first non-empty stderr line,
-   else `exit <code>`, and moves 1-2 proceed from `kitRoot` unchanged. **Exception: a timeout on
-   the tree moves 1-2 are about to read from** (i.e. the resolved tree already equals `kitRoot` —
-   the already-shimmed-machine case) skips moves 1-2 entirely instead, warning `kit update timed
-   out — the kit may be half-installed; re-run banana sync`, because the interrupted install may
-   have left that exact tree half-written. A timeout on a *different* tree than the one about to be
-   read (the npx path, or any other failure kind) is safe and still refreshes — the ticket's own
-   requirement. Either way the exit code is unaffected.
+   npx's own cache copy of the kit, not the global prefix. Sync resolves the candidate install root
+   via `npm root -g` joined with the kit's own `package.json` `name` (never hard-coded) — only a
+   non-empty, ABSOLUTE `npm root -g` result is ever trusted (#6c F2); empty or relative output
+   resolves against cwd on every later read, so it is treated as "the lookup found nothing" instead.
+   **Tree selection (#6c F4, orchestrator ruling).** On a successful install, the candidate install
+   tree is adopted only if it is *kit-shaped*: a readable `package.json`, the first bundled canon
+   file, and the `templates/wiring/` dir must all be present. A non-kit-shaped candidate falls back
+   to the launched tree, exit 0, with one line naming the fallback — never an exit-1 ENOENT. Between
+   a kit-shaped install tree and the launched tree, the NEWER version wins (`compareVersions`); a
+   tie favors the install tree (the global path is then left unchanged); an unparseable version on
+   either side favors the launched tree. The version line printed is one of:
+   - `kit installed: v<after>` — nothing was readable at the install root before this run;
+   - `kit updated: v<before> -> v<after>` — the install (or, with no separate install tree, the
+     launched) tree's own version rose;
+   - `kit current: v<x>` — unchanged (a null version prints as `unknown`, never the literal
+     `vnull`);
+   - `kit: the installed copy is v<old>, older than this run's v<new> — refreshing from v<new>` —
+     the install tree is kit-shaped but OLDER than the launched tree; a downgrade is never silent.
+
+   Moves 1-2 below read from whichever tree won — the launched tree, or a newly adopted install
+   tree — not unconditionally `kitRoot`, so a single sync run propagates what it just installed
+   without a process restart. On failure — non-zero exit, an `error` field set (a spawn failure or a
+   timeout), or anything else short of `code === 0` — it prints one warning line through `err`, `kit
+   update skipped (<reason>) — refreshing from the launched copy`, where `<reason>` is the `error`
+   message, else the first non-empty stderr line, else `exit <code>`, and moves 1-2 proceed from the
+   launched tree unchanged. **Exception: a timeout on the tree moves 1-2 are about to read from**
+   (the resolved install root is `null` — the lookup itself failed or never ran — or, path identity
+   normalized (#6c F1/F7: `path.resolve()`, case-folded on win32), names the same location as the
+   launched tree) skips moves 1-2 entirely instead, warning `kit update timed out — the kit may be
+   half-installed; re-run banana sync`, because the interrupted install may have left that exact
+   tree half-written. A timeout on a *different*, resolved install tree (the npx cold-bootstrap
+   path, or any other failure kind) is safe and still refreshes — the ticket's own requirement.
+   Either way the exit code is unaffected.
 1. **Fresh reads (load-bearing).** Every canon file and wiring template moves 1-2 use is read from
    disk during THIS run, after move 0 — via the resolved root above, threaded into the
    wiring-template lookups too (`lib/wiring.mjs`'s `wiringDir` override on

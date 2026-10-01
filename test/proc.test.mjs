@@ -94,6 +94,33 @@ test('makeExec: a timeout kills the whole process tree — an orphaned grandchil
 });
 
 // -----------------------------------------------------------------------
+// Review F3: a taskkill that can't even be SPAWNED (a missing/unresolvable
+// kill command) must not crash the process. `killTree`'s try/catch around
+// `spawn()` only ever catches a THROWN error — an ENOENT on the win32 kill
+// command surfaces asynchronously as an 'error' event on the returned
+// child instead, which (with no listener) Node re-throws as an uncaught
+// exception. makeExec's `killCommand` option is the test-only seam that
+// proves the fix: the awaited exec() call resolves cleanly, and the
+// process survives past the async error the nonexistent kill command
+// eventually emits.
+// -----------------------------------------------------------------------
+test('makeExec: a timeout whose taskkill cannot be spawned does not crash the process', async (t) => {
+  if (process.platform !== 'win32') {
+    t.skip('the taskkill kill path is win32-only');
+    return;
+  }
+  const exec = makeExec({ timeoutMs: 200, killCommand: 'banana-definitely-not-a-real-taskkill-xyz' });
+  const result = await exec('node', ['-e', 'setTimeout(function(){},2000)']);
+  assert.ok(result.code !== 0 || result.error !== undefined, 'the timeout result must still resolve');
+
+  // Give the nonexistent taskkill's async 'error' event time to surface —
+  // without the fix, this crashes the whole test process shortly after the
+  // assertion above already passed.
+  await new Promise((resolveDelay) => setTimeout(resolveDelay, 500));
+  assert.ok(true, 'the process survived past the taskkill spawn error');
+});
+
+// -----------------------------------------------------------------------
 // Review S5: makeExec is trusted-fixed-args only, and on win32 must build
 // ONE command string for spawn under shell:true — passing a separate args
 // ARRAY together with shell:true is what triggers Node's DEP0190 warning

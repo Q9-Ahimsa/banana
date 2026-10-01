@@ -60,8 +60,9 @@ Built in its own git worktree, in parallel with #8. Depends on `lib/version.mjs`
 - When `deps.fetch` is present: GET
   `https://raw.githubusercontent.com/Q9-Ahimsa/banana/main/package.json` with a 2000 ms timeout
   (AbortController). Parse JSON, take `.version`, and compare it with `readKitVersion(kitRoot)`
-  using `compareVersions`. If remote > local, print one advisory line in doctor's existing
-  finding style: `[origin-ahead] kit v<local> is behind origin v<remote> — run banana sync`.
+  using `compareVersions`. If remote > local, print one advisory line AFTER the Audits block, set
+  off by a blank line, in `advice: ...` style (never a bracketed finding): `advice: kit v<local> is
+  behind origin v<remote> — run banana sync`.
 - Any failure prints nothing: reject, timeout, non-2xx, bad JSON, a missing or unparseable
   version on either side, or remote ≤ local.
 - The line is advice. It never counts toward the exit code: only-origin-ahead exits 0, and
