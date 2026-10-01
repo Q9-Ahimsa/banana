@@ -572,3 +572,5 @@ FILES: lane A 0e8a776 (4 WARN checks, canon v1.7, ADR 0006, template), lane B a7
 VALIDATED: merged main 675 pass + 1 skipped (605+43+27), tsc clean; every mutation in both lanes caught.
 PROBLEM: lanes defined a bullet's extent differently (lint: to next bullet/heading; archive: to first blank line) -> archive could orphan a paragraph the lint counted. Also archive kept the stale '(expected lint)' verb error to preserve a pinned test.
 FIX (dispatched): one shared range helper in state.mjs, archive maps it onto raw offsets; STATE_VERBS = lint|archive with truthful error text.
+VALIDATED: review workflow (247 agents, 3 rounds, 3-lens verify) -> 61 confirmed + 3 critic: 0 blocker, 23 should-fix; round 3 still found 14 (not dry). Two finders stalled ~10h each (likely a hung permission prompt).
+DECISION (claude, technical): global page = one physical line per bullet (bullet-wrapped WARN, archive refuses multi-line); comments blank only the comment; archive is the clock-aware gate for expired/inactive; atomic temp+rename write. Spec: .agents/specs/cli-20b-review-fixes.md
