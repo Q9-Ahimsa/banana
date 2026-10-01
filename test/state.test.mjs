@@ -6,14 +6,21 @@
 // error or a missing/unreadable target.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Repo root — used only to read the REAL shipped templates for a couple of
+// #20b review item-5 fixtures (the spaced-owner placeholder substitution),
+// the same pattern test/state-archive.test.mjs's own KIT_ROOT uses.
+const KIT_ROOT_FOR_TEMPLATES = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 import {
   checkActiveThreads,
   checkAsOfMalformed,
   checkAsOfMissing,
+  checkBulletWrapped,
   checkClosedExpired,
   checkClosedUndated,
   checkDirtyMarker,
@@ -47,6 +54,7 @@ import {
   STATE_CAP_CHARS,
   THREAD_INACTIVE_DAYS,
   topLevelBullets,
+  topLevelBulletContinuationCounts,
 } from '../lib/state.mjs';
 import { isRealCalendarDate, stateAsOf, stateAsOfMalformed } from '../lib/doctor.mjs';
 import { runInit } from '../lib/init.mjs';
@@ -209,6 +217,67 @@ test('parseStateArgs: `lint --global` sets global to true', () => {
 
 test('parseStateArgs: any other unknown flag is rejected the same way', () => {
   assert.throws(() => parseStateArgs(['lint', '--bogus']), /unknown option '--bogus'/);
+});
+
+// =====================================================================
+// parseStateArgs archive: #20b review item 2 — hardening the value-flag
+// grammar. The motivating bug: `--tag --dry-run` used to read '--dry-run'
+// as the literal tag value and silently proceed with a REAL move. A
+// baseline valid archive args array is reused below so each test mutates
+// exactly the one thing under test.
+// =====================================================================
+
+const VALID_ARCHIVE_ARGS = ['archive', '--global', '--match', 'x', '--reason', 'expired', '--tag', 'testagent'];
+
+test('parseStateArgs archive: the baseline parses (sanity control for the hardening tests below)', () => {
+  assert.deepEqual(parseStateArgs(VALID_ARCHIVE_ARGS), {
+    verb: 'archive',
+    global: true,
+    match: 'x',
+    reason: 'expired',
+    tag: 'testagent',
+    dryRun: false,
+  });
+});
+
+test('parseStateArgs archive: a value flag immediately followed by another flag throws, not silently takes it as the value', () => {
+  // The exact motivating bug: `--tag --dry-run` must not read '--dry-run' as the tag.
+  assert.throws(
+    () => parseStateArgs(['archive', '--global', '--match', 'x', '--reason', 'expired', '--tag', '--dry-run']),
+    /--tag requires a value/,
+  );
+});
+
+test('parseStateArgs archive: an empty-string value throws', () => {
+  assert.throws(
+    () => parseStateArgs(['archive', '--global', '--match', '', '--reason', 'expired', '--tag', 'testagent']),
+    /--match requires a non-empty value/,
+  );
+});
+
+test('parseStateArgs archive: a value starting with "--" throws even when it is not a KNOWN flag', () => {
+  assert.throws(
+    () => parseStateArgs(['archive', '--global', '--match', 'x', '--reason', '--bogus-not-a-real-flag', '--tag', 'testagent']),
+    /--reason requires a value/,
+  );
+});
+
+test('parseStateArgs archive: a value containing a CR or LF throws', () => {
+  assert.throws(
+    () => parseStateArgs(['archive', '--global', '--match', 'line one\nline two', '--reason', 'expired', '--tag', 'testagent']),
+    /--match value may not contain a line break/,
+  );
+  assert.throws(
+    () => parseStateArgs(['archive', '--global', '--match', 'x', '--reason', 'expired', '--tag', 'a\rb']),
+    /--tag value may not contain a line break/,
+  );
+});
+
+test('parseStateArgs archive: a repeated value flag throws', () => {
+  assert.throws(
+    () => parseStateArgs(['archive', '--global', '--match', 'x', '--match', 'y', '--reason', 'expired', '--tag', 'testagent']),
+    /--match may only be given once/,
+  );
 });
 
 // =====================================================================
@@ -1428,6 +1497,44 @@ test('F1: `## Next` hidden inside a multi-line HTML comment does not satisfy the
   assert.ok(findings.some((f) => f.type === 'missing-section' && f.message.includes('## Next')));
 });
 
+// =====================================================================
+// #20b review Decision D2 — blankNonSemanticRegions blanks only the HTML
+// COMMENT SPAN, not the whole line: real text before `<!--` on the opening
+// line and after `-->` on the closing line survives.
+// =====================================================================
+
+test('D2: an inline comment on a bullet line — text before and after the comment both survive', () => {
+  const raw = '## Watch\n- real bullet text <!-- a hidden note --> more real text\n';
+  const text = prepareText(raw);
+  assert.equal(text, '## Watch\n- real bullet text  more real text\n');
+});
+
+test('D2: a multi-line comment still blanks every line fully inside it', () => {
+  const raw = '## Watch\n- before\n<!--\nhidden line one\nhidden line two\n-->\n- after\n';
+  const text = prepareText(raw);
+  assert.equal(text, '## Watch\n- before\n\n\n\n\n- after\n');
+});
+
+test('D2: several comments on one line are ALL removed, surrounding text kept', () => {
+  const raw = '## Watch\n- a <!-- one --> b <!-- two --> c\n';
+  const text = prepareText(raw);
+  assert.equal(text, '## Watch\n- a  b  c\n');
+});
+
+test('D2: a line that is ENTIRELY a comment still blanks to nothing (keeps the commented-heading hardening)', () => {
+  const raw = '<!-- ## Next -->\n## Watch\n- x\n';
+  const text = prepareText(raw);
+  assert.equal(text, '\n## Watch\n- x\n');
+  assert.equal(hasSection(text, 'Next'), false);
+});
+
+test('D2: a REAL bullet carrying an inline comment is no longer invisible to checkUnownedBullets', () => {
+  const text = '## Backlog (owned)\n- unowned-marker <!-- a note --> still unowned\n';
+  const findings = checkUnownedBullets(prepareText(text), 'Backlog (owned)', 'backlog-unowned');
+  assert.equal(findings.length, 1);
+  assert.ok(findings[0].message.includes('unowned-marker'));
+});
+
 test('F1: a duplicated `## Next` heading is scanned under BOTH occurrences — an unowned bullet in the SECOND is still caught', () => {
   const text = CLEAN_STATE + '\n## Next\n- rebuild the projection\n';
   const findings = lintProjectState(text, { logbookText: CLEAN_LOGBOOK, sessionEntries: [] });
@@ -1740,45 +1847,33 @@ test('checkLineOverLimit: the message names the remedy (archive --reason trimmed
   assert.ok(findings[0].message.includes('alpha'), 'first-60-chars preview must include the bullet\'s own start');
 });
 
-test('checkLineOverLimit: continuation lines count toward the bullet\'s full length (not just its first physical line)', () => {
+// #20b review Decision D1: `line-over-limit` now measures a bullet's OWN
+// PHYSICAL LINE ONLY — a wrapped bullet's continuation lines are reported
+// separately by `bullet-wrapped` (checkBulletWrapped, below). The three
+// tests that used to live here (continuation lines counting toward length,
+// a continuation run stopping at the next bullet, trailing blank
+// section-spacing not counting) all pinned the OLD span-measurement
+// behavior D1 retires; replaced by the one test below, which pins the NEW
+// contract (and is the mutation-check catcher for "measure continuation
+// lines in line-over-limit" — mutation (g)).
+
+test('checkLineOverLimit: a continuation line is never counted toward the bullet\'s length (D1)', () => {
   const name = 'Watch';
   const limit = SECTION_LINE_LIMITS[name];
-  const firstLine = bulletOfLength('- an assumption ', limit);
-  // Sanity: the first physical line ALONE, with nothing following it, does not warn.
-  assert.deepEqual(checkLineOverLimit(`## ${name}\n${firstLine}\n`), []);
-  const withContinuation = `## ${name}\n${firstLine}\n  a continuation line pushes the full text over the limit\n`;
-  const findings = checkLineOverLimit(withContinuation);
-  assert.equal(findings.length, 1, 'the continuation line must be counted toward the bullet\'s full length');
-  assert.equal(findings[0].type, 'line-over-limit');
+  const firstLine = bulletOfLength('- an assumption ', limit); // exactly at the limit alone
+  // A continuation line long enough to push the OLD (span) measurement
+  // over the limit must not warn under the new one-physical-line rule.
+  const withContinuation = `## ${name}\n${firstLine}\n  a continuation line long enough to push a span measurement over the limit\n`;
+  assert.deepEqual(checkLineOverLimit(withContinuation), []);
 });
 
-test('checkLineOverLimit: a continuation run stops at the next top-level bullet, not past it', () => {
-  const name = 'Backlog (owned)';
-  const limit = SECTION_LINE_LIMITS[name];
-  const first = bulletOfLength('- testagent — a ', 20); // well under the limit alone
-  const second = bulletOfLength('- testagent — b ', limit + 50); // over the limit on its own
-  const text = `## ${name}\n${first}\n${second}\n`;
-  const findings = checkLineOverLimit(text);
-  // Only the second bullet (genuinely over limit) warns; the first bullet's
-  // span must not have absorbed the second bullet's text as "continuation."
-  assert.equal(findings.length, 1);
-  assert.ok(findings[0].message.includes('testagent — b'));
-});
-
-test('checkLineOverLimit: template placeholders across all four sections are exempt, new and legacy alike', () => {
-  assert.deepEqual(checkLineOverLimit(FRESH_GLOBAL), []);
-  assert.deepEqual(checkLineOverLimit(`## Recently closed (context for next session)\n${NEW_CLOSED_PLACEHOLDER}\n`), []);
-});
-
-test('checkLineOverLimit: trailing blank section-spacing lines are not counted as the bullet\'s own continuation', () => {
-  const name = 'Watch';
-  const limit = SECTION_LINE_LIMITS[name];
-  const atLimit = bulletOfLength('- x ', limit);
-  // One blank line, then the next heading — ordinary section spacing, not
-  // part of the bullet's content; must not push an at-limit bullet over.
-  const text = `## ${name}\n${atLimit}\n\n## Recently closed (context for next session)\n- y\n`;
-  assert.deepEqual(checkLineOverLimit(text), []);
-});
+// (The old "checkLineOverLimit: template placeholders ... are exempt" test
+// could never fail: every shipped placeholder's own text is far shorter
+// than even the smallest section limit (250 chars), with or without the
+// isPlaceholderBullet skip. Removed per #20b review's "remove or rewrite
+// the placeholder-exemption tests that cannot fail"; isPlaceholderBullet
+// itself is exercised directly elsewhere, and checkClosedUndated's
+// placeholder tests exercise a case where the skip's absence DOES matter.
 
 test('checkLineOverLimit: CRLF-normalized length decides the limit, not raw CRLF byte length', () => {
   const name = 'Backlog (owned)';
@@ -1788,6 +1883,92 @@ test('checkLineOverLimit: CRLF-normalized length decides the limit, not raw CRLF
   assert.ok(crlf.length > lf.length, 'sanity: raw CRLF bytes are longer than the LF form');
   assert.deepEqual(checkLineOverLimit(prepareText(crlf)), checkLineOverLimit(lf));
   assert.deepEqual(checkLineOverLimit(prepareText(crlf)), []);
+});
+
+// =====================================================================
+// #20b review Decision D1 — the shared continuation-line helper
+// (topLevelBulletContinuationCounts) and the `bullet-wrapped` WARN it
+// backs (checkBulletWrapped). Each continuation case below is independent,
+// isolated fixture — one bullet, one shape — with its expected count
+// written out literally (never derived from the function under test).
+// =====================================================================
+
+test('topLevelBulletContinuationCounts: a lazy (non-indented) line directly after the bullet counts as one continuation line', () => {
+  const raw = '## Watch\n- bullet one\nlazy continuation line, not indented, not a bullet\n';
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch'), [1]);
+});
+
+test('topLevelBulletContinuationCounts: a blank line then an indented paragraph counts as continuation', () => {
+  const raw = '## Watch\n- bullet one\n\n  indented paragraph for bullet one\n';
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch'), [2]);
+});
+
+test('topLevelBulletContinuationCounts: a "###" heading directly after the bullet is NOT continuation — ends the bullet', () => {
+  const raw = '## Watch\n- bullet one\n### a heading right after\n- sibling\n';
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch'), [0, 0]);
+});
+
+test('topLevelBulletContinuationCounts: a "---" thematic break directly after the bullet is NOT continuation', () => {
+  const raw = '## Watch\n- bullet one\n---\n- sibling\n';
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch'), [0, 0]);
+});
+
+test('topLevelBulletContinuationCounts: a fenced code block directly after the bullet is NOT continuation', () => {
+  const raw = '## Watch\n- bullet one\n```\nfenced content\n```\n- sibling\n';
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch'), [0, 0]);
+});
+
+test('topLevelBulletContinuationCounts: an HTML-comment-only line directly after the bullet is NOT continuation', () => {
+  const raw = '## Watch\n- bullet one\n<!-- a comment -->\n- sibling\n';
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch'), [0, 0]);
+});
+
+test('topLevelBulletContinuationCounts: a PLAIN (non-indented) paragraph after a blank line is NOT continuation', () => {
+  const raw = '## Watch\n- bullet one\n\nplain paragraph, not indented, not a bullet\n';
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch'), [0]);
+});
+
+// --- checkBulletWrapped ----------------------------------------------------
+
+test('checkBulletWrapped: a wrapped bullet in each of the four sections WARNs bullet-wrapped', () => {
+  for (const name of Object.keys(SECTION_LINE_LIMITS)) {
+    const text = `## ${name}\n- a bullet\n  a continuation line\n`;
+    const findings = checkBulletWrapped(text);
+    assert.equal(findings.length, 1, `"${name}" must WARN bullet-wrapped`);
+    assert.equal(findings[0].tier, 'WARN');
+    assert.equal(findings[0].type, 'bullet-wrapped');
+    assert.ok(findings[0].message.includes(name));
+    assert.ok(findings[0].message.includes('join it into one line'));
+  }
+});
+
+test('checkBulletWrapped: a single-line bullet (nothing follows it) never warns', () => {
+  assert.deepEqual(checkBulletWrapped('## Watch\n- a single-line bullet\n'), []);
+});
+
+test('checkBulletWrapped: a placeholder bullet is exempt even if it happens to have a continuation line', () => {
+  const placeholder = topLevelBullets(prepareText(FRESH_GLOBAL), 'Watch')[0];
+  const text = `## Watch\n${placeholder}\n  not actually a real continuation, but still skipped\n`;
+  assert.deepEqual(checkBulletWrapped(text), []);
+});
+
+test('checkBulletWrapped: reported independently of line-over-limit — a short-but-wrapped bullet warns bullet-wrapped only', () => {
+  const name = 'Watch';
+  const text = `## ${name}\n- short\n  a continuation line\n`;
+  const findings = checkBulletWrapped(text);
+  assert.ok(findings.some((f) => f.type === 'bullet-wrapped'));
+  assert.deepEqual(checkLineOverLimit(text), [], 'a short wrapped bullet must not also warn line-over-limit');
+});
+
+test('lintGlobalState: a wrapped bullet WARNs bullet-wrapped through the composed findings', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const text = CLEAN_GLOBAL.replace(
+    '- testagent — sweep the backlog',
+    '- testagent — sweep the backlog\n  a continuation line',
+  );
+  const findings = lintGlobalState(text, { home });
+  assert.ok(findings.some((f) => f.type === 'bullet-wrapped'), `expected bullet-wrapped: ${JSON.stringify(findings)}`);
 });
 
 // --- checkClosedUndated ---------------------------------------------------
@@ -1875,9 +2056,15 @@ test('globalReferenceDate: malformed stamps are never candidates', () => {
   assert.equal(globalReferenceDate(text), null);
 });
 
-test('globalReferenceDate: placeholder bullets are never candidates', () => {
-  assert.equal(globalReferenceDate(FRESH_GLOBAL), null);
-});
+// (The old "globalReferenceDate: placeholder bullets are never candidates"
+// test against FRESH_GLOBAL could never fail: both placeholders' date
+// tokens are the literal "YYYY-MM-DD", which never matches the digit-shaped
+// stamp regex at all — `dates` stays empty with or without the
+// isPlaceholderBullet skip. Removed per #20b review's "remove or rewrite
+// the placeholder-exemption tests that cannot fail"; isPlaceholderBullet
+// itself is already exercised directly (see the isPlaceholderBullet test
+// block above), and checkClosedUndated's placeholder tests below exercise
+// a case where the skip's ABSENCE would produce a real, different finding.
 
 test('globalReferenceDate: no valid stamp anywhere on the page is null', () => {
   assert.equal(globalReferenceDate('## Active threads\n- alpha, no stamp\n'), null);
@@ -1915,13 +2102,19 @@ test('checkClosedExpired: a bullet with no valid stamp is closed-undated\'s job,
   assert.deepEqual(checkClosedExpired(text, '2026-01-09'), []);
 });
 
-test('checkClosedExpired: the NEW and LEGACY placeholders are both exempt', () => {
-  assert.deepEqual(checkClosedExpired(FRESH_GLOBAL, '2026-01-09'), []);
-  assert.deepEqual(
-    checkClosedExpired(`## Recently closed (context for next session)\n${NEW_CLOSED_PLACEHOLDER}\n`, '2026-01-09'),
-    [],
-  );
+test('checkClosedExpired: an impossible "(closed ...)" stamp skips this check too (closed-undated\'s job)', () => {
+  const text = '## Recently closed (context for next session)\n- gamma finished (closed 2026-13-45)\n';
+  assert.deepEqual(checkClosedExpired(text, '2026-01-09'), []);
 });
+
+// (The old "checkClosedExpired: the NEW and LEGACY placeholders are both
+// exempt" test could never fail: both placeholders' date tokens are the
+// literal "YYYY-MM-DD", which never matches the digit-shaped stamp regex at
+// all — `validStamps` is already empty before isPlaceholderBullet is ever
+// consulted. Removed per #20b review's "remove or rewrite the
+// placeholder-exemption tests that cannot fail"; checkClosedUndated's own
+// placeholder tests above exercise a case where the skip's absence DOES
+// change the outcome.
 
 test('checkClosedExpired: two stamps on one bullet compare against the OLDEST (conservative, mirrors Active-threads F6)', () => {
   const text =
@@ -1935,12 +2128,18 @@ test('checkClosedExpired: two stamps on one bullet compare against the OLDEST (c
 
 // --- checkThreadInactive ---------------------------------------------------
 
+// A pointer target of "memory a" (not a `~/`/absolute path shape) never
+// resolves, so `bulletIsThreadStale` (item 4) returns false regardless of
+// `home` for every fixture below — `NOHOME` stands in for a real sandbox in
+// tests with no `t` context, matching exactly what these fixtures exercise.
+const NOHOME = '/nonexistent-home';
+
 test('checkThreadInactive: the exact boundary — 30 days before the reference date passes, 31 warns', () => {
   const thirtyDays = '## Active threads\n- **alpha** (as of 2026-01-01) — building the thing → memory a\n';
-  assert.deepEqual(checkThreadInactive(thirtyDays, '2026-01-31'), []);
+  assert.deepEqual(checkThreadInactive(thirtyDays, '2026-01-31', NOHOME), []);
 
   const thirtyOneDays = '## Active threads\n- **alpha** (as of 2026-01-01) — building the thing → memory a\n';
-  const findings = checkThreadInactive(thirtyOneDays, '2026-02-01');
+  const findings = checkThreadInactive(thirtyOneDays, '2026-02-01', NOHOME);
   assert.equal(findings.length, 1);
   assert.equal(findings[0].tier, 'WARN');
   assert.equal(findings[0].type, 'thread-inactive');
@@ -1950,7 +2149,7 @@ test('checkThreadInactive: the exact boundary — 30 days before the reference d
 
 test('checkThreadInactive: the message names the remedy (archive --reason inactive, then a Backlog line)', () => {
   const text = '## Active threads\n- **alpha** (as of 2026-01-01) — building the thing → memory a\n';
-  const findings = checkThreadInactive(text, '2026-03-01');
+  const findings = checkThreadInactive(text, '2026-03-01', NOHOME);
   assert.equal(findings.length, 1);
   assert.ok(findings[0].message.includes('banana state archive --global --reason inactive --match'));
   assert.ok(findings[0].message.includes('Backlog'));
@@ -1958,24 +2157,229 @@ test('checkThreadInactive: the message names the remedy (archive --reason inacti
 
 test('checkThreadInactive: a null reference date (no valid stamp anywhere) skips the check entirely', () => {
   const text = '## Active threads\n- **alpha** (as of 2020-01-01) — building the thing → memory a\n';
-  assert.deepEqual(checkThreadInactive(text, null), []);
+  assert.deepEqual(checkThreadInactive(text, null, NOHOME), []);
 });
 
 test('checkThreadInactive: a bullet with no valid stamp is thread-unstamped/-malformed\'s job, not this check\'s', () => {
   const text = '## Active threads\n- **alpha** — building the thing, no stamp → memory a\n';
-  assert.deepEqual(checkThreadInactive(text, '2026-06-01'), []);
+  assert.deepEqual(checkThreadInactive(text, '2026-06-01', NOHOME), []);
 });
 
-test('checkThreadInactive: the NEW and LEGACY placeholders are both exempt', () => {
-  assert.deepEqual(checkThreadInactive(FRESH_GLOBAL, '2026-06-01'), []);
-});
+// The two placeholder-exemption tests that used to live here (NEW + LEGACY
+// Recently-closed-style placeholders) could never fail: both placeholders'
+// date token is the literal "YYYY-MM-DD" (letters, not digits), so
+// `validStamps` is already empty before `isPlaceholderBullet` is ever
+// consulted — the SAME `[]` outcome holds with the placeholder skip
+// deleted entirely. Removed rather than rewritten (#20b review item: "remove
+// or rewrite the placeholder-exemption tests that cannot fail") — the real
+// "placeholder bullets are exempt here too" claim is covered meaningfully
+// by checkActiveThreads' own placeholder test below, which DOES turn red
+// if its skip is removed (the placeholder's `(as of YYYY-MM-DD)` is also
+// non-digit, but checkActiveThreads FAILs thread-unstamped on a non-exempt
+// no-valid-stamp bullet, unlike this WARN-only check's silent `continue`).
 
 test('checkThreadInactive: two stamps on one bullet compare against the OLDEST (conservative, mirrors Active-threads F6)', () => {
   const text =
     '## Active threads\n- **alpha** (as of 2026-01-01) was (as of 2026-01-20) — building the thing → memory a\n';
-  const findings = checkThreadInactive(text, '2026-02-01');
+  const findings = checkThreadInactive(text, '2026-02-01', NOHOME);
   assert.equal(findings.length, 1);
   assert.equal(findings[0].type, 'thread-inactive');
+});
+
+test('checkThreadInactive: an impossible (as of ...) stamp skips this check too (thread-stamp-malformed\'s job)', () => {
+  const text = '## Active threads\n- **alpha** (as of 2026-13-45) — building the thing → memory a\n';
+  assert.deepEqual(checkThreadInactive(text, '2026-06-01', NOHOME), []);
+});
+
+// --- checkThreadInactive x checkActiveThreads: item 4 (contradictory remedies) ---
+
+test('checkThreadInactive: suppressed when the SAME bullet already FAILs thread-stale (stale wins)', (t) => {
+  const home = sandbox(t);
+  // The target's own as-of (2026-02-01) is newer than the bullet's stamp
+  // (2026-01-01, also 31+ days before the reference date) — both
+  // thread-stale (checkActiveThreads) and thread-inactive would otherwise
+  // fire on this one bullet; thread-inactive must stand down.
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-02-01');
+  const line = '- **alpha** (as of 2026-01-01) — building the thing → `~/projects/alpha/STATE.md`';
+  const text = `## Active threads\n${line}\n`;
+
+  const activeFindings = checkActiveThreads(text, home);
+  assert.ok(activeFindings.some((f) => f.type === 'thread-stale'), 'sanity: this bullet is genuinely thread-stale');
+
+  const inactiveFindings = checkThreadInactive(text, '2026-02-05', home);
+  assert.deepEqual(inactiveFindings, []);
+});
+
+test('checkThreadInactive: NOT suppressed when the bullet is merely old, with no resolvable/stale target', (t) => {
+  const home = sandbox(t);
+  const line = '- **alpha** (as of 2026-01-01) — building the thing → memory a';
+  const text = `## Active threads\n${line}\n`;
+  const findings = checkThreadInactive(text, '2026-02-05', home);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].type, 'thread-inactive');
+});
+
+// =====================================================================
+// #20b review item 3 — a stamp quoted inside backticks (example text) is
+// ignored by every check AND by globalReferenceDate, which all read stamps
+// through the same bulletStampShapes primitive.
+// =====================================================================
+
+test('checkClosedUndated: a "(closed ...)" stamp written only inside backticks does not count — still warns', () => {
+  const text =
+    '## Recently closed (context for next session)\n' +
+    '- gamma finished, e.g. `(closed 2026-09-01)` is the convention\n';
+  const findings = checkClosedUndated(text);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].type, 'closed-undated');
+});
+
+test('checkClosedExpired: a real stamp outside backticks is found even when an unrelated stamp sits inside backticks on the same line', () => {
+  const text =
+    '## Recently closed (context for next session)\n' +
+    '- gamma finished (closed 2026-01-01), e.g. `(closed 2026-09-01)` is the convention\n';
+  const findings = checkClosedExpired(text, '2026-01-09');
+  assert.equal(findings.length, 1);
+  assert.ok(findings[0].message.includes('2026-01-01'), 'the REAL (outside-backtick) stamp must govern');
+});
+
+test('checkThreadInactive: an "(as of ...)" stamp written only inside backticks does not count — thread-unstamped\'s job, not this one', () => {
+  const text = '## Active threads\n- **alpha** — see the convention, e.g. `(as of 2026-01-01)` → memory a\n';
+  assert.deepEqual(checkThreadInactive(text, '2026-06-01', NOHOME), []);
+});
+
+test('globalReferenceDate: a stamp written only inside backticks is never a candidate', () => {
+  const text =
+    '## Active threads\n- **alpha** — see the convention, e.g. `(as of 2026-01-01)` → memory a\n' +
+    '## Recently closed (context for next session)\n- gamma finished (closed 2026-03-01)\n';
+  assert.equal(globalReferenceDate(text), '2026-03-01');
+});
+
+// =====================================================================
+// #20b review item 7 — every #20 date-check message names BOTH the
+// reference date and the bullet it came from (regression guard: this was
+// already true before the item-6/item-3 edits above touched these
+// messages, and must stay true after).
+// =====================================================================
+
+test('checkClosedExpired: the message names both the reference date and the offending bullet', () => {
+  const text = '## Recently closed (context for next session)\n- gamma unique-marker (closed 2026-01-01)\n';
+  const findings = checkClosedExpired(text, '2026-01-20');
+  assert.equal(findings.length, 1);
+  assert.ok(findings[0].message.includes('2026-01-20'), 'must name the reference date');
+  assert.ok(findings[0].message.includes('unique-marker'), 'must name the bullet');
+});
+
+test('checkThreadInactive: the message names both the reference date and the offending bullet', () => {
+  const text = '## Active threads\n- **alpha** (as of 2026-01-01) — unique-marker-thread → memory a\n';
+  const findings = checkThreadInactive(text, '2026-03-01', NOHOME);
+  assert.equal(findings.length, 1);
+  assert.ok(findings[0].message.includes('2026-03-01'), 'must name the reference date');
+  assert.ok(findings[0].message.includes('unique-marker-thread'), 'must name the bullet');
+});
+
+// =====================================================================
+// #20b review item: stamp keyword is per-section — an "(as of ...)" stamp
+// on a Recently-closed bullet does not satisfy the "(closed ...)" the
+// section actually requires.
+// =====================================================================
+
+test('checkClosedUndated: an "(as of ...)" stamp on a Recently-closed bullet does not satisfy closed-undated', () => {
+  const text = '## Recently closed (context for next session)\n- gamma finished (as of 2026-09-01)\n';
+  const findings = checkClosedUndated(text);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].type, 'closed-undated');
+});
+
+// =====================================================================
+// #20b review item 5 — a placeholder's substituted `__OWNER__` wildcard
+// is a non-greedy ANY-run, so an owner name with a space still matches.
+// =====================================================================
+
+test('isPlaceholderBullet: the global Backlog placeholder survives owner substitution even when the owner name contains a space', () => {
+  const templateRaw = readFileSync(join(KIT_ROOT_FOR_TEMPLATES, 'templates', 'global-STATE.md'), 'utf8');
+  const bullet = templateRaw.split('\n').find((l) => l.trim().startsWith('- (queued cross-project items'));
+  assert.ok(bullet, 'sanity: the Backlog placeholder bullet exists in the real template');
+  const substituted = bullet.replace(/__OWNER__/g, 'Jane Doe');
+  assert.ok(substituted.includes('Jane Doe'), 'sanity: the substitution actually happened');
+  assert.ok(isPlaceholderBullet(substituted));
+});
+
+test('checkUnownedBullets: a spaced-owner-substituted Backlog placeholder is not flagged backlog-unowned', () => {
+  const templateRaw = readFileSync(join(KIT_ROOT_FOR_TEMPLATES, 'templates', 'global-STATE.md'), 'utf8');
+  const bullet = templateRaw.split('\n').find((l) => l.trim().startsWith('- (queued cross-project items'));
+  const substituted = bullet.replace(/__OWNER__/g, 'Jane Doe');
+  const text = `## Backlog (owned)\n${substituted}\n`;
+  assert.deepEqual(checkUnownedBullets(text, 'Backlog (owned)', 'backlog-unowned'), []);
+});
+
+test('runStateLint --global: a home bootstrapped by `banana init` with a spaced owner name lints clean', async (t) => {
+  const home = sandbox(t);
+  const initIo = {
+    out: () => {},
+    err: () => {},
+    prompt: async () => {
+      throw new Error('prompt not expected in this test — owner is provided and yes:true');
+    },
+  };
+  const initResult = await runInit(
+    { owner: 'Jane Doe', tag: null, harnesses: [], yes: true, deliver: false },
+    { home, io: initIo, isTTY: false, gitUserName: () => null, env: { PATH: '' } },
+  );
+  assert.equal(initResult.code, 0, `banana init itself must succeed: ${JSON.stringify(initResult)}`);
+
+  const res = await runGlobal(home);
+  assert.equal(res.code, 0, `expected a clean init to PASS, got: ${res.lines.join('\n')}`);
+  assert.deepEqual(res.lines, ['state lint: PASS']);
+});
+
+// =====================================================================
+// #20b review item 6 — finding excerpts cut at CODE-POINT boundaries, not
+// naive UTF-16 code units, so a surrogate pair is never split in half.
+// =====================================================================
+
+test('checkLineOverLimit: a 60-code-point excerpt cut never splits a surrogate pair (emoji) in half', () => {
+  const name = 'Watch';
+  const limit = SECTION_LINE_LIMITS[name];
+  const emoji = '\u{1F600}'; // one code point, a 2-code-unit UTF-16 surrogate pair
+  // "- " (2 code points) + 57 'x' (57 code points) = 59 code points before the
+  // emoji, so the emoji is exactly the 60th code point — the correct cut
+  // boundary includes it whole; a naive UTF-16 `.slice(0, 60)` would take
+  // only its high-surrogate half.
+  const head = '- ' + 'x'.repeat(57) + emoji;
+  const line = bulletOfLength(head, limit + 100);
+  const findings = checkLineOverLimit(`## ${name}\n${line}\n`);
+  assert.equal(findings.length, 1);
+  const msg = findings[0].message;
+
+  const loneSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+  assert.ok(loneSurrogate.test(line.slice(0, 60)), 'sanity: a naive UTF-16 .slice(0, 60) DOES split this surrogate pair');
+  assert.ok(!loneSurrogate.test(msg), 'the excerpt in the finding message must never contain a lone surrogate half');
+  assert.ok(msg.includes(emoji), 'the excerpt must include the WHOLE emoji, not a split half');
+});
+
+test('checkLineOverLimit: the length limit is JS UTF-16 CODE-UNIT length, not code-point/grapheme count (non-ASCII pin)', () => {
+  const name = 'Watch';
+  const limit = SECTION_LINE_LIMITS[name];
+  const emoji = '\u{1F600}'; // 1 code point, 2 UTF-16 code units
+  // "- " (2 units) + 1 emoji (2 units) + (limit - 4) 'x' (limit - 4 units) =
+  // limit units total — exactly at the limit in UTF-16 code units, even
+  // though it is only (limit - 1) code points. If the limit were measured
+  // by code points or graphemes instead of `.length`, this would read as
+  // UNDER the limit.
+  const atLimitByCodeUnits = '- ' + emoji + 'x'.repeat(limit - 4);
+  assert.equal(atLimitByCodeUnits.length, limit, 'sanity: UTF-16 .length is exactly the limit');
+  assert.equal(
+    Array.from(atLimitByCodeUnits).length,
+    limit - 1,
+    'sanity: code-point count is one LESS than .length',
+  );
+  assert.deepEqual(checkLineOverLimit(`## ${name}\n${atLimitByCodeUnits}\n`), []);
+
+  const overLimitByCodeUnits = '- ' + emoji + 'x'.repeat(limit - 3); // one more code unit -> over
+  const findings = checkLineOverLimit(`## ${name}\n${overLimitByCodeUnits}\n`);
+  assert.equal(findings.length, 1);
+  assert.ok(findings[0].message.includes(String(limit + 1)));
 });
 
 // --- Wiring into lintGlobalState / runStateLint --global -------------------

@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { parseStateArgs, prepareText, topLevelBulletSpans, topLevelBullets } from '../lib/state.mjs';
+import { parseStateArgs, prepareText, topLevelBullets } from '../lib/state.mjs';
 import { ARCHIVE_HEADER_LINES, runStateArchive } from '../lib/state-archive.mjs';
 
 const KIT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -361,7 +361,19 @@ test('runStateArchive: removing the last bullet in a section inserts that sectio
   assert.equal(readFileSync(pagePath, 'utf8'), expected);
 });
 
-test('runStateArchive: continuation lines move with their bullet, both off the page and into the archive', async (t) => {
+// #20b review Decision D1: the global page is one physical line per
+// bullet. lib/state.mjs's `topLevelBulletRanges` (which this module's
+// candidate scan is built on) now hands back SINGLE-LINE ranges plus a
+// `continuationLines` count, rather than a multi-line span — so a
+// continuation line's own text is no longer part of what a bullet matches
+// or moves. This is an INTERIM state: the full D1 archive-side contract
+// (refuse with exit 2 when the matched bullet has continuation lines,
+// "bullet spans N lines; join it into one line first," the archive moves
+// are never partial) is lane 2's job (this module's own logic, not touched
+// by this lane) — this test pins what today's UNCHANGED runStateArchive
+// does with the new shared helper's contract, so lane 2 has a known,
+// regression-guarded starting point rather than a silent behavior change.
+test('runStateArchive: (interim, pending lane 2\'s D1 refusal) matches and moves only the bullet\'s own line; continuation lines are orphaned, not swept along', async (t) => {
   const page = buildPage({
     backlog: [
       '- testagent — a wrapped backlog item',
@@ -372,21 +384,25 @@ test('runStateArchive: continuation lines move with their bullet, both off the p
   });
   const { home, pagePath, archivePath } = makeHome(t, page);
 
+  // A continuation line's own text is not part of the matchable bullet.
+  const noMatch = await archive(home, { match: 'continuation line one', reason: 'removed' });
+  assert.equal(noMatch.code, 2);
+  assert.ok(noMatch.err.some((l) => l.includes('no line matches')));
+
   const result = await archive(home, { match: 'a wrapped backlog item', reason: 'removed' });
   assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
 
   const pageAfter = readFileSync(pagePath, 'utf8');
   assert.ok(!pageAfter.includes('a wrapped backlog item'));
-  assert.ok(!pageAfter.includes('continuation line one'));
-  assert.ok(!pageAfter.includes('continuation line two'));
+  // The continuation lines are left behind on the page today — lane 2 must
+  // add the D1 refusal so the real command never reaches this state.
+  assert.ok(pageAfter.includes('continuation line one'));
+  assert.ok(pageAfter.includes('continuation line two'));
   assert.ok(pageAfter.includes('- ahimsa — a second, plain item'));
 
   const archiveText = readFileSync(archivePath, 'utf8');
-  assert.ok(
-    archiveText.includes(
-      '- testagent — a wrapped backlog item\n  continuation line one\n  continuation line two',
-    ),
-  );
+  assert.ok(archiveText.includes('- testagent — a wrapped backlog item'));
+  assert.ok(!archiveText.includes('continuation line one'));
 });
 
 test('runStateArchive: --dry-run prints the record and the action line, writes nothing', async (t) => {
@@ -423,129 +439,31 @@ test('runStateArchive: a missing global page exits 2', async (t) => {
 });
 
 // =====================================================================
-// Consistency: the archive must move EXACTLY what the lint measures
-// (integration fix, cli-20-global-page-limits.md). A bullet's extent used
-// to be defined twice — the lint's `line-over-limit` check (topLevelBulletSpans
-// / now topLevelBulletRanges, lib/state.mjs): own line up to the next
-// top-level bullet or heading, trailing blanks dropped; a hand-mirrored
-// scan here that stopped at the FIRST blank line. The two disagree on a
-// bullet followed by a blank line and then a paragraph before the next
-// bullet — the lint counts the paragraph in, the old archive orphaned it on
-// the page. Both now read `topLevelBulletRanges`, the one shared
-// definition.
+// #20b review Decision D1 retires the "archive moves exactly what the lint
+// measures" cross-module span-consistency suite that used to live here: the
+// lint now measures a bullet's own physical line only (`line-over-limit`)
+// and WARNs separately when it has continuation lines (`bullet-wrapped`,
+// lib/state.mjs); the archive's own matching D1 contract (single physical
+// line, refuse with exit 2 on continuation lines) is lane 2's job, not this
+// lane's. Removed rather than rewritten — the premise it tested (one shared
+// multi-line "bullet extent" between lint and archive) no longer exists.
+// The one invariant from that old suite that is STILL true under the new
+// contract — a bullet-looking line inside a fenced code block is never a
+// real bullet, to either side — is kept as its own small test below.
 // =====================================================================
 
-/**
- * One synthetic `## Watch` section exercising every bullet shape the two
- * definitions could disagree on: (a) a single-line bullet, (b) a bullet
- * with a lazy (non-indented) continuation line, (c) a bullet, blank line,
- * indented second paragraph, (d) a bullet, blank line, plain paragraph,
- * then another bullet, (e) a fenced code block holding a `- ` line. `eol`
- * lets the same fixture run under CRLF/lone-CR too; `bom` prefixes a BOM.
- * @param {{ eol?: string, bom?: boolean }} [opts]
- */
-function buildSpanFixture({ eol = '\n', bom = false } = {}) {
-  const lines = [
-    '# GLOBAL STATE — cross-project projection',
-    '> One page, hard cap. Edit only your own threads; never rewrite the page.',
-    '> Chronology lives in project logbooks; this file only answers "what\'s live and',
-    '> what\'s queued across everything." Owner: testagent. Protocol:',
-    '> `~/.agents/canon/CONTINUITY.md`.',
-    '',
-    '## Active threads',
-    templatePlaceholder('Active threads'),
-    '',
-    '## Backlog (owned)',
-    templatePlaceholder('Backlog (owned)'),
-    '',
-    '## Watch',
-    '- bullet-a-marker: a single-line bullet, nothing follows it',
-    '- bullet-b-marker: a bullet with a lazy (non-indented) continuation line',
-    'lazy continuation line for bullet-b-marker, not indented, not a bullet',
-    '- bullet-c-marker: a bullet, blank line, then an indented second paragraph',
-    '',
-    '  indented second paragraph for bullet-c-marker',
-    '- bullet-d-marker: a bullet, blank line, then a plain paragraph, then another bullet',
-    '',
-    'plain paragraph for bullet-d-marker, not indented, not a bullet itself',
-    '- sibling-marker: a plain bullet that terminates the previous one\'s span',
-    '```',
-    '- fenced-marker: looks like a bullet but lives inside a fenced code block',
-    '```',
-    '',
-    '## Recently closed (context for next session)',
-    templatePlaceholder('Recently closed (context for next session)'),
-    '',
-  ];
-  return (bom ? '﻿' : '') + lines.join(eol);
-}
-
-/** The lint's `fullText` (topLevelBulletSpans) for the `## Watch` bullet whose own line includes `marker`. */
-function lintWatchFullText(raw, marker) {
-  const spans = topLevelBulletSpans(prepareText(raw), 'Watch');
-  const found = spans.find((s) => s.line.includes(marker));
-  assert.ok(found, `lint found no "Watch" bullet containing "${marker}"`);
-  return found.fullText;
-}
-
-/**
- * The text `banana state archive` would move for the bullet matching
- * `marker`, via `--dry-run` (writes nothing, so the same fixture can be
- * probed bullet by bullet), normalized to LF for comparison against the
- * lint's (already CRLF-normalized) `fullText`.
- * @param {string} home
- * @param {string} marker
- * @returns {Promise<string>}
- */
-async function archivedFullText(home, marker) {
-  const result = await archive(home, { match: marker, reason: 'removed', dryRun: true });
-  assert.equal(result.code, 0, `dry-run for "${marker}" failed: ${result.err.join('\n')}`);
-  const headingIdx = result.out.findIndex((l) => l.startsWith('## ['));
-  assert.ok(headingIdx !== -1, `no record heading in dry-run output: ${result.out.join('\n')}`);
-  const actionIdx = result.out.findIndex((l) => l.startsWith('archived ('));
-  assert.ok(actionIdx !== -1, `no action line in dry-run output: ${result.out.join('\n')}`);
-  return result.out
-    .slice(headingIdx + 1, actionIdx)
-    .join('\n')
-    .replace(/\r\n|\r/g, '\n');
-}
-
-const SPAN_MARKERS = ['bullet-a-marker', 'bullet-b-marker', 'bullet-c-marker', 'bullet-d-marker', 'sibling-marker'];
-
-/** Run the full (a)-(e) consistency check against one built fixture. */
-async function assertSpanConsistency(t, opts) {
-  const page = buildSpanFixture(opts);
+test('runStateArchive: a bullet-looking line inside a fenced code block is never matched', async (t) => {
+  const page = buildPage({
+    watch: [
+      '- a real bullet, nothing special',
+      '```',
+      '- fenced-marker: looks like a bullet but lives inside a fenced code block',
+      '```',
+    ],
+  });
   const { home } = makeHome(t, page);
 
-  for (const marker of SPAN_MARKERS) {
-    const expected = lintWatchFullText(page, marker);
-    const actual = await archivedFullText(home, marker);
-    assert.equal(actual, expected, `mismatch for "${marker}" (opts: ${JSON.stringify(opts)})`);
-  }
-
-  // (e): a bullet-looking line inside a fenced code block is never matched
-  // or moved — neither the lint nor the archive ever sees it as a bullet.
-  const fenced = await archive(home, { match: 'fenced-marker', dryRun: true });
-  assert.equal(fenced.code, 2, `fenced-marker must not match: ${fenced.out.join('\n')}`);
-  assert.ok(fenced.err.some((l) => l.includes('no line matches')));
-}
-
-test(
-  'runStateArchive: moves exactly what the lint measures, for every bullet shape (a-e) — ' +
-    'single line, lazy continuation, blank+indented paragraph, blank+plain paragraph, fenced lookalike',
-  async (t) => {
-    await assertSpanConsistency(t, { eol: '\n' });
-  },
-);
-
-test('runStateArchive: the same consistency holds on a CRLF page (f)', async (t) => {
-  await assertSpanConsistency(t, { eol: '\r\n' });
-});
-
-test('runStateArchive: the same consistency holds on a lone-CR page', async (t) => {
-  await assertSpanConsistency(t, { eol: '\r' });
-});
-
-test('runStateArchive: the same consistency holds on a BOM-prefixed page', async (t) => {
-  await assertSpanConsistency(t, { eol: '\n', bom: true });
+  const result = await archive(home, { match: 'fenced-marker', dryRun: true });
+  assert.equal(result.code, 2, `fenced-marker must not match: ${result.out.join('\n')}`);
+  assert.ok(result.err.some((l) => l.includes('no line matches')));
 });
