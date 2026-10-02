@@ -591,3 +591,8 @@ VALIDATED: #20d verify (94 agents): 42/47 fixed; #20e batch + recheck (14 agents
 FIX: privacy — fixture/JSDoc/help text copied from private notes replaced; unpushed history scrubbed by tree-filter (final tree unchanged, 0 hits). DECISION (ahimsa): 'Clean going forward' — strip paths from archived goal/loop files, leave past journal entries (append-only), new rule: this repo's records name other projects generically, no paths.
 STATUS: complete
 NEXT: ahimsa — ratify the CONTINUITY v1.7 text and go on the 0.4.0 push; then claude pushes, runs banana sync here, closes #20
+
+## [2026-10-03] claude cli.22 | ops — push 0.4.0 (#20) + sync the owner machine
+APPROACH: push main only, verify origin, back up home files, banana sync from PowerShell, hash-verify, close #20
+DECISION (ahimsa, 2026-10-03): ratified CONTINUITY v1.7; go on pushing 0.4.0 ("Ratify + push").
+STATUS: in-progress
