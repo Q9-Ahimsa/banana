@@ -585,3 +585,5 @@ FILES: #20b lane 3 db641cf, header 5bf37b0, lane 1 94a22db, lane 2 56fbb90, docs
 Re-review workflow wf_f4cf8a81-679 running: recheck all 64 prior findings + fresh hunt until dry.
 VALIDATED: re-review wf_f4cf8a81-679 (366 agents): recheck 26 fixed + 1 by design, 32 not-fixed (mostly correct-but-unpinned), 4 regressed; hunt +76 confirmed (37/27/12, not dry) + critic 5. Repo + home integrity re-verified after 4 agent slips (all restored).
 DECISION (ahimsa, 2026-10-02): 'Fix real, accept tail' — fix regressions + real findings + cheap test gaps; exotic tail -> ADR known limits; verify with recheck + one should-fix-only round.
+VALIDATED: #20c verify wf_925e8e8d-135 (189 agents): 72/102 closed; 30 open (24 mostly unpinned, 6 regressed); should-fix round +14 (1 blocker: rename retry overwrites a concurrent edit). Agent slip #5 hit the real home (init) — restored from snapshots, hash-verified.
+Spec #20d: .agents/specs/cli-20d-verify-fixes.md (G1–G8, lanes L2 ∥ D2, then A2).
