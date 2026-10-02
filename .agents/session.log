@@ -596,3 +596,5 @@ NEXT: ahimsa — ratify the CONTINUITY v1.7 text and go on the 0.4.0 push; then 
 APPROACH: push main only, verify origin, back up home files, banana sync from PowerShell, hash-verify, close #20
 DECISION (ahimsa, 2026-10-03): ratified CONTINUITY v1.7; go on pushing 0.4.0 ("Ratify + push").
 STATUS: in-progress
+STATUS: complete
+NEXT: claude — list the merged #20 lane worktrees, branches and refs/original for owner-approved deletion; then #19, then #18

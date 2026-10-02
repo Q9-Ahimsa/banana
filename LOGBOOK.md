@@ -98,3 +98,9 @@ WHAT: global-mode lint WARNs line-over-limit / bullet-wrapped / closed-undated /
 DONE: owner ruled the rules, thresholds (30 / 7 days), archive-with-command, and two exceptions (the kit removes exactly one named line; a pasted secret is deleted outright); five adversarial review rounds (findings 64 -> 81 -> 14 -> 8, all fixed or accepted as ADR known limits), fixes #20b-#20e; 946 tests + 2 skipped; the owner machine page cleaned with the new command (9,912 -> 7,289 chars, 13 archive records verified verbatim, lint WARN only by design); text copied from private notes scrubbed from unpushed history (final tree unchanged)
 ref: .agents/session.log cli.20, cli.21; GitHub #20; .agents/specs/cli-20*.md; docs/adr/0006
 NEXT: ahimsa — ratify the v1.7 text, go on the 0.4.0 push; claude — then push, sync here, close #20
+
+## [2026-10-03] claude kit.14 | RELEASE — 0.4.0 pushed; canon v1.7 ratified and synced on the owner machine (#20 closed)
+WHAT: owner ratified CONTINUITY v1.7; origin fb19308..61a983c; npx serves 0.4.0; `banana sync` here: "kit updated: v0.3.0 -> v0.4.0", one change (canon CONTINUITY.md -> rev 1.7)
+DONE: every other home file byte-identical to its pre-sync backup (harness rule files, hook, global page, archive, the other canon files); doctor clean; global lint WARN only by design; SessionStart hook runs on 0.4.0 (0.45 s); #20 closed with evidence
+ref: .agents/session.log cli.22; GitHub #20
+NEXT: claude — clean up the merged lane worktrees (owner approves the list), then #19, then #18

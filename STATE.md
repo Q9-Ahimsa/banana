@@ -1,19 +1,19 @@
 # STATE — banana
-> Projection of LOGBOOK.md as of 2026-10-03 (through kit.13). Logbook wins
+> Projection of LOGBOOK.md as of 2026-10-03 (through kit.14). Logbook wins
 > on conflict. One page, hard cap. Rebuilt at session close; mid-arc
 > section patches are legal and must carry the dirty-marker line.
 
 ## Now
-- 0.4.0 built locally, not pushed: #20 global page — line limits, closed expiry, thread inactivity,
-  and `banana state archive` (removal = a move into the append-only STATE-archive.md); canon
-  CONTINUITY v1.7 + ADR 0006. Five adversarial review rounds, all findings fixed or accepted. The owner
-  machine's page was cleaned with the new command. Waiting on the owner's go to push.
+- 0.4.0 released and live (pushed, served by npx, installed and synced on the owner machine): #20 global
+  page — line limits, closed expiry, thread inactivity, and `banana state archive` (removal = a move into
+  the append-only STATE-archive.md); canon CONTINUITY v1.7 (ratified) + ADR 0006. Frontier: #19, then #18.
 
 ## Truths
 - banana = protocol + mechanical CLI; markdown canonical, no datastore (spec #3) — kit.1
 - Canon, owner-ratified 2026-09-29: SESSION-LOG v2.3; CONTINUITY v1.6 (v1.4 ghosts, v1.5 freshness
   stamps, v1.6 per-thread global edits); STANDARD + CONTINUITY v1.3 rebuild-on-close — kit.7.
-  v1.7 (#20) is built and owner-ruled in substance, text pending ratification — kit.13
+  CONTINUITY v1.7 (#20 global-page limits, expiry, inactivity, archive move) ratified 2026-10-03 and
+  deployed via `sync` — kit.13, kit.14
 - state lint: FAIL exit 1 · WARN exit 0 · usage/unreadable exit 2; 10000-char cap; stale vs LOGBOOK
   = FAIL, vs session.log = WARN; dates header-only + calendar-validated (ADR 0004) — kit.4
 - The lint never reads the clock: global date checks measure from the page's newest stamp; the archive
@@ -36,8 +36,8 @@
 - The CLI deploys on push (npx serves origin/main); canon reaches installed sites only via `sync` — kit.6, kit.9
 
 ## Next
-- ahimsa — ratify the CONTINUITY v1.7 text; go on pushing 0.4.0 — kit.13
-- claude — on go: push, `banana sync` on the owner machine (canon 1.7 + kit 0.4.0), close #20 — kit.13
+- claude — delete the merged #20 lane worktrees, their branches and filter-branch's refs/original
+  (list them first; owner approves) — kit.14
 - claude — #19 (sync line endings, doctor remedy text), then #18 (supersede duplicate ids) — kit.12
 - claude — other projects' banana blocks (still v2) lift to v3 via `banana project` in each project's next
   session (global-page backlog line)
