@@ -174,9 +174,8 @@ report yet keep their single placeholder line rather than being omitted):
   placeholder line giving way to that section's first real bullet;
   archiving applies only when text leaves the page outright or a line is
   trimmed. Exception to "edit only your own threads" above: any session may
-  archive an `expired` closed line, or correct an impossible future-dated
-  stamp that is blocking someone else's move (below), on sight — no
-  judgment is needed to recognize either.
+  archive an `expired` closed line on sight — no judgment is needed to
+  recognize one.
 - **The archive command is the clock-aware gate** — `banana state lint`
   stays clock-free (ADR 0004): a mistyped future stamp can make it WARN a
   whole page expired or inactive, and that is fine, because lint never
@@ -190,10 +189,13 @@ report yet keep their single placeholder line rather than being omitted):
   `(closed …)` stamp is more than 7 days before today; for `--reason
   inactive` it refuses unless the `(as of …)` stamp is more than 30 days
   before today. A missing stamp refuses and suggests `--reason removed`.
-  Before any of that, the gate scans EVERY Active-threads `(as of …)` and
-  Recently-closed `(closed …)` stamp on the page — not only the matched
-  line's own — and refuses, naming the first one dated after today, so that
-  stamp can be fixed first.
+  The gate is LINE-SCOPED: it refuses on a future-dated stamp only when
+  that stamp sits on the MATCHED line itself, naming it so it can be fixed
+  first; a future-dated stamp on any OTHER line never blocks the move — the
+  gate's own verdict is decided entirely by the matched line's own stamp
+  against the real clock, so a stray mistake elsewhere cannot make that
+  decision wrong. The command still proceeds in that case, printing one
+  note naming the other line and its stamp so its owner can be told.
 - **Secrets** — a credential, token, or key pasted onto the page is deleted
   outright, never archived. If one already reached the archive, delete it
   there too; it is the only edit the archive file ever takes.
@@ -616,10 +618,8 @@ changes.
     before it is removed; the archive is never loaded at session start,
     searched with `grep` only. A pasted credential, token, or key is deleted
     outright, never archived. Exception to item 16's "edit only your own
-    threads": any session may archive an `expired` closed line, or correct
-    an impossible future-dated stamp that is blocking someone else's move,
-    on sight — no judgment is needed to recognize either. Counter-failure: a
-    line removed from
+    threads": any session may archive an `expired` closed line on sight — no
+    judgment is needed to recognize one. Counter-failure: a line removed from
     the global page used to leave no trace at all — unlike every other record
     on this machine (session.log and LOGBOOK.md are append-only with ids,
     project STATE lines cite logbook ids), it simply vanished.

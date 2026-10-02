@@ -120,9 +120,10 @@ verb-specific usage and exit codes.
 Exit codes: 0 ok, 2 usage error OR a refused/failed state — \`archive\` also
 exits 2 for a bullet that spans more than one physical line, a reason the
 matched bullet's own section doesn't support, a line not yet past its
-expiry/inactivity limit, a future-dated stamp anywhere on the page, invalid
-UTF-8, or a page missing/changed mid-write — not just a bad flag; \`lint\`
-also exits 1 on any FAIL — see each verb's own --help for its exact tiers.`;
+expiry/inactivity limit, a future-dated stamp on the matched line itself,
+invalid UTF-8, or a page missing/changed mid-write — not just a bad flag;
+\`lint\` also exits 1 on any FAIL — see each verb's own --help for its exact
+tiers.`;
 
 const STATE_LINT_USAGE = `Usage: banana state lint [--global]
 
@@ -160,10 +161,12 @@ move: once the Active-threads line is archived, add a one-line
 Recently-closed entry for it by hand — the command prints a reminder.
 
 \`--reason expired\`/\`inactive\` also read the clock: they refuse (exit 2)
-unless the line's own stamp is already past its limit (\`(closed
-YYYY-MM-DD)\`, 7 days; \`(as of YYYY-MM-DD)\`, 30 days) — naming a
-future-dated stamp anywhere on the page, or suggesting \`--reason removed\`
-when the line carries no stamp at all.
+unless the MATCHED line's own stamp is already past its limit (\`(closed
+YYYY-MM-DD)\`, 7 days; \`(as of YYYY-MM-DD)\`, 30 days), naming that stamp if
+it is instead dated after today, or suggesting \`--reason removed\` when the
+line carries no stamp at all. A future-dated stamp on a DIFFERENT line never
+blocks the move — the command proceeds and prints a one-line note naming
+that other line instead.
 
 A pasted secret (a credential, token, or key) is deleted outright, never
 archived — not even a copy.
@@ -189,8 +192,8 @@ POSIX:
 
 Exit codes: 0 ok, 2 usage or a refused/failed state — a wrapped bullet, a
 reason the matched line's own section doesn't support, a line not yet past
-its expiry/inactivity limit, a future-dated stamp on the page, invalid
-UTF-8, or a page missing or changed mid-write`;
+its expiry/inactivity limit, a future-dated stamp on the matched line
+itself, invalid UTF-8, or a page missing or changed mid-write`;
 
 /** Owner inference rung shared by init and project: git config user.name. */
 function gitUserName() {

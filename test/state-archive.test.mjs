@@ -11,12 +11,14 @@ import {
   chmodSync,
   existsSync,
   linkSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   renameSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -663,22 +665,122 @@ test('runStateArchive: D3 — `inactive` not yet past the 30-day limit refuses, 
   assert.equal(readFileSync(pagePath, 'utf8'), page, 'page untouched');
 });
 
-test('runStateArchive: D3 — a future-dated stamp ANYWHERE on the page refuses and names it, even when the matched line\'s own stamp would otherwise pass', async (t) => {
+// #20d H17 (orchestrator override of #20c's page-wide refusal): a
+// future-dated stamp on a DIFFERENT line no longer blocks the move — the
+// gate's own verdict is decided entirely by the MATCHED line's own stamp
+// against the real clock, so a mistake elsewhere can never make that
+// decision wrong. The move proceeds, and the command prints one note
+// naming the other line and its stamp.
+test('runStateArchive: D3 — a future-dated stamp on a DIFFERENT line no longer blocks the move; it proceeds and prints a note naming that line (#20d H17)', async (t) => {
   const page = buildPage({
     active: [
       '- **gizmo** (as of 2026-08-01) — stalled → `~/projects/gizmo/STATE.md`',
       '- **mistyped** (as of 2026-11-01) — a fat-fingered future stamp → `~/projects/mistyped/STATE.md`',
     ],
   });
-  const { home, pagePath } = makeHome(t, page);
+  const { home, pagePath, archivePath } = makeHome(t, page);
 
   const result = await archive(home, { match: 'gizmo', reason: 'inactive' });
+  assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
+  assert.ok(!readFileSync(pagePath, 'utf8').includes('stalled'));
+  assert.ok(readFileSync(archivePath, 'utf8').includes('stalled'));
+  assert.ok(
+    result.out.some(
+      (l) =>
+        l.includes('note:') &&
+        l.includes('Active threads') &&
+        l.includes('mistyped') &&
+        l.includes('2026-11-01') &&
+        l.includes('tell its owner'),
+    ),
+    `out: ${result.out.join('\n')}`,
+  );
+});
+
+test('runStateArchive: D3 — a future `(closed ...)` stamp in Recently closed ALSO just earns a note, including for `--reason expired` itself (#20d H17)', async (t) => {
+  const page = buildPage({
+    closed: [
+      '- **mistyped** — a fat-fingered future close (closed 2026-11-01)',
+      '- **widget** — shipped the thing (closed 2026-09-01)',
+    ],
+  });
+  const { home, pagePath, archivePath } = makeHome(t, page);
+
+  const result = await archive(home, { match: 'shipped the thing', reason: 'expired' });
+  assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
+  assert.ok(!readFileSync(pagePath, 'utf8').includes('shipped the thing'));
+  assert.ok(readFileSync(archivePath, 'utf8').includes('shipped the thing'));
+  assert.ok(
+    result.out.some(
+      (l) =>
+        l.includes('note:') &&
+        l.includes('Recently closed') &&
+        l.includes('mistyped') &&
+        l.includes('2026-11-01') &&
+        l.includes('tell its owner'),
+    ),
+    `out: ${result.out.join('\n')}`,
+  );
+});
+
+test('runStateArchive: --dry-run prefixes the future-stamp-elsewhere NOTE line too (#20d H17/H60)', async (t) => {
+  const page = buildPage({
+    active: [
+      '- **gizmo** (as of 2026-08-01) — stalled → `~/projects/gizmo/STATE.md`',
+      '- **mistyped** (as of 2026-11-01) — a fat-fingered future stamp → `~/projects/mistyped/STATE.md`',
+    ],
+  });
+  const { home } = makeHome(t, page);
+
+  const result = await archive(home, { match: 'gizmo', reason: 'inactive', dryRun: true });
+  assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
+  assert.ok(result.out.every((l) => l.startsWith('dry run — ')), `not every line prefixed: ${JSON.stringify(result.out)}`);
+  assert.ok(result.out.some((l) => l.includes('note:') && l.includes('mistyped')), `out: ${result.out.join('\n')}`);
+});
+
+test('runStateArchive: D3 — the MATCHED line\'s own future-dated stamp still refuses, with a clean message, never a negative day count (#20d H17)', async (t) => {
+  const page = buildPage({ closed: ['- **widget** — shipped the thing (closed 2026-11-01)'] });
+  const { home, pagePath } = makeHome(t, page);
+
+  const result = await archive(home, { match: 'shipped the thing', reason: 'expired' });
   assert.equal(result.code, 2);
   assert.ok(
-    result.err.some((l) => l.includes('dated after today (2026-10-01)') && l.includes('2026-11-01') && l.includes('fix that stamp first')),
+    result.err.some(
+      (l) =>
+        l.includes("the matched line's own") &&
+        l.includes('2026-11-01') &&
+        l.includes('dated after today (2026-10-01)') &&
+        l.includes('fix that stamp first'),
+    ),
     `err: ${result.err.join('\n')}`,
   );
+  assert.ok(!result.err.some((l) => /-\d+ day/.test(l)), 'must never print a negative day count');
   assert.equal(readFileSync(pagePath, 'utf8'), page, 'page untouched');
+});
+
+// #20d F12/H3 pin: the D3 gate must read the matched bullet's PREPARED
+// (comment-stripped) line — a stamp that exists only inside an HTML
+// comment must never count, in either direction (it must not satisfy "has
+// a stamp", and it must not count as a future stamp either).
+test('runStateArchive: D3 reads the matched line\'s PREPARED text — a stamp hidden inside an HTML comment never counts (#20d F12/H3)', async (t) => {
+  {
+    const page = buildPage({ closed: ['- **beta** — done → p <!-- old note: (closed 2026-01-01) -->'] });
+    const { home, pagePath } = makeHome(t, page);
+    const result = await archive(home, { match: 'beta', reason: 'expired' });
+    assert.equal(result.code, 2);
+    assert.ok(result.err.some((l) => l.includes('none found — use --reason removed instead')), `err: ${result.err.join('\n')}`);
+    assert.equal(readFileSync(pagePath, 'utf8'), page, 'page untouched');
+  }
+  {
+    const page = buildPage({
+      active: ['- **delta** — paused <!-- (as of 2026-01-05) --> → `~/projects/delta/STATE.md`'],
+    });
+    const { home, pagePath } = makeHome(t, page);
+    const result = await archive(home, { match: 'delta', reason: 'inactive' });
+    assert.equal(result.code, 2);
+    assert.ok(result.err.some((l) => l.includes('none found — use --reason removed instead')), `err: ${result.err.join('\n')}`);
+    assert.equal(readFileSync(pagePath, 'utf8'), page, 'page untouched');
+  }
 });
 
 test('runStateArchive: D3 gate never fires for a non-expired/inactive reason, even with a future stamp elsewhere and no stamp on the match', async (t) => {
@@ -867,6 +969,24 @@ test('runStateArchive: the archive keeps its OWN line ending even when the page 
     readFileSync(archivePath, 'utf8'),
     priorCRLF + `## [${TODAY}] claude — removed · Backlog (owned)\r\n- testagent — ship the next slice\r\n\r\n`,
   );
+});
+
+// #20d G7/H65: a BLANK but EXISTING archive (empty, BOM-only, breaks-only)
+// takes the PAGE's own dominant line ending, never a hardcoded LF — the
+// existing H65 tests above all happen to use an LF page, so they can't
+// tell "took the page's ending" apart from "defaulted to LF".
+test('runStateArchive: an EXISTING but BLANK archive takes the PAGE\'s own line ending, not a hardcoded LF (#20d G7/H65)', async (t) => {
+  const page = buildPage({ backlog: ['- testagent — ship the next slice'], eol: '\r\n' });
+  const { home, archivePath } = makeHome(t, page);
+  writeFileSync(archivePath, '', 'utf8');
+
+  const result = await archive(home, { match: 'ship the next slice', reason: 'removed', tag: 'claude' });
+  assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
+  const expected =
+    ARCHIVE_HEADER_TEXT.replace(/\n/g, '\r\n') +
+    '\r\n\r\n' +
+    `## [${TODAY}] claude — removed · Backlog (owned)\r\n- testagent — ship the next slice\r\n\r\n`;
+  assert.equal(readFileSync(archivePath, 'utf8'), expected);
 });
 
 // =====================================================================
@@ -1073,6 +1193,29 @@ test('runStateArchive: a bullet that closes a multi-line HTML comment opened on 
   );
   assert.equal(readFileSync(pagePath, 'utf8'), page, 'page untouched');
   assert.ok(!existsSync(archivePath), 'nothing appended');
+});
+
+// #20d G3/C1/H6/F3: a fenced code block holding an unclosed `<!--` must
+// NOT mark every later line on the page "inside a comment" — the #20c
+// regression this module's own un-fenced comment-boundary walk introduced.
+// The comment-boundary check now shares lib/state.mjs's fence-aware
+// `commentBoundaryFlags`, the SAME scan `blankNonSemanticRegions` uses for
+// the lint, so a `<!--` quoted inside a fence is literal text to both.
+test('runStateArchive: a fenced block holding an unclosed <!-- does NOT block archiving a later, comment-free line (#20d G3/C1/H6/F3)', async (t) => {
+  const page = buildPage({
+    backlog: [
+      '```',
+      '<!-- start a note like this, never closed inside the fence',
+      '```',
+      '- testagent — ship the next slice',
+    ],
+  });
+  const { home, pagePath, archivePath } = makeHome(t, page);
+
+  const result = await archive(home, { match: 'ship the next slice', reason: 'removed' });
+  assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
+  assert.ok(!readFileSync(pagePath, 'utf8').includes('ship the next slice'));
+  assert.ok(readFileSync(archivePath, 'utf8').includes('ship the next slice'));
 });
 
 // =====================================================================
@@ -1325,6 +1468,32 @@ test('runStateArchive: after a SUCCESSFUL move, the temp file is gone — no lef
   assert.ok(existsSync(pagePath));
 });
 
+// #20d F10/H30: the temp file sits NEXT TO the real page (its own
+// directory), never a level up or anywhere else — `tmpLeftovers` above
+// only ever reads `<home>/.agents`, so it alone cannot tell "correctly
+// placed" apart from "placed one directory up" (H30's own named M44
+// mutant: `dirname(dirname(realPagePath))`). This checks both: present
+// where expected, absent one level up.
+test('runStateArchive: the temp file sits NEXT TO the real page, never a level up or elsewhere (#20d F10/H30)', async (t) => {
+  const page = buildPage({ backlog: ['- testagent — ship the next slice'] });
+  const { home, pagePath } = makeHome(t, page);
+
+  /** @type {string[]} */
+  let tempFilesInAgentsDir = [];
+  /** @type {string[]} */
+  let tempFilesOneLevelUp = [];
+  const result = await archive(home, { match: 'ship the next slice', reason: 'removed' }, {
+    onBeforeRename: () => {
+      tempFilesInAgentsDir = readdirSync(join(home, '.agents')).filter((f) => f.includes('.tmp-'));
+      tempFilesOneLevelUp = readdirSync(home).filter((f) => f.includes('.tmp-'));
+    },
+  });
+  assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
+  assert.equal(tempFilesInAgentsDir.length, 1, 'exactly one temp file sits next to the real page');
+  assert.deepEqual(tempFilesOneLevelUp, [], 'no temp file one directory up from the real page');
+  assert.ok(existsSync(pagePath));
+});
+
 // =====================================================================
 // #20c C7/C26 — the archive's own line-ending contract on CREATION: it
 // takes the PAGE's dominant ending, exact bytes, for CRLF and lone-CR
@@ -1380,6 +1549,28 @@ test('runStateArchive: the inserted placeholder keeps the REMOVED line\'s own te
   );
   const withoutPlaceholderLine = pageAfter.replace(expectedPlaceholder + '\r\n', '');
   assert.ok(!/\r/.test(withoutPlaceholderLine), 'no other CRLF introduced anywhere else on the page');
+});
+
+// #20d H33 (the other mutant, M22b): when the REMOVED line itself had NO
+// terminator at all — it was the page's very last line — the placeholder
+// must fall back to the page's own dominant ending, never stay
+// terminator-less itself. No existing fixture puts the removed bullet on
+// the page's last line with nothing after it.
+test('runStateArchive: when the removed line itself had NO terminator, the placeholder falls back to the page\'s dominant ending (#20d H33)', async (t) => {
+  const eol = '\r\n';
+  const withTrailingEol = buildPage({ closed: ['- **widget** — shipped it (closed 2026-09-01)'], eol });
+  const page = withTrailingEol.slice(0, -eol.length); // strip the final terminator: the closed bullet is now the LAST line, with none of its own
+  const { home, pagePath } = makeHome(t, page);
+
+  const result = await archive(home, { match: 'shipped it', reason: 'expired' });
+  assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
+
+  const pageAfter = readFileSync(pagePath, 'utf8');
+  const expectedPlaceholder = templatePlaceholder('Recently closed (context for next session)');
+  assert.ok(
+    pageAfter.endsWith(expectedPlaceholder + eol),
+    `the placeholder must fall back to the page's dominant ending (${JSON.stringify(eol)}) when the removed line had none: ${JSON.stringify(pageAfter)}`,
+  );
 });
 
 // =====================================================================
@@ -1752,10 +1943,14 @@ test('runStateArchive: emptying Active threads or Recently closed inserts THAT s
 // a body bullet.
 // =====================================================================
 
-test('runStateArchive: the placeholder owner comes ONLY from the page header, never from body text (#20c H75)', async (t) => {
+test('runStateArchive: the placeholder owner comes ONLY from the page header, never from body text (#20c H75, #20d H75 pin)', async (t) => {
+  // #20d H75: the body bullet must literally shape-match the header's own
+  // "Owner: <name>. Protocol:" sentence (E9's required ". Protocol:" suffix)
+  // — otherwise a whole-page-scan regression and the header-only fix both
+  // find nothing in this bullet, and the test can't tell them apart.
   const page = buildPage({ backlog: ['- testagent — ship the next slice'] })
     .replace('Owner: testagent. Protocol:', 'Protocol:')
-    .replace(templatePlaceholder('Watch'), '- Owner: ops team. rotates the signing key (validate-by: 2026-12-01)');
+    .replace(templatePlaceholder('Watch'), '- Owner: ops team. Protocol: rotate the signing key (validate-by: 2026-12-01)');
   const { home, pagePath } = makeHome(t, page);
 
   const result = await archive(home, { match: 'ship the next slice', reason: 'removed' });
@@ -2012,25 +2207,11 @@ test('runStateArchive: D3 — a stamp dated EXACTLY today does not trigger the f
   assert.ok(readFileSync(archivePath, 'utf8').includes('stalled'));
 });
 
-test('runStateArchive: D3 — a future `(closed ...)` stamp in Recently closed ALSO refuses, including for `--reason expired` itself (#20c H26)', async (t) => {
-  const page = buildPage({
-    closed: [
-      '- **mistyped** — a fat-fingered future close (closed 2026-11-01)',
-      '- **widget** — shipped the thing (closed 2026-09-01)',
-    ],
-  });
-  const { home, pagePath } = makeHome(t, page);
-
-  const result = await archive(home, { match: 'shipped the thing', reason: 'expired' });
-  assert.equal(result.code, 2);
-  assert.ok(
-    result.err.some(
-      (l) => l.includes('dated after today (2026-10-01)') && l.includes('2026-11-01') && l.includes('fix that stamp first'),
-    ),
-    `err: ${result.err.join('\n')}`,
-  );
-  assert.equal(readFileSync(pagePath, 'utf8'), page, 'page untouched');
-});
+// #20d H17 superseded this scenario — a future stamp on a DIFFERENT line
+// (a non-matched Recently-closed bullet) no longer refuses; it proceeds
+// and prints a note. See 'a future `(closed ...)` stamp in Recently closed
+// ALSO just earns a note, including for `--reason expired` itself (#20d
+// H17)' above, which replaces this #20c H26 scenario.
 
 test('runStateArchive: D3 — an impossible future-SHAPED stamp (month 13) is filtered, never a real future date (#20c H26)', async (t) => {
   const page = buildPage({
@@ -2062,6 +2243,76 @@ test('runStateArchive: a page with more than one hard link is refused outright, 
   assert.ok(result.err.some((l) => l.includes('more than one hard link')), `err: ${result.err.join('\n')}`);
   assert.equal(readFileSync(pagePath, 'utf8'), page, 'page untouched');
   assert.ok(!existsSync(archivePath), 'nothing written');
+});
+
+// #20d G6/F6: the hard-link refusal only applies to a move that REPLACES
+// the page — `trimmed` (copy-only, page never touched) and `--dry-run`
+// (writes nothing, for ANY reason) both proceed.
+test('runStateArchive: a hard-linked page still proceeds for `--reason trimmed` (#20d G6/F6)', async (t) => {
+  const page = buildPage({
+    backlog: ['- testagent — ship the next slice', '- ahimsa — review the shipped slice'],
+  });
+  const { home, pagePath, archivePath } = makeHome(t, page);
+  linkSync(pagePath, join(home, '.agents', 'canonical-STATE.md'));
+
+  const result = await archive(home, { match: 'review the shipped slice', reason: 'trimmed' });
+  assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
+  assert.equal(readFileSync(pagePath, 'utf8'), page, 'trimmed never touches the page, hard link or not');
+  assert.ok(readFileSync(archivePath, 'utf8').includes('review the shipped slice'));
+});
+
+test('runStateArchive: a hard-linked page still proceeds under `--dry-run`, for any reason (#20d G6/F6)', async (t) => {
+  const page = buildPage({ closed: ['- **widget** — shipped the thing (closed 2026-09-01)'] });
+  const { home, pagePath, archivePath } = makeHome(t, page);
+  linkSync(pagePath, join(home, '.agents', 'canonical-STATE.md'));
+
+  const result = await archive(home, { match: 'shipped the thing', reason: 'expired', dryRun: true });
+  assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
+  assert.equal(readFileSync(pagePath, 'utf8'), page, 'dry-run never touches the page');
+  assert.ok(!existsSync(archivePath));
+});
+
+test('runStateArchive: the hard-link refusal\'s remedy names archiving by hand or breaking the link, never "edit the file directly" (#20d G6/F6)', async (t) => {
+  const page = buildPage({ backlog: ['- testagent — ship the next slice'] });
+  const { home, pagePath } = makeHome(t, page);
+  linkSync(pagePath, join(home, '.agents', 'canonical-STATE.md'));
+
+  const result = await archive(home, { match: 'ship the next slice', reason: 'removed' });
+  assert.equal(result.code, 2);
+  assert.ok(result.err.some((l) => l.includes('more than one hard link')), `err: ${result.err.join('\n')}`);
+  assert.ok(!result.err.some((l) => l.includes('edit the file directly')), `err: ${result.err.join('\n')}`);
+  assert.ok(result.err.some((l) => l.includes('by hand') || l.includes('break the hard link')), `err: ${result.err.join('\n')}`);
+  assert.equal(readFileSync(pagePath, 'utf8'), page, 'page untouched');
+});
+
+// #20d G8/X3/F11: a symlinked page is resolved via realpathSync before any
+// write planning — the rename target is the REAL file, so the symlink's
+// own directory entry survives the move intact. Skips (t.skip) when
+// fs.symlinkSync itself throws EPERM/EACCES — Windows without developer
+// mode (or an unprivileged account) cannot create a symlink at all, and
+// that is an environment limit, not a test failure.
+test('runStateArchive: a symlinked page is resolved via realpathSync — the symlink itself survives the move (#20d G8/X3/F11)', async (t) => {
+  const home = sandbox(t);
+  mkdirSync(join(home, '.agents'), { recursive: true });
+  const realPath = join(home, '.agents', 'real-STATE.md');
+  const linkPath = join(home, '.agents', 'STATE.md');
+  const page = buildPage({ backlog: ['- testagent — ship the next slice'] });
+  writeFileSync(realPath, page, 'utf8');
+  try {
+    symlinkSync(realPath, linkPath, 'file');
+  } catch (error) {
+    const code = error !== null && typeof error === 'object' && 'code' in error ? error.code : null;
+    if (code === 'EPERM' || code === 'EACCES') {
+      t.skip('symlink creation requires elevated privileges / developer mode on this machine');
+      return;
+    }
+    throw error;
+  }
+
+  const result = await archive(home, { match: 'ship the next slice', reason: 'removed' });
+  assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
+  assert.ok(lstatSync(linkPath).isSymbolicLink(), 'the symlink itself must survive the move, never replaced by a plain file');
+  assert.ok(!readFileSync(realPath, 'utf8').includes('ship the next slice'), 'the REAL file received the move');
 });
 
 // =====================================================================
@@ -2137,6 +2388,113 @@ test('runStateArchive: a NON-retryable rename error fails immediately, no retry 
   );
   assert.equal(result.code, 2);
   assert.equal(attempts, 1, 'must not retry a non-retryable error code');
+});
+
+// =====================================================================
+// #20d G1/F1 (blocker): the rename retry loop re-runs the page-unchanged
+// guard before EVERY attempt, not only the first — a concurrent edit
+// landing during the backoff window between two LATER attempts must be
+// caught too, never silently renamed over on the next try.
+// =====================================================================
+
+test("runStateArchive: G1 — a concurrent edit landing during the rename retry's backoff is caught before the NEXT attempt, never overwritten (#20d G1/F1)", async (t) => {
+  const page = buildPage({ backlog: ['- testagent — ship the next slice'] });
+  const { home, pagePath, archivePath } = makeHome(t, page);
+  const otherSessionEdit = page.replace(
+    templatePlaceholder('Watch'),
+    '- NEW WATCH ITEM written by another session (validate-by: 2026-12-01)',
+  );
+
+  let attempts = 0;
+  const flakyRename = (/** @type {string} */ from, /** @type {string} */ to) => {
+    attempts++;
+    if (attempts === 1) {
+      // Simulates another session's edit landing WHILE this attempt's
+      // transient failure is being reported — before the retry loop's next
+      // iteration gets a chance to re-check the page.
+      writeFileSync(pagePath, otherSessionEdit, 'utf8');
+      const error = /** @type {Error & { code?: string }} */ (new Error('simulated transient hold'));
+      error.code = 'EPERM';
+      throw error;
+    }
+    renameSync(from, to);
+  };
+
+  const result = await archive(
+    home,
+    { match: 'ship the next slice', reason: 'removed' },
+    { renameSyncOverride: flakyRename, renameRetryBudgetMs: 2000 },
+  );
+
+  assert.equal(result.code, 2);
+  assert.ok(result.err.some((l) => l.includes('changed after archiving')), `err: ${result.err.join('\n')}`);
+  assert.ok(result.err.some((l) => l.includes('already holds a copy of the line')), `err: ${result.err.join('\n')}`);
+  assert.equal(
+    attempts,
+    1,
+    'must refuse BEFORE the second rename attempt — the page-unchanged guard runs before every attempt, not only the first',
+  );
+  assert.equal(readFileSync(pagePath, 'utf8'), otherSessionEdit, "the other session's edit survives — never renamed over");
+  assert.ok(readFileSync(archivePath, 'utf8').includes('ship the next slice'), 'the archive already has the copy');
+  assert.deepEqual(tmpLeftovers(home), [], 'no leftover temp file');
+});
+
+// =====================================================================
+// #20d G2/F5: after a failed rename or guard 2, the remedy is "rerun the
+// command" — the archive's own dedupe (composeArchiveAppend's
+// isDuplicate) makes a rerun safe — never a suggestion to delete or edit
+// the line on the page by hand, which would contradict "never delete a
+// line" (the page header's own rule).
+// =====================================================================
+
+test('runStateArchive: G2 — the rename-exhausted refusal says "rerun the command", never "by hand" (#20d G2/F5)', async (t) => {
+  const page = buildPage({ backlog: ['- testagent — ship the next slice'] });
+  const { home } = makeHome(t, page);
+
+  const alwaysFlaky = () => {
+    const error = /** @type {Error & { code?: string }} */ (new Error('simulated permanent hold'));
+    error.code = 'EBUSY';
+    throw error;
+  };
+
+  const result = await archive(
+    home,
+    { match: 'ship the next slice', reason: 'removed' },
+    { renameSyncOverride: alwaysFlaky, renameRetryBudgetMs: 120 },
+  );
+  assert.equal(result.code, 2);
+  assert.ok(result.err.some((l) => l.includes('could not rename the temp file over')), `err: ${result.err.join('\n')}`);
+  assert.ok(result.err.some((l) => l.includes('rerun the command')), `err: ${result.err.join('\n')}`);
+  assert.ok(!result.err.some((l) => l.includes('by hand')), `err: ${result.err.join('\n')}`);
+});
+
+test('runStateArchive: G2 — guard 2\'s "changed after archiving" refusal says "rerun the command", never "by hand" (#20d G2/F5)', async (t) => {
+  const page = buildPage({ backlog: ['- testagent — ship the next slice'] });
+  const { home, pagePath } = makeHome(t, page);
+  const sameLengthEdit = page.replace('next slice', 'next SLICE');
+
+  const result = await archive(home, { match: 'ship the next slice', reason: 'removed' }, {
+    onBeforeGuard2: () => writeFileSync(pagePath, sameLengthEdit, 'utf8'),
+  });
+
+  assert.equal(result.code, 2);
+  assert.ok(result.err.some((l) => l.includes('changed after archiving')), `err: ${result.err.join('\n')}`);
+  assert.ok(result.err.some((l) => l.includes('rerun the command')), `err: ${result.err.join('\n')}`);
+  assert.ok(!result.err.some((l) => l.includes('by hand')), `err: ${result.err.join('\n')}`);
+});
+
+test('runStateArchive: G2 — guard 2\'s "missing after archiving" refusal says "rerun the command", never "by hand" (#20d G2/F5)', async (t) => {
+  const page = buildPage({ backlog: ['- testagent — ship the next slice'] });
+  const { home, pagePath } = makeHome(t, page);
+
+  const result = await archive(home, { match: 'ship the next slice', reason: 'removed' }, {
+    onBeforeGuard2: () => rmSync(pagePath),
+  });
+
+  assert.equal(result.code, 2);
+  assert.ok(result.err.some((l) => l.includes('missing or unreadable after archiving')), `err: ${result.err.join('\n')}`);
+  assert.ok(result.err.some((l) => l.includes('rerun the command')), `err: ${result.err.join('\n')}`);
+  assert.ok(!result.err.some((l) => l.includes('by hand')), `err: ${result.err.join('\n')}`);
 });
 
 // =====================================================================

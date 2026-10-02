@@ -117,7 +117,26 @@ test('bin: `banana state --help` names non-usage causes of exit 2 in plain words
   assert.equal(status, 0);
   assert.ok(stdout.includes('spans more than one physical line'), `stdout: ${stdout}`);
   assert.ok(stdout.includes("own section doesn't support"), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('not yet past its'), `stdout: ${stdout}`);
   assert.ok(stdout.includes('future-dated stamp'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('UTF-8'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('mid-write'), `stdout: ${stdout}`);
+  assert.ok(!/\bD1\b/.test(stdout) && !/\bD3\b/.test(stdout), `stdout still names a spec label: ${stdout}`);
+});
+
+// #20d H23/H37: the H23/H37 pin above only ever covered `state --help`;
+// `state archive --help` — the exact help text H23's own failure scenario
+// quotes — had no pin at all, so its plain-words fix (or a revert back to
+// "D1/D3 safety gates") could drift unnoticed.
+test('bin: `banana state archive --help` ALSO names non-usage causes of exit 2 in plain words, never spec labels like "D1"/"D3" (#20d H23/H37)', () => {
+  const { status, stdout } = run(['state', 'archive', '--help']);
+  assert.equal(status, 0);
+  assert.ok(stdout.includes('wrapped bullet'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes("own section doesn't support"), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('not yet past'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('future-dated stamp'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('UTF-8'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('mid-write'), `stdout: ${stdout}`);
   assert.ok(!/\bD1\b/.test(stdout) && !/\bD3\b/.test(stdout), `stdout still names a spec label: ${stdout}`);
 });
 

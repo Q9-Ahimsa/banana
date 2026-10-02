@@ -790,13 +790,13 @@ the clock-aware gate below, so a Watch or Backlog line that happens to
 contain stamp-shaped text can't slip past that gate's "no stamp found"
 refusal by accident.
 
-**The clock-aware safety gate (#20b decision D3, refined #20c E10).**
-`state lint` stays clock-free (ADR 0004); `state archive` is the one place
-in this feature allowed to read `now`, and it uses that to double-check a
-reason before acting, reusing `lib/state.mjs`'s own stamp parser rather
-than a second one. This means the gate's own verdict can disagree with
-lint's `closed-expired`/`thread-inactive` WARNs: lint compares a stamp
-against the page's reference date, the gate compares the same stamp
+**The clock-aware safety gate (#20b decision D3, refined #20c E10, re-scoped
+#20d H17).** `state lint` stays clock-free (ADR 0004); `state archive` is
+the one place in this feature allowed to read `now`, and it uses that to
+double-check a reason before acting, reusing `lib/state.mjs`'s own stamp
+parser rather than a second one. This means the gate's own verdict can
+disagree with lint's `closed-expired`/`thread-inactive` WARNs: lint compares
+a stamp against the page's reference date, the gate compares the same stamp
 against today, and those two dates differ whenever the page's newest stamp
 isn't dated today — a line can clear one check before the other. When a
 matched line carries more than one valid stamp of the relevant keyword, the
@@ -808,12 +808,18 @@ expired/inactive using a different stamp than lint used.
 `(closed …)` stamp is more than 7 days before today; `--reason inactive`
 refuses unless its `(as of …)` stamp is more than 30 days before today.
 Either reason refuses on a missing stamp, suggesting `--reason removed`
-instead. Before any of that, the gate scans EVERY non-placeholder
-Active-threads `(as of …)` and Recently-closed `(closed …)` stamp on the
-page — not only the matched line's own (#20c H17/H52: Watch and Backlog
-never carry this stamp convention, so they're never scanned either) — and
-refuses, naming the first one dated after today, so that stamp can be fixed
-first rather than silently comparing against a clock-confusing value.
+instead. The gate is LINE-SCOPED (#20d H17, replacing the earlier #20c
+page-wide scan): it refuses on a future-dated stamp only when that stamp
+sits on the MATCHED line's own — naming it, so that stamp can be fixed
+first — because the gate's whole verdict is decided by the matched line's
+own stamp against the real clock, and a future-dated mistake on some OTHER
+line can never make that decision wrong. A future-dated stamp elsewhere
+never blocks the move: the command still proceeds and prints one note
+naming that other line and its stamp (scanning the SAME two non-placeholder
+Active-threads/Recently-closed sections and keywords the reference date
+itself reads, #20d H52 — Watch and Backlog never carry this stamp
+convention, so neither the gate nor the note ever reads them), so its owner
+can be told.
 
 **Record.** The archive file is created with this header if it doesn't
 exist yet (#20c E6 — names the one exception to "append-only", a pasted

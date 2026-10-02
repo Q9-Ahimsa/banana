@@ -132,20 +132,22 @@ unaffected.
 entire page as expired or inactive, and that is an acceptable false alarm, because lint never
 changes anything. `state archive` is where acting on a reason actually matters, so it is the
 one place in this feature allowed to read the injected clock. For `--reason expired` it
-refuses (exit 2) unless the line's own `(closed …)` stamp really is more than 7 days before
-today; for `--reason inactive` it refuses unless the `(as of …)` stamp really is more than 30
-days before today. A missing stamp refuses outright and suggests `--reason removed` instead.
-Before either check, the gate scans every non-placeholder Active-threads `(as of …)` and
-Recently-closed `(closed …)` stamp on the page — the same two sections and keywords the
-reference date itself reads above, so Watch and Backlog are never scanned either (#20d
-H17/H52) — and if any of those is dated after today, the refusal names it, so the fix is
-"correct that stamp first," not "pick a different reason." Any session may make that one
-correction even on a thread it does not own, since recognizing an impossible future date needs
-no judgment — the same carve-out that already lets any session archive an `expired`
-Recently-closed line on sight (see Consequences, below; #20d H17). The stamp parsing itself is
-not re-derived: `state archive` imports the same hardened parser `lib/state.mjs` already
-exports for `(as of …)`/`(closed …)`, so there is only ever one definition of what a valid
-stamp looks like.
+refuses (exit 2) unless the MATCHED line's own `(closed …)` stamp really is more than 7 days
+before today; for `--reason inactive` it refuses unless its `(as of …)` stamp really is more
+than 30 days before today. A missing stamp refuses outright and suggests `--reason removed`
+instead. The gate is LINE-SCOPED (#20d H17, revising the page-wide scan this ADR shipped
+earlier): a future-dated stamp blocks the move only when it belongs to the MATCHED line
+itself — the refusal names it, so the fix is "correct that stamp first," not "pick a different
+reason." A future-dated stamp on any OTHER line never blocks the move: the gate's own verdict
+is decided entirely by the matched line's stamp against the real clock, so a stray mistake
+elsewhere cannot make that decision wrong, and the old page-wide refusal only blocked cleanup
+until someone else's unrelated mistake happened to get fixed. The command still proceeds in
+that case and prints one note naming the other line and its stamp (the same two non-placeholder
+Active-threads/Recently-closed sections and keywords the reference date itself reads above, so
+Watch and Backlog are never read either way, #20d H52), so its owner can be told. The stamp
+parsing itself is not re-derived: `state archive` imports the same hardened parser
+`lib/state.mjs` already exports for `(as of …)`/`(closed …)`, so there is only ever one
+definition of what a valid stamp looks like.
 
 ## Consequences
 
@@ -156,10 +158,9 @@ stamp looks like.
   one-line Backlog item naming what it's waiting on. The check only flags the first half;
   a model does the second.
 - Exception to ADR 0005's "edit only your own threads" rule: any session may archive an
-  `expired` Recently-closed line, or correct an impossible future-dated stamp that is blocking
-  someone else's archive move (D3, above), on sight — recognizing either needs no judgment (a
-  date comparison, not a content decision) — unlike `trimmed`/`inactive`/`closed`/`removed`,
-  which still want the touching session's own judgment about what to keep (#20d H17).
+  `expired` Recently-closed line on sight — recognizing one needs no judgment (a date
+  comparison, not a content decision) — unlike `trimmed`/`inactive`/`closed`/`removed`, which
+  still want the touching session's own judgment about what to keep.
 - The kit's "never rewrites their content" promise for user-owned surfaces (`canon/
   CONTINUITY.md`'s "Upstream and sync") gets its one exception here, introduced by this ADR,
   not merely extended by it: `state archive` may remove exactly the one line its caller named

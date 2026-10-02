@@ -369,9 +369,13 @@ test("CONTINUITY.md Global-grain body states the archive command's clock-aware g
   );
   assert.ok(
     flat.includes(
-      'Before any of that, the gate scans EVERY Active-threads `(as of …)` and Recently-closed `(closed …)` stamp on the page'
+      'The gate is LINE-SCOPED: it refuses on a future-dated stamp only when that stamp sits on the MATCHED line itself'
     ),
-    'CONTINUITY.md Global-grain body missing the page-wide future-stamp scan rule'
+    'CONTINUITY.md Global-grain body missing the line-scoped future-stamp refusal rule (#20d H17)'
+  );
+  assert.ok(
+    flat.includes('a future-dated stamp on any OTHER line never blocks the move'),
+    'CONTINUITY.md Global-grain body missing the "future stamp elsewhere never blocks" rule (#20d H17)'
   );
 });
 
@@ -519,19 +523,48 @@ test('docs/DESIGN.md brief/log-close collapse is decided by the GLOBAL verdict a
   );
 });
 
-test('CONTINUITY.md Global-grain body AND changelog item 17 state the ownership exception for a blocking future-dated stamp (#20d H17)', () => {
+// #20d H17 (orchestrator override of the #20c-era fix above): the gate's
+// own verdict is decided entirely by the MATCHED line's own stamp against
+// the real clock, so a future-dated mistake on some OTHER line can never
+// make that decision wrong — the page-wide refusal only blocked cleanup
+// until someone else's unrelated line got fixed. The gate is re-scoped to
+// the matched line alone (with a non-blocking note for a stamp elsewhere,
+// pinned separately below), and the ownership exception this same #20c pass
+// added — "or correct an impossible future-dated stamp that is blocking
+// someone else's move" — is reverted: back to the one approved exception,
+// archiving an `expired` closed line on sight, with no carve-out for
+// touching another thread's stamp.
+test('CONTINUITY.md Global-grain body AND changelog item 17 revert the ownership exception to "expired closed line on sight" only (#20d H17)', () => {
   const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
   assert.ok(
     flat.includes(
-      "above: any session may archive an `expired` closed line, or correct an impossible future-dated stamp that is blocking someone else's move (below), on sight"
+      'above: any session may archive an `expired` closed line on sight — no judgment is needed to recognize one'
     ),
-    'CONTINUITY.md Global-grain body missing the non-owner future-stamp-correction exception'
+    'CONTINUITY.md Global-grain body missing the reverted single-exception wording'
   );
   assert.ok(
     flat.includes(
-      "threads\": any session may archive an `expired` closed line, or correct an impossible future-dated stamp that is blocking someone else's move, on sight"
+      "threads\": any session may archive an `expired` closed line on sight — no judgment is needed to recognize one"
     ),
-    'CONTINUITY.md v1.7 changelog item 17 missing the non-owner future-stamp-correction exception'
+    'CONTINUITY.md v1.7 changelog item 17 missing the reverted single-exception wording'
+  );
+  assert.ok(
+    !flat.includes("or correct an impossible future-dated stamp that is blocking someone else's move"),
+    'CONTINUITY.md still carries the reverted non-owner future-stamp-correction exception'
+  );
+});
+
+test('CONTINUITY.md Global-grain body prints a non-blocking NOTE for a future-dated stamp on a DIFFERENT line, never a refusal (#20d H17)', () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  assert.ok(
+    flat.includes(
+      'a future-dated stamp on any OTHER line never blocks the move — the gate\'s own verdict is decided entirely by the matched line\'s own stamp against the real clock'
+    ),
+    'CONTINUITY.md Global-grain body missing the "future stamp elsewhere never blocks" rule'
+  );
+  assert.ok(
+    flat.includes('The command still proceeds in that case, printing one note naming the other line and its stamp'),
+    'CONTINUITY.md Global-grain body missing the non-blocking note rule'
   );
 });
 
@@ -614,9 +647,9 @@ test('docs/adr/0006 scopes the reference date and the D3 future-stamp scan the s
   );
   assert.ok(
     flat.includes(
-      'Before either check, the gate scans every non-placeholder Active-threads `(as of …)` and Recently-closed `(closed …)` stamp on the page'
+      'the same two non-placeholder Active-threads/Recently-closed sections and keywords the reference date itself reads above'
     ),
-    'docs/adr/0006 D3 section missing the section-scoped future-stamp-scan definition'
+    'docs/adr/0006 D3 section missing the section-scoped future-stamp-note definition'
   );
 });
 
