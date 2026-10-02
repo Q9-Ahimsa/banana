@@ -5,8 +5,8 @@
 > `~/.agents/canon/CONTINUITY.md`.
 > One line per bullet: thread 400 · backlog 300 · watch 350 · closed 250 chars.
 > Closed lines carry `(closed YYYY-MM-DD)`. By the page's newest stamp, closed lines expire
-> at 8+ days and threads idle 31+ days move to Backlog. Never delete a line:
-> `banana state archive` moves it to STATE-archive.md.
+> at 8+ days and threads idle 31+ days move to Backlog. Never delete a line — except
+> a pasted secret, deleted outright. `banana state archive` moves the rest to STATE-archive.md.
 
 ## Active threads
 - (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)

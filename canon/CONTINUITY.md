@@ -94,8 +94,8 @@ report yet keep their single placeholder line rather than being omitted):
 > `~/.agents/canon/CONTINUITY.md`.
 > One line per bullet: thread 400 · backlog 300 · watch 350 · closed 250 chars.
 > Closed lines carry `(closed YYYY-MM-DD)`. By the page's newest stamp, closed lines expire
-> at 8+ days and threads idle 31+ days move to Backlog. Never delete a line:
-> `banana state archive` moves it to STATE-archive.md.
+> at 8+ days and threads idle 31+ days move to Backlog. Never delete a line — except
+> a pasted secret, deleted outright. `banana state archive` moves the rest to STATE-archive.md.
 
 ## Active threads
 - (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)
@@ -123,25 +123,31 @@ report yet keep their single placeholder line rather than being omitted):
   YYYY-MM-DD)`, the newest source it was rebuilt from (normally its project
   STATE's as-of); a project STATE dated later than the stamp means the
   thread is stale, and `banana state lint --global` FAILs it.
-- **Limits and the one-line rule** (v1.7, ADR 0006) — every top-level bullet
-  is one physical line: its own marker line plus only the continuation lines
-  that are not a heading, a `---` rule, a fence opener, a comment-only line,
-  or another top-level bullet (plus, after a blank line, an indented
-  paragraph — a loose item's next line). Each section caps a bullet's full
-  text at its own char limit (thread 400 · backlog 300 · watch 350 · closed
-  250). `banana state lint --global` WARNs `line-over-limit` when a
-  bullet's own line alone is over its cap, and WARNs `bullet-wrapped`
-  separately the moment a bullet has any continuation lines at all — join
-  it back onto one line.
+- **Limits and the one-line rule** (v1.7, ADR 0006) — the rule: every
+  top-level bullet is written as one physical line, nothing else following
+  it. A bullet has already broken that rule the moment it carries even one
+  continuation line — a line directly after it that is not a heading, a
+  `---` rule, a fence opener, a comment-only line, or another top-level
+  bullet (plus, after a blank line, an indented paragraph — a loose item's
+  next line); those are the only lines `banana state lint --global` treats
+  as the bullet's own for measuring and flagging, never as compliant with
+  the rule. Each section caps a bullet's own marker line at its own char
+  limit (thread 400 · backlog 300 · watch 350 · closed 250): WARNs
+  `line-over-limit` when that line alone is over its cap, and WARNs
+  `bullet-wrapped` separately the moment any continuation line exists at
+  all, however short — join it back onto one line.
 - **Closed stamp and expiry** — a Recently-closed bullet carries `(closed
   YYYY-MM-DD)`, parsed with the same hardened rules as the freshness stamp
   above. It expires when its stamp is more than 7 days before the page's own
   reference date — the newest valid stamp on the page, never the clock.
 - **Thread inactivity** — an Active-threads bullet whose `(as of)` stamp is
   more than 30 days before that same reference date — 31 or more — becomes
-  a Backlog line instead of staying put. `banana state lint --global` WARNs
-  both `closed-expired` and `thread-inactive` (judgment calls, not
-  mechanical defects — the page-wide cap stays the FAIL backstop).
+  a Backlog line instead of staying put, unless that same bullet already
+  FAILs `thread-stale`: the two remedies contradict (refresh the stamp vs.
+  archive the thread), so a stale bullet skips `thread-inactive` until its
+  stamp is refreshed. `banana state lint --global` WARNs both
+  `closed-expired` and `thread-inactive` (judgment calls, not mechanical
+  defects — the page-wide cap stays the FAIL backstop).
 - **The archive move** — removal from the page is never a deletion: any
   line leaving it — or the long form of a line being trimmed in place — is
   first copied verbatim into the append-only `~/.agents/STATE-archive.md`,
@@ -154,19 +160,30 @@ report yet keep their single placeholder line rather than being omitted):
   `closed` (a finished Active thread: archive its line, add a
   Recently-closed line), `removed` (anything else the owner drops). A
   routine status update to your own thread is not a removal — its history
-  already lives at the pointer target; archiving applies only when text
-  leaves the page outright or a line is trimmed. Exception to "edit only
-  your own threads" above: any session may archive an `expired` closed line
-  on sight — no judgment is needed to recognize one.
+  already lives at the pointer target — and neither is a section's
+  placeholder line giving way to that section's first real bullet;
+  archiving applies only when text leaves the page outright or a line is
+  trimmed. Exception to "edit only your own threads" above: any session may
+  archive an `expired` closed line, or correct an impossible future-dated
+  stamp that is blocking someone else's move (below), on sight — no
+  judgment is needed to recognize either.
 - **The archive command is the clock-aware gate** — `banana state lint`
   stays clock-free (ADR 0004): a mistyped future stamp can make it WARN a
   whole page expired or inactive, and that is fine, because lint never
   changes anything. `banana state archive` is the side that acts, and it
-  does read the clock. For `--reason expired` it refuses unless the line's
-  own `(closed …)` stamp is more than 7 days before today; for `--reason
+  does read the clock — which means its `expired`/`inactive` gate can
+  disagree with lint's own `closed-expired`/`thread-inactive` WARNs: lint
+  compares a stamp against the page's reference date, the gate compares the
+  same stamp against today, and those two dates differ whenever the page's
+  newest stamp isn't dated today, so a line can pass one check before the
+  other catches up. For `--reason expired` it refuses unless the line's own
+  `(closed …)` stamp is more than 7 days before today; for `--reason
   inactive` it refuses unless the `(as of …)` stamp is more than 30 days
-  before today. A missing stamp refuses and suggests `--reason removed`; a
-  stamp dated after today is named in the refusal so it can be fixed first.
+  before today. A missing stamp refuses and suggests `--reason removed`.
+  Before any of that, the gate scans EVERY Active-threads `(as of …)` and
+  Recently-closed `(closed …)` stamp on the page — not only the matched
+  line's own — and refuses, naming the first one dated after today, so that
+  stamp can be fixed first.
 - **Secrets** — a credential, token, or key pasted onto the page is deleted
   outright, never archived. If one already reached the archive, delete it
   there too; it is the only edit the archive file ever takes.
@@ -175,14 +192,16 @@ report yet keep their single placeholder line rather than being omitted):
   separated by a blank line, newest last:
   ```markdown
   # GLOBAL STATE — archive
-  > Append-only. Lines moved off ~/.agents/STATE.md (or the long form of trimmed ones), verbatim,
-  > newest last. Never loaded at session start. Search: grep -i "<term>" ~/.agents/STATE-archive.md
+  > Append-only — except a pasted secret: delete it here too, on sight. Lines moved off
+  > ~/.agents/STATE.md (or the long form of trimmed ones), verbatim, newest last. Never
+  > loaded at session start. Search: grep -i "<term>" ~/.agents/STATE-archive.md
 
   ## [YYYY-MM-DD] {agent} — {reason} · {section name}
-  {the bullet's lines, byte-verbatim}
+  {the matched line, byte-verbatim}
   ```
-  `banana state archive` remains the preferred way; this is for a harness
-  that cannot run it.
+  A moved bullet is always exactly one line (the one-line rule below) — the
+  record body is a single line, never several. `banana state archive`
+  remains the preferred way; this is for a harness that cannot run it.
 
 ## Project grain — Logbook Standard
 
@@ -348,8 +367,11 @@ into a **kit-owned** directory: `~/.agents/canon/` (`CONTINUITY.md`,
   creates these only if missing and rewrites only inside its own fences.
   The one exception: `banana state archive` removes exactly the one line
   its caller named from the global `STATE.md`, after copying it verbatim
-  into `STATE-archive.md` first — the single kit command permitted to touch
-  the global page's content, and only ever that one named line.
+  into `STATE-archive.md` first, and — only when that removal would leave
+  the line's section with no bullet at all — writes back that section's own
+  single placeholder line in its place. That is the full extent of it: the
+  single kit command permitted to touch the global page's content, and only
+  ever that one named line plus, when needed, its section's placeholder.
 - **Version markers:** the first line of every canon file is a
   machine-readable marker, `<!-- banana:canon rev X.Y -->`. The doctor
   compares installed markers against the kit's bundled canon and flags stale
@@ -550,14 +572,17 @@ Nothing else changes.
     sessions write concurrently, actively cause.
 
 v1.7 amends the **global-grain limits, expiry, and archive** rule (ADR 0006 in
-the kit repo). Nothing else changes.
+the kit repo); the same pass also extends the "Upstream and sync" carve-out
+above to cover the placeholder line `state archive` writes back when a
+section empties. Nothing else changes.
 
 17. **Line limits, closed stamp, inactivity, and the archive move** — every
-    top-level bullet is one physical line (its own marker line plus only
-    non-heading, non-rule, non-fence, non-comment continuation lines) and
-    carries a per-section character limit (`## Active threads` 400 ·
-    `## Backlog (owned)` 300 · `## Watch` 350 · `## Recently closed (context
-    for next session)` 250); `banana state lint --global` WARNs
+    top-level bullet must be written as one physical line — a bullet with
+    even one non-heading, non-rule, non-fence, non-comment continuation
+    line has already broken that rule — and carries a per-section
+    character limit (`## Active threads` 400 · `## Backlog (owned)` 300 ·
+    `## Watch` 350 · `## Recently closed (context for next session)` 250);
+    `banana state lint --global` WARNs
     `line-over-limit` on the limit and `bullet-wrapped` on any continuation
     lines at all. A Recently-closed bullet carries `(closed YYYY-MM-DD)`,
     parsed with the same hardened rules as the v1.5 freshness stamp, and

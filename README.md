@@ -45,7 +45,9 @@ hot/cold context tiers — lives in the canon:
   created if missing, their content never rewritten by the kit. The one
   exception: `banana state archive` removes exactly the one line its caller
   named from the global `STATE.md`, after copying it to `STATE-archive.md`
-  first.
+  first — and, only if that empties the line's section, writes back that
+  section's own placeholder line. A pasted secret is deleted outright
+  instead of archived.
 
 ### Bootstrap model
 

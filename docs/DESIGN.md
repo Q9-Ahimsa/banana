@@ -177,10 +177,15 @@ nobody runs by hand still gets surfaced. Built from `lib/state.mjs`'s `collectSt
 the same `state lint` itself would print. Content, in order: a `project: <VERDICT> · global:
 <VERDICT>` summary line (`<VERDICT>` is the lint's own summary text with no `state lint: ` prefix —
 `PASS`, `WARN (N warn)`, `FAIL (N fail, M warn)`, `none (<reason>)` when the target page doesn't
-exist, or `unreadable (<reason>)` when it exists but can't be read); then every finding line exactly
-as `state lint` prints it, project findings first, then global (no findings — no extra lines); then,
-only when either side's verdict is FAIL, one closing line: `Fix these before relying on the page: a
-FAIL means STATE no longer projects its sources.` Lint never changes `brief`'s exit code or stops it
+exist, or `unreadable (<reason>)` when it exists but can't be read). When BOTH sides' verdicts are
+WARN-only (no FAIL anywhere), the finding lines collapse to one per side: the verdict, a count per
+finding type, and a pointer, `run banana state lint --global for details` (#20c E7 — an uncollapsed
+global page header alone used to add roughly 5 KB, 19 lines, to every brief, for residue that is
+never urgent). The moment either side has a FAIL, nothing collapses: every finding line prints in
+full exactly as `state lint` prints it, project findings first, then global (no findings — no extra
+lines), followed by one closing line: `Fix these before relying on the page: a FAIL means STATE no
+longer projects its sources.` Standalone `banana state lint` never collapses — only `brief` and
+`log close`'s summary do (#20c E7). Lint never changes `brief`'s exit code or stops it
 from printing the rest of the brief — an existing-but-unreadable STATE.md degrades to a `(STATE.md
 exists but could not be read)` placeholder in `## Project state` rather than throwing. `brief`'s
 runner takes an injected `home` (only `bin/` resolves `os.homedir()`), same as `state lint --global`.
@@ -440,14 +445,22 @@ safe, not just going through `runStateLint`): normalize line endings (CRLF
 **and** lone-CR old-Mac endings both become LF) and strip every U+FEFF
 byte-order-mark (not only one at file start — a BOM glued directly in front
 of a heading mid-document is just as real a character as one at position 0),
-then blank fenced code regions (``` ``` ``` or `~~~`, matching delimiter,
-unterminated blanks to EOF) and `<!-- ... -->` HTML comments (single- or
-multi-line) — every line either touches becomes an empty line, so line
-indexes stay stable and every check below sees only real page content, never
-quoted example text or explanatory markup. A section heading (or an as-of/
-stamp date, or the dirty marker) that exists ONLY inside a fence or comment
-does not count; one that exists for real elsewhere on the page is unaffected
-by a decoy copy sitting in a fence. The retired-header phrase is narrower
+then blank fenced code regions in full (``` ``` ``` or `~~~`, matching
+delimiter, unterminated blanks to EOF), and `<!-- ... -->` HTML comments
+only across their own SPAN (D2, #20b, ADR 0006): on the line that opens a
+comment, the text before `<!--` survives; on the line that closes one, the
+text after `-->` survives; a line sitting entirely inside a multi-line
+comment still blanks in full, and several comments on one line all go. A
+line that is ONLY a comment (`<!-- ## Next -->`) still blanks to nothing —
+line indexes stay stable throughout, and every check below sees only real
+page content, never quoted example text, explanatory markup, or a
+commented-out line, while a real bullet that merely carries an inline
+comment (`- **name** ... <!-- note --> → pointer`) stays fully visible to
+every check, not just the lint's excerpts (E1, #20c). A section heading
+(or an as-of/stamp date, or the dirty marker) that exists ONLY inside a
+fence or comment does not count; one that exists for real elsewhere on the
+page is unaffected by a decoy copy sitting in a fence. The retired-header
+phrase is narrower
 still (#11 Part 1b): it is only ever looked for in the HEADER BLOCK (every
 line before the first `## ` heading — the same boundary `stateAsOf` uses,
 ADR 0004), never the body, so a bullet that merely quotes or describes the
@@ -498,14 +511,19 @@ H1 bleed into the wrong section's scan).
 then `-`, `*`, `+` or a numbered marker (`\d+[.)]`), then a space or tab
 (review hardening 2026-09-28 — originally only `^[-*] ` (dash/asterisk, no
 `+`/numbered/indented forms); indented bullets (2+ spaces or a leading tab),
-prose, blank lines and `###` sub-headings are still not top-level. A
-placeholder is ONLY a bullet whose full (trimmed) text is byte-equal to one
+prose, blank lines and `###` sub-headings are still not top-level. A marker
+with no text after it once its own comment is stripped (`- <!-- note -->`)
+is not a bullet at all, in either mode (#20c E3) — nothing to own, measure,
+or archive; `- - -`/`* * *` are thematic breaks, not three one-character
+bullets. A placeholder is ONLY a bullet whose full (trimmed) text is byte-equal to one
 of the literal bullets shipped in `templates/project-STATE.md` /
-`templates/global-STATE.md` (any `__OWNER__` token in a template bullet
-matches either the literal token or a real single-token owner, so a
-freshly-bootstrapped page's substituted placeholders still count) — review
-hardening 2026-09-28: "any bullet whose content starts with `(`" was too
-broad and silently exempted real content
+`templates/global-STATE.md` (any `__OWNER__` token in a template bullet is
+matched by a non-greedy any-run, not `\S+` — #20b lane 1 item 5 — so it
+matches either the literal token or a real owner whose name carries spaces,
+e.g. "Jane Doe", not only a single-token one; a freshly-bootstrapped page's
+substituted placeholders still count either way) — review hardening
+2026-09-28: "any bullet whose content starts with `(`" was too broad and
+silently exempted real content
 (`- (paused) rebuild the projection`) from every check. A non-placeholder
 bullet is owned iff its content matches `owner — text` (em-dash U+2014), the
 owner token itself carries no em-dash, and the owner token — after stripping
@@ -559,7 +577,7 @@ comparison (the global page has none). `home` is always injected through
 | WARN | `bullet-wrapped` | a non-placeholder top-level bullet in any of the four sections has one or more continuation lines at all (#20b, ADR 0006, decision D1) — remedy: join it back onto one line |
 | WARN | `closed-undated` | a non-placeholder `## Recently closed` bullet has no valid `(closed YYYY-MM-DD)` stamp (#20) — covers both "no stamp" and "every stamp present is date-shaped but impossible" |
 | WARN | `closed-expired` | a non-placeholder `## Recently closed` bullet's `(closed …)` stamp is more than `CLOSED_EXPIRY_DAYS` (7) before the #20 reference date (equal to 7 passes) — only evaluated when the bullet has a valid stamp and the page has a reference date |
-| WARN | `thread-inactive` | a non-placeholder `## Active threads` bullet's `(as of …)` stamp is more than `THREAD_INACTIVE_DAYS` (30) before the #20 reference date (equal to 30 passes) — only evaluated when the bullet has a valid stamp and the page has a reference date |
+| WARN | `thread-inactive` | a non-placeholder `## Active threads` bullet's `(as of …)` stamp is more than `THREAD_INACTIVE_DAYS` (30) before the #20 reference date (equal to 30 passes) — only evaluated when the bullet has a valid stamp and the page has a reference date, AND the same bullet does not already FAIL `thread-stale` (#20b lane 1 item 4 — the two remedies contradict, refresh the stamp vs. archive the thread, so a stale bullet skips this WARN until its stamp is refreshed) |
 
 Global mode never flags `dirty-marker`: ADR 0005's per-thread edits (#15)
 introduced no marker convention for a mid-arc patched global page, so there
@@ -570,30 +588,42 @@ shape as project mode's own `retired-header` check, just pointing at a
 different migration (ADR 0005, not ADR 0001).
 
 **#20/#20b reference date, line limits, closed expiry, thread inactivity**
-(ADR 0006). The global page has no numeric cap on any individual bullet
-(only the whole-page `over-cap`), and nothing ever shrinks it —
+(ADR 0006). The global page's only FAIL-tier cap is the whole-page
+`over-cap`; nothing ever shrinks the page on its own —
 `line-over-limit`, `bullet-wrapped`, `closed-undated`, `closed-expired`, and
 `thread-inactive` are the five WARNs that surface the residue a model
-should prune, all deliberately WARN (not FAIL): each fix needs judgment
-(what to cut, what a Backlog line should say), so the page-wide `over-cap`
-FAIL stays the mechanical backstop.
+should prune (the per-section char limits `line-over-limit` measures are
+real numeric caps, just WARN-tier, not FAIL-tier, ones). Four of the five
+need judgment to fix (what to cut, what a Backlog line should say, whether
+an idle thread is really done); `bullet-wrapped`'s own fix is mechanical
+(join the line) but it stays the same WARN tier as the other four for
+consistency — see ADR 0006. The page-wide `over-cap` FAIL stays the
+mechanical backstop regardless.
 
-**One physical line per bullet (#20b, decision D1).** A bullet's
-continuation lines are the non-blank lines directly after it that are NOT a
-heading of any level, a thematic break (`---`/`***`/`___`, 3+), a fence
-opener, an HTML-comment-only line, or another top-level bullet; plus, after
-a blank line, lines indented 2+ spaces or a tab (a loose item's next
-paragraph) — anything else ends the bullet. This replaces the earlier
-greedy `topLevelBulletRanges`/`topLevelBulletSpans` helper, which walked
-forward through anything that wasn't the next top-level bullet and could
-fold an unrelated paragraph several lines down into the same "bullet."
-`line-over-limit` now measures ONLY the bullet's own physical line (its own
-marker line, nothing beneath it); `bullet-wrapped` fires separately the
-moment a bullet has any continuation lines at all, independent of length —
-the remedy for both is the same: join the bullet back onto one line. `state
-archive`'s `--match` inherits this: a matched bullet must be exactly one
-physical line, or the command refuses (see its own contract below) — the
-archive never has to guess how much trailing text belongs to a bullet.
+**One physical line per bullet (#20b decision D1, refined #20c E2).** A
+bullet's continuation lines are the non-blank lines directly after it that
+are NOT a heading of any level, a thematic break (`---`/`***`/`___`, 3+), a
+fence opener, an HTML-comment-only line, or another top-level bullet; plus,
+after a blank line, any line indented 2+ spaces OR starting with a tab (a
+loose item's next paragraph) — whatever that indented line itself holds
+(an indented fence, an indented fence's body, even an indented comment) —
+anything else ends the bullet. A comment-only line is never read as the
+blank-line separator a loose item's next paragraph needs (E2). This
+replaces the earlier greedy `topLevelBulletRanges`/`topLevelBulletSpans`
+helper, which walked forward through anything that wasn't the next
+top-level bullet and could fold an unrelated paragraph several lines down
+into the same "bullet." `line-over-limit` now measures ONLY the bullet's
+own physical line (its own marker line, nothing beneath it); `bullet-wrapped`
+fires separately the moment a bullet has any continuation lines at all,
+independent of length. The two WARNs have DIFFERENT remedies: a
+`line-over-limit` bullet is already one line and just too long, so its
+remedy is `banana state archive --global --reason trimmed --match …` (copy
+the full text, then shorten the live line in place); a `bullet-wrapped`
+bullet's remedy is simpler — join it back onto one line, nothing to
+archive. `state archive`'s `--match` inherits the one-line rule: a matched
+bullet must be exactly one physical line, or the command refuses (see its
+own contract below) — the archive never has to guess how much trailing
+text belongs to a bullet.
 
 The **reference date** every date comparison here uses is the newest real
 calendar date among the page's own non-placeholder `(as of …)`/`(closed …)`
@@ -604,7 +634,11 @@ order; with no valid stamp anywhere, both date checks are skipped. A
 shape/case/real-date rules as the Active-threads `(as of YYYY-MM-DD)` stamp
 (just a different keyword), and, like it, is never read out of an inline
 code span (a stamp quoted as example text inside backticks does not count,
-in any check or in the reference date itself); a bullet carrying more than
+in any check or in the reference date itself) — a code span follows the
+real CommonMark rule (#20c E4): a run of N backticks opens a span that only
+a LATER run of exactly N backticks closes, and a run with no matching close
+is literal backtick text, not a span, so an unpaired backtick no longer
+hides every stamp after it on the line. A bullet carrying more than
 one valid stamp of either kind compares against the OLDEST — conservative,
 the same OLDEST-wins rule ADR 0004's review hardening (its finding F6)
 already established for the Active-threads freshness stamp. `closed-expired`
@@ -676,10 +710,20 @@ or `{ verb: 'archive', global, match, reason, tag, dryRun }` — reusing
 `topLevelBullets`, the D1 continuation-line helper, `isPlaceholderBullet`,
 `REQUIRED_GLOBAL_SECTIONS`) rather than re-parsing the page.
 
+The five reasons, defined once (canon `CONTINUITY.md`'s "archive move"
+bullet is the normative copy): `expired` (a closed line past its expiry),
+`inactive` (an idle thread becoming a one-line Backlog item), `trimmed`
+(copy only — the live line is shortened in place by hand), `closed` (a
+finished Active thread: archive its line, add a Recently-closed line), and
+`removed` (anything else the owner drops).
+
 `--global` is required (project pages keep their history in LOGBOOK.md
 instead) — its absence, like any other usage problem (a missing
-`--match`/`--reason`/`--tag`, an unknown flag, or a `--reason` outside the
-five-value vocabulary), exits `2`. Exit codes: `0` ok, `2` usage or
+`--match`/`--reason`/`--tag`, an unknown flag, a `--match`/`--tag` value
+that is empty or whitespace-only (#20c E8), or a `--reason` outside the
+five-value vocabulary), exits `2`. `--tag` is checked by the exact same
+validator `banana log --tag` already uses (#20c E8, one definition of a
+valid tag, not two). Exit codes: `0` ok, `2` usage or
 state — unlike `state lint`, there is no FAIL/`1` tier here: archive moves
 bytes, it never grades them.
 
@@ -697,35 +741,56 @@ and that candidate's section) instead of refusing. If the matched bullet
 HAS continuation lines, the command refuses instead of
 guessing how much trailing text belongs to it: exit `2`, "bullet spans N
 lines; join it into one line first" — the archive only ever moves one
-physical line.
+physical line. The matched line is also refused, exit `2`, if it opens or
+closes a multi-line HTML comment (an unclosed `<!--`, or a `-->` with no
+`<!--` earlier on the same line, #20c E1) — removing it would either
+re-expose commented-out content below it or swallow real content the
+comment never meant to hide; a comment that opens and closes on the same
+line is ordinary and does not trigger this.
 
-**The clock-aware safety gate (#20b, decision D3).** `state lint` stays
-clock-free (ADR 0004); `state archive` is the one place in this feature
-allowed to read `now`, and it uses that to double-check a reason before
-acting, reusing `lib/state.mjs`'s own stamp parser rather than a second one.
+**The clock-aware safety gate (#20b decision D3, refined #20c E10).**
+`state lint` stays clock-free (ADR 0004); `state archive` is the one place
+in this feature allowed to read `now`, and it uses that to double-check a
+reason before acting, reusing `lib/state.mjs`'s own stamp parser rather
+than a second one. This means the gate's own verdict can disagree with
+lint's `closed-expired`/`thread-inactive` WARNs: lint compares a stamp
+against the page's reference date, the gate compares the same stamp
+against today, and those two dates differ whenever the page's newest stamp
+isn't dated today — a line can clear one check before the other. When a
+matched line carries more than one valid stamp of the relevant keyword, the
+gate compares against the SAME stamp lint's own WARN already picked (the
+oldest valid one, #20c E10) — not a second, independently-invented
+selection rule, so the gate never refuses a line lint has already called
+expired/inactive using a different stamp than lint used.
 `--reason expired` refuses (exit `2`) unless the matched line's own
 `(closed …)` stamp is more than 7 days before today; `--reason inactive`
 refuses unless its `(as of …)` stamp is more than 30 days before today.
 Either reason refuses on a missing stamp, suggesting `--reason removed`
-instead. If any stamp on the page is dated after today, the refusal names
-it — "fix that stamp first" — rather than silently comparing against a
-clock-confusing value.
+instead. Before any of that, the gate scans EVERY non-placeholder
+Active-threads `(as of …)` and Recently-closed `(closed …)` stamp on the
+page — not only the matched line's own (#20c H17/H52: Watch and Backlog
+never carry this stamp convention, so they're never scanned either) — and
+refuses, naming the first one dated after today, so that stamp can be fixed
+first rather than silently comparing against a clock-confusing value.
 
 **Record.** The archive file is created with this header if it doesn't
-exist yet:
+exist yet (#20c E6 — names the one exception to "append-only", a pasted
+secret):
 
 ```
 # GLOBAL STATE — archive
-> Append-only. Lines moved off ~/.agents/STATE.md (or the long form of trimmed ones), verbatim,
-> newest last. Never loaded at session start. Search: grep -i "<term>" ~/.agents/STATE-archive.md
+> Append-only — except a pasted secret: delete it here too, on sight. Lines moved off
+> ~/.agents/STATE.md (or the long form of trimmed ones), verbatim, newest last. Never
+> loaded at session start. Search: grep -i "<term>" ~/.agents/STATE-archive.md
 ```
 
 then every move/copy appends one record, separated from the next by exactly
-one blank line:
+one blank line. The body is always exactly one line (the one-line rule
+above — a wrapped bullet is refused, never partially archived):
 
 ```
 ## [YYYY-MM-DD] <tag> — <reason> · <section name>
-<the bullet's lines, byte-verbatim>
+<the matched line, byte-verbatim>
 ```
 
 `<section name>` is the canonical name (`REQUIRED_GLOBAL_SECTIONS`, never a
@@ -735,23 +800,35 @@ first; one that exists but has no trailing newline gets one inserted before
 the new record; the archive's own line ending is whatever it already uses,
 or the page's dominant ending at the moment the archive file is created.
 
-**Atomic write and the two re-read guards (#20b, lane 2 item 2).** The page
-is never edited in place: the new page text is written to a temp file in
-the SAME directory as the page, then renamed over it — a single-file
+**Atomic write and the two re-read guards (#20b lane 2 item 2, hardened
+#20c E5).** The page is never edited in place: its real path is resolved
+first (following symlinks), the new page text is written to a temp file in
+the SAME directory as the real file, then renamed over it — a single-file
 rename, never a directory operation — and the temp file is unlinked on any
-failure along the way. Order: read the page → validate (the match, the
-one-physical-line rule above, the D3 gate, and that the page is valid UTF-8
-— bytes that don't round-trip refuse outright, exit `2`, nothing written) →
-write the computed new page to the temp file → **re-read guard 1**: re-read
-the live page from disk; if its bytes differ from the first read, unlink
-the temp file and exit `2` with nothing appended (a concurrent edit
-happened; retry) → append the archive record → **re-read guard 2**: re-read
-the live page again; if it changed between the two guards, unlink the temp
-file, exit `2`, and say the archive already holds a copy while the line is
-still on the page (never silently rename over a page that moved under the
-guard) → rename the temp file over the page. `trimmed` skips the temp file
-and rename entirely: validate → guard → append the record; the page is
-never touched for that reason.
+failure along the way. A page with more than one hard link is refused
+outright (exit `2`) before any of that, since a rename over one link would
+not do what the caller expects. Order: read the page → validate (the
+match, the one-physical-line rule above, the D3 gate, and that the page is
+valid UTF-8 — bytes that don't round-trip refuse outright, exit `2`,
+nothing written) → write the computed new page to the temp file →
+**re-read guard 1**: re-read the live page from disk; if its bytes differ
+from the first read, unlink the temp file and exit `2` with nothing
+appended (a concurrent edit happened; retry) → append the archive record,
+skipping the append entirely when the archive's own last record is already
+byte-identical to the one about to be written (E5 — so a retry, or two
+concurrent identical runs, never duplicates a record) → **re-read guard
+2**: re-read the live page again; if it changed between the two guards,
+unlink the temp file, exit `2`, and say the archive already holds a copy
+while the line is still on the page (never silently rename over a page
+that moved under the guard) → rename the temp file over the page, retrying
+on `EPERM`/`EACCES`/`EBUSY` with short backoff for up to about 2 seconds
+total (E5 — a Windows antivirus scanner or indexer can hold the file open
+just long enough to make an un-retried rename flaky); if the rename still
+fails, unlink the temp file and say the archive already holds the record,
+the line is still on the page, and simply re-running the command will not
+duplicate anything. `trimmed` skips the temp file and rename entirely:
+validate → guard → append the record; the page is never touched for that
+reason.
 
 **`trimmed` copies only** — the page is never modified for this reason,
 only read and recorded; the CLI prints a reminder to shorten the line in
@@ -761,7 +838,16 @@ Matching above) from the page. If removing it leaves its section with no
 top-level bullet left, that section's placeholder line is inserted in its
 place — read from `templates/global-STATE.md` AT RUNTIME (never cached,
 never hardcoded), since lane A of #20 changed the `Recently closed`
-placeholder text.
+placeholder text — with its `__OWNER__` token, if it carries one,
+substituted by the name on the page's own header `Owner: <name>. Protocol:`
+line when present (#20c E9: everything between `Owner: ` and the `.
+Protocol:` that follows it, not just up to the first period, so "Jane Q.
+Public" survives whole); no match on that shape leaves the template's own
+`__OWNER__` token in place, which the lint already accepts as an unowned
+placeholder. This placeholder swap-in is not itself a second "removal" to
+archive (#20c E11) — the archive rule is about real text leaving the page
+or being trimmed, and a placeholder taking the real bullet's place is
+exactly what it was always there to invite.
 
 **Line endings.** The page keeps whatever line ending it already had (a
 CRLF page stays CRLF); no byte outside the matched bullet's own line (and,

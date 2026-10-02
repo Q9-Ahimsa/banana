@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
 import { DIRTY_MARKER_LINE, RETIRED_HEADER_RE } from '../lib/state.mjs';
+import { ARCHIVE_HEADER_LINES } from '../lib/state-archive.mjs';
 
 const canonDir = fileURLToPath(new URL('../canon', import.meta.url));
 const templatesDir = fileURLToPath(new URL('../templates', import.meta.url));
@@ -236,20 +237,24 @@ test('canon Global-grain embedded template agrees with templates/global-STATE.md
   );
 });
 
-// #20b review: the header's limits/expiry/archive block is exactly four
-// blockquote lines, each <=100 chars, restating D1-D3's corrected wording —
-// pinned here, byte-for-byte, in both the canon's embedded template and
-// templates/global-STATE.md. The old backwards-expiry wording ("expire
-// after 7 days", "idle 30+ days") is gone from the header entirely; the
-// precise day thresholds live in the Global-grain body instead (next test).
-test('canon Global-grain embedded template agrees with templates/global-STATE.md on all four #20b header lines', () => {
+// #20b/#20c review (K4): the header's limits/expiry/archive block is exactly
+// four blockquote lines, each <=100 chars, restating D1-D3's corrected
+// wording plus #20c E6's secret exception — pinned here, byte-for-byte, in
+// both the canon's embedded template and templates/global-STATE.md. The
+// header DOES name the day thresholds (8+/31+) as quick numbers a reader can
+// act on without opening the body; what it does NOT carry is the exact
+// comparison direction ("more than N days before the reference date") or the
+// reference-date definition itself — those stay in the Global-grain body,
+// pinned by the next test. The old backwards-expiry wording ("expire after 7
+// days", "idle 30+ days") is gone from the header entirely.
+test('canon Global-grain embedded template agrees with templates/global-STATE.md on all four #20b/#20c header lines', () => {
   const continuity = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
   const template = readFileSync(join(templatesDir, 'global-STATE.md'), 'utf8');
   const HEADER_LINES = [
     '> One line per bullet: thread 400 · backlog 300 · watch 350 · closed 250 chars.',
     '> Closed lines carry `(closed YYYY-MM-DD)`. By the page\'s newest stamp, closed lines expire',
-    '> at 8+ days and threads idle 31+ days move to Backlog. Never delete a line:',
-    '> `banana state archive` moves it to STATE-archive.md.',
+    '> at 8+ days and threads idle 31+ days move to Backlog. Never delete a line — except',
+    '> a pasted secret, deleted outright. `banana state archive` moves the rest to STATE-archive.md.',
   ];
   for (const line of HEADER_LINES) {
     assert.ok(line.length <= 100, `header line exceeds 100 chars (${line.length}): "${line}"`);
@@ -310,6 +315,95 @@ test('canon Global-grain embedded template agrees with templates/global-STATE.md
     template.includes(CLOSED_LINE),
     'templates/global-STATE.md missing the #20 Recently-closed placeholder'
   );
+});
+
+// #20c review (H64): the Global-grain body's own secrets rule, reason
+// definitions, clock-aware gate and by-hand archive format are pinned here
+// directly, by text that lives ONLY in the body — not the changelog, which
+// restates similar ideas in different words as historical record. Deleting
+// the body sentence (leaving the changelog untouched) must still fail these.
+test('CONTINUITY.md Global-grain body states the Secrets rule (#20c H64)', () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  assert.ok(
+    flat.includes('pasted onto the page is deleted outright, never archived'),
+    'CONTINUITY.md Global-grain body missing the Secrets deletion rule'
+  );
+  assert.ok(
+    flat.includes('it is the only edit the archive file ever takes'),
+    'CONTINUITY.md Global-grain body missing the Secrets archive-edit sentence'
+  );
+});
+
+test('CONTINUITY.md Global-grain body defines all five archive reasons (#20c H64, C37)', () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  const REASON_DEFINITIONS = [
+    '`expired` (a closed line past its expiry)',
+    '`inactive` (an idle thread becoming a one-line Backlog item)',
+    '`trimmed` (the archive keeps a copy only — the live line is shortened in place by hand)',
+    '`closed` (a finished Active thread: archive its line, add a Recently-closed line)',
+    '`removed` (anything else the owner drops)',
+  ];
+  for (const def of REASON_DEFINITIONS) {
+    assert.ok(
+      flat.includes(def),
+      `CONTINUITY.md Global-grain body missing reason definition: "${def}"`
+    );
+  }
+});
+
+test("CONTINUITY.md Global-grain body states the archive command's clock-aware gate (#20c H64)", () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  assert.ok(
+    flat.includes(
+      "For `--reason expired` it refuses unless the line's own `(closed …)` stamp is more than 7 days before today"
+    ),
+    'CONTINUITY.md Global-grain body missing the expired clock-gate rule'
+  );
+  assert.ok(
+    flat.includes(
+      'for `--reason inactive` it refuses unless the `(as of …)` stamp is more than 30 days before today'
+    ),
+    'CONTINUITY.md Global-grain body missing the inactive clock-gate rule'
+  );
+  assert.ok(
+    flat.includes(
+      'Before any of that, the gate scans EVERY Active-threads `(as of …)` and Recently-closed `(closed …)` stamp on the page'
+    ),
+    'CONTINUITY.md Global-grain body missing the page-wide future-stamp scan rule'
+  );
+});
+
+test('CONTINUITY.md by-hand archive format matches literal expected text (#20c H64)', () => {
+  const continuity = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8').replace(/\r\n/g, '\n');
+  const EXPECTED_BY_HAND_BLOCK = [
+    '  # GLOBAL STATE — archive',
+    '  > Append-only — except a pasted secret: delete it here too, on sight. Lines moved off',
+    '  > ~/.agents/STATE.md (or the long form of trimmed ones), verbatim, newest last. Never',
+    '  > loaded at session start. Search: grep -i "<term>" ~/.agents/STATE-archive.md',
+    '',
+    '  ## [YYYY-MM-DD] {agent} — {reason} · {section name}',
+    '  {the matched line, byte-verbatim}',
+  ].join('\n');
+  assert.ok(
+    continuity.includes(EXPECTED_BY_HAND_BLOCK),
+    'CONTINUITY.md by-hand archive block does not match the literal expected text'
+  );
+});
+
+// #20c H64: unlike the embedded STATE template (pinned above against
+// templates/global-STATE.md), nothing previously checked that the by-hand
+// archive header agrees with what `banana state archive` itself writes
+// (lib/state-archive.mjs's ARCHIVE_HEADER_LINES) — so the two could drift
+// and a harness without the kit would create archives shaped differently
+// from the kit's own.
+test("CONTINUITY.md by-hand archive header agrees with lib/state-archive.mjs's ARCHIVE_HEADER_LINES byte for byte (#20c H64)", () => {
+  const continuity = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8').replace(/\r\n/g, '\n');
+  for (const line of ARCHIVE_HEADER_LINES) {
+    assert.ok(
+      continuity.includes(`  ${line}`),
+      `CONTINUITY.md by-hand archive header disagrees with lib/state-archive.mjs ARCHIVE_HEADER_LINES: "${line}"`
+    );
+  }
 });
 
 test('SESSION-LOG.md cites its companion standard without a version pin', () => {

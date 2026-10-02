@@ -52,5 +52,8 @@
   (canon CONTINUITY v1.7, ADR 0006): the line's full text is copied verbatim into the
   append-only `~/.agents/STATE-archive.md` first, via `banana state archive --reason
   <expired|inactive|trimmed|closed|removed>`, then removed from the page — or, for
-  `trimmed`, copied only, with the live line shortened in place by hand. The archive is
-  never loaded at session start, searched with `grep` only.
+  `trimmed`, copied only, with the live line shortened in place by hand. If that removal
+  leaves a section with no bullet at all, the command writes back that section's own
+  placeholder line — not a second removal, just the placeholder taking the real bullet's
+  place again. A pasted secret is the one exception: deleted outright, never archived. The
+  archive is never loaded at session start, searched with `grep` only.

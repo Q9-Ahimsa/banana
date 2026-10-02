@@ -191,13 +191,15 @@ test('global-STATE.md header moves to per-thread edits, retired rebuild-whole ru
   );
 });
 
-// #20b review: the header's limits/expiry/archive block names the one-line
-// rule, the four per-section limits, the closed stamp + reference-date
-// framing, and the never-delete archive pointer — NOT specific day counts
-// (those moved to the canon's Global-grain body; see test/canon.test.mjs).
-// The old backwards-expiry wording ("expire after 7 days", "idle 30+ days")
-// must be gone.
-test('global-STATE.md header teaches the #20b one-line rule, limits, and archive pointer', () => {
+// #20b/#20c review (K4): the header's limits/expiry/archive block names the
+// one-line rule, the four per-section limits, the closed stamp +
+// reference-date framing, the never-delete archive pointer, and #20c E6's
+// secret exception. The header DOES carry the day thresholds (8+/31+) as
+// quick numbers; what it does NOT carry is the exact comparison direction
+// or the reference-date definition — those stay in the canon's Global-grain
+// body (see test/canon.test.mjs). The old backwards-expiry wording ("expire
+// after 7 days", "idle 30+ days") must be gone.
+test('global-STATE.md header teaches the #20b/#20c one-line rule, limits, secret exception, and archive pointer', () => {
   const text = readFileSync(join(templatesDir, 'global-STATE.md'), 'utf8');
   assert.ok(
     text.includes('One line per bullet: thread 400 · backlog 300 · watch 350 · closed 250 chars.'),
@@ -205,12 +207,12 @@ test('global-STATE.md header teaches the #20b one-line rule, limits, and archive
   );
   assert.ok(
     text.includes('> Closed lines carry `(closed YYYY-MM-DD)`. By the page\'s newest stamp, closed lines expire') &&
-      text.includes('> at 8+ days and threads idle 31+ days move to Backlog. Never delete a line:'),
+      text.includes('> at 8+ days and threads idle 31+ days move to Backlog. Never delete a line — except'),
     'global-STATE.md header missing the closed-stamp + reference-date framing'
   );
   assert.ok(
-    text.includes('> `banana state archive` moves it to STATE-archive.md.'),
-    'global-STATE.md header missing the never-delete archive-move line'
+    text.includes('> a pasted secret, deleted outright. `banana state archive` moves the rest to STATE-archive.md.'),
+    'global-STATE.md header missing the #20c secret-exception + archive-move line'
   );
   assert.ok(
     !text.includes('expire after 7 days') && !text.includes('idle 30+ days'),
