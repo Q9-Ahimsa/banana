@@ -748,6 +748,17 @@ re-expose commented-out content below it or swallow real content the
 comment never meant to hide; a comment that opens and closes on the same
 line is ordinary and does not trigger this.
 
+**A reason only applies to the one section it is defined for (#20c item 2,
+closing C37's remaining gap).** `--reason expired` only ever targets a
+`Recently closed` bullet; `--reason inactive` and `--reason closed` only
+ever target an `Active threads` bullet — `trimmed`/`removed` carry no such
+restriction and work on a bullet in any of the four sections. A match
+outside the right section refuses, exit `2`, naming the section the reason
+requires and suggesting `--reason removed` instead; this check runs before
+the clock-aware gate below, so a Watch or Backlog line that happens to
+contain stamp-shaped text can't slip past that gate's "no stamp found"
+refusal by accident.
+
 **The clock-aware safety gate (#20b decision D3, refined #20c E10).**
 `state lint` stays clock-free (ADR 0004); `state archive` is the one place
 in this feature allowed to read `now`, and it uses that to double-check a

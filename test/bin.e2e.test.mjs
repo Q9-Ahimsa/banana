@@ -107,19 +107,54 @@ test('bin: top-level --help lists `lint · archive` on the `state` entry', () =>
   assert.ok(stdout.includes('lint · archive'), `stdout: ${stdout}`);
 });
 
-test('bin: `banana state --help` names non-usage causes of exit 2 (D1/D3 safety gates), not just "usage error"', () => {
+// #20c E12/H23/H37: exit-2 causes are named in plain words, never by an
+// internal spec label like "D1"/"D3" — the pre-#20c help passed this test
+// by including the literal substrings "D1"/"D3" with no definition anywhere
+// the installed kit ships; reverting to that wording must fail HERE, not
+// just read oddly.
+test('bin: `banana state --help` names non-usage causes of exit 2 in plain words, never spec labels like "D1"/"D3"', () => {
   const { status, stdout } = run(['state', '--help']);
   assert.equal(status, 0);
-  assert.ok(stdout.includes('D1') && stdout.includes('D3'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('spans more than one physical line'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes("own section doesn't support"), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('future-dated stamp'), `stdout: ${stdout}`);
+  assert.ok(!/\bD1\b/.test(stdout) && !/\bD3\b/.test(stdout), `stdout still names a spec label: ${stdout}`);
 });
 
-test('bin: `banana state archive --help` gives PowerShell (single quotes), cmd.exe (double quotes), and POSIX examples, plus a secrets note', () => {
+// #20c E12/H15/H69/H71: instead of per-shell quoting rules (which break on
+// an excerpt containing an embedded quote, $, % or backtick), the help
+// tells the reader to pick a --match substring free of those characters —
+// one example per shell, none of them quoted, since the example slug has
+// no space to quote in the first place.
+test('bin: `banana state archive --help` tells the reader to pick a quote/$/%/backtick-free --match substring, with one example per shell, plus a secrets note', () => {
   const { status, stdout } = run(['state', 'archive', '--help']);
   assert.equal(status, 0);
-  assert.ok(stdout.includes('PowerShell:\n  banana state archive --global --match \'stale-thread-name\''), `stdout: ${stdout}`);
-  assert.ok(stdout.includes('cmd.exe:\n  banana state archive --global --match "stale-thread-name"'), `stdout: ${stdout}`);
-  assert.ok(stdout.includes('POSIX:\n  banana state archive --global --match \'stale-thread-name\''), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('no quotes, `$`, `%` or\nbacktick'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('PowerShell:\n  banana state archive --global --match stale-thread-name'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('cmd.exe:\n  banana state archive --global --match stale-thread-name'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('POSIX:\n  banana state archive --global --match stale-thread-name'), `stdout: ${stdout}`);
   assert.ok(stdout.includes('deleted outright, never'), `stdout: ${stdout}`);
+});
+
+// #20c H14: the help names the byte-identical-duplicates exception to its
+// own "must identify exactly one bullet" promise — before this, the help
+// text and the code disagreed (several byte-identical matches are archived
+// as the first occurrence, not refused).
+test('bin: `banana state archive --help` names the byte-identical-duplicates exception to "exactly one bullet"', () => {
+  const { status, stdout } = run(['state', 'archive', '--help']);
+  assert.equal(status, 0);
+  assert.ok(stdout.includes('unless every match is byte-identical'), `stdout: ${stdout}`);
+});
+
+// #20c H16: the help says `--reason closed` is a two-step move and that the
+// command itself reminds the caller of the second step — the RUNTIME
+// reminder text is pinned at the lib seam (test/state-archive.test.mjs);
+// this only pins that the help documents the step exists at all.
+test('bin: `banana state archive --help` says `--reason closed` is a two-step move with a reminder', () => {
+  const { status, stdout } = run(['state', 'archive', '--help']);
+  assert.equal(status, 0);
+  assert.ok(stdout.includes('two-step'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('the command prints a reminder'), `stdout: ${stdout}`);
 });
 
 test('bin: unknown command exits non-zero', () => {
@@ -405,9 +440,15 @@ test('bin: `banana state archive --global` moves a matched bullet into STATE-arc
   assert.equal(status, 0, `stderr: ${stderr}`);
   assert.ok(stdout.includes('archived (removed): Backlog (owned)'), `stdout: ${stdout}`);
   assert.ok(!readFileSync(pagePath, 'utf8').includes('a synthetic fixture backlog item'));
-  assert.ok(
-    readFileSync(join(home, '.agents', 'STATE-archive.md'), 'utf8').includes('a synthetic fixture backlog item'),
-  );
+  const archiveText = readFileSync(join(home, '.agents', 'STATE-archive.md'), 'utf8');
+  assert.ok(archiveText.includes('a synthetic fixture backlog item'));
+  // #20c C31: the record's date must be TODAY'S real local date (bin.mjs
+  // must pass `now: Date.now()`, never a hardcoded/zero value) — computed
+  // independently here via the Date constructor's own getters, never
+  // through the library's `formatLocalDate`.
+  const now = new Date();
+  const expectedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  assert.ok(archiveText.includes(`## [${expectedDate}]`), `expected today's date ${expectedDate}: ${archiveText}`);
 });
 
 // #14 dispatch-only slice: the section content itself is covered by

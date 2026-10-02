@@ -117,11 +117,12 @@ const STATE_USAGE = `Usage: banana state <lint|archive> [options]
 Run \`banana state lint --help\` or \`banana state archive --help\` for
 verb-specific usage and exit codes.
 
-Exit codes: 0 ok, 2 usage error OR a refused/failed state — \`archive\`'s D1
-(wrapped bullet)/D3 (not-yet-expired-or-inactive, future stamp) safety gates,
-invalid UTF-8, or a page missing/changed mid-write all exit 2 too, not just a
-bad flag; \`lint\` also exits 1 on any FAIL — see each verb's own --help for
-its exact tiers.`;
+Exit codes: 0 ok, 2 usage error OR a refused/failed state — \`archive\` also
+exits 2 for a bullet that spans more than one physical line, a reason the
+matched bullet's own section doesn't support, a line not yet past its
+expiry/inactivity limit, a future-dated stamp anywhere on the page, invalid
+UTF-8, or a page missing/changed mid-write — not just a bad flag; \`lint\`
+also exits 1 on any FAIL — see each verb's own --help for its exact tiers.`;
 
 const STATE_LINT_USAGE = `Usage: banana state lint [--global]
 
@@ -144,18 +145,25 @@ Move a top-level bullet off <home>/.agents/STATE.md into the append-only
 <home>/.agents/STATE-archive.md — removal from the global page is a MOVE,
 never a silent delete. \`--match\` is a case-sensitive substring of a
 non-placeholder bullet's OWN physical line; it must identify exactly one
-bullet across Active threads, Backlog (owned), Watch, and Recently closed. A
-matched bullet that wraps onto a continuation line refuses (exit 2) instead
-of guessing how much trailing text belongs to it — join it into one line
-first. \`--reason trimmed\` copies only — the page itself is left unmodified,
-as a reminder to shorten the line in place; every other reason removes the
-bullet from the page.
+bullet across Active threads, Backlog (owned), Watch, and Recently closed —
+unless every match is byte-identical, in which case the first occurrence is
+archived and the command says so. A matched bullet that wraps onto a
+continuation line refuses (exit 2) instead of guessing how much trailing
+text belongs to it — join it into one line first. \`--reason trimmed\`
+copies only — the page itself is left unmodified, as a reminder to shorten
+the line in place; every other reason removes the bullet from the page.
 
-\`--reason expired\`/\`inactive\` read the clock: they refuse (exit 2) unless
-the line's own stamp is already past its limit (\`(closed YYYY-MM-DD)\`, 7
-days; \`(as of YYYY-MM-DD)\`, 30 days) — naming a future-dated stamp anywhere
-on the page, or suggesting \`--reason removed\` when the line carries no
-stamp at all.
+\`--reason expired\` only applies to a Recently-closed line; \`inactive\` and
+\`closed\` only apply to an Active-threads line — \`trimmed\`/\`removed\` work
+on a bullet in any of the four sections. \`--reason closed\` is a two-step
+move: once the Active-threads line is archived, add a one-line
+Recently-closed entry for it by hand — the command prints a reminder.
+
+\`--reason expired\`/\`inactive\` also read the clock: they refuse (exit 2)
+unless the line's own stamp is already past its limit (\`(closed
+YYYY-MM-DD)\`, 7 days; \`(as of YYYY-MM-DD)\`, 30 days) — naming a
+future-dated stamp anywhere on the page, or suggesting \`--reason removed\`
+when the line carries no stamp at all.
 
 A pasted secret (a credential, token, or key) is deleted outright, never
 archived — not even a copy.
@@ -166,17 +174,23 @@ archived — not even a copy.
   --tag <agent>   the agent recording the move
   --dry-run       print the record and the action, write nothing
 
+Pick a short, distinctive \`--match\` substring with no quotes, \`$\`, \`%\` or
+backtick in it — a plain word or hyphenated slug clears every shell's
+quoting rules at once, no per-shell quoting style needed:
+
 PowerShell:
-  banana state archive --global --match 'stale-thread-name' --reason inactive --tag testagent
+  banana state archive --global --match stale-thread-name --reason inactive --tag testagent
 
 cmd.exe:
-  banana state archive --global --match "stale-thread-name" --reason inactive --tag testagent
+  banana state archive --global --match stale-thread-name --reason inactive --tag testagent
 
 POSIX:
-  banana state archive --global --match 'stale-thread-name' --reason inactive --tag testagent
+  banana state archive --global --match stale-thread-name --reason inactive --tag testagent
 
-Exit codes: 0 ok, 2 usage or a refused/failed state (D1/D3 safety gates, invalid
-UTF-8, a page missing or changed mid-write)`;
+Exit codes: 0 ok, 2 usage or a refused/failed state — a wrapped bullet, a
+reason the matched line's own section doesn't support, a line not yet past
+its expiry/inactivity limit, a future-dated stamp on the page, invalid
+UTF-8, or a page missing or changed mid-write`;
 
 /** Owner inference rung shared by init and project: git config user.name. */
 function gitUserName() {

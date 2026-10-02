@@ -158,9 +158,13 @@ report yet keep their single placeholder line rather than being omitted):
   idle thread becoming a one-line Backlog item), `trimmed` (the archive
   keeps a copy only — the live line is shortened in place by hand),
   `closed` (a finished Active thread: archive its line, add a
-  Recently-closed line), `removed` (anything else the owner drops). A
-  routine status update to your own thread is not a removal — its history
-  already lives at the pointer target — and neither is a section's
+  Recently-closed line), `removed` (anything else the owner drops).
+  `expired` only targets a Recently-closed line; `inactive` and `closed`
+  only target an Active-threads line; `trimmed`/`removed` have no such
+  restriction, and the command refuses, naming the right section, when a
+  reason targets the wrong one. A routine status update to your own thread
+  is not a removal — its history already lives at the pointer target — and
+  neither is a section's
   placeholder line giving way to that section's first real bullet;
   archiving applies only when text leaves the page outright or a line is
   trimmed. Exception to "edit only your own threads" above: any session may
