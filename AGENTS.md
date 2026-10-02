@@ -8,6 +8,9 @@
 - Patterns: lib/ modules take injectable root paths (never read the real HOME inside logic);
   adapters expose detect/describe + wire or compose; ALL config-file writes go through
   lib/fence.mjs; tests use sandbox temp dirs only (node:fs mkdtempSync + os.tmpdir).
+- Public records: this repo's session.log, LOGBOOK, STATE and specs are public — name other
+  projects generically ("another project") and never write local paths, usernames or private
+  notes.
 - tsconfig include list covers bin/, lib/, adapters/, test/ — new source dirs must be added there
   or `npm run check` silently skips them.
 

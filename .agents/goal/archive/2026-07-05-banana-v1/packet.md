@@ -6,9 +6,9 @@
 > session-log entries to (re)enter the run. Mark tasks, never delete them. Evidence lines are mandatory.
 
 ## Goal
-End state:    A git repo at C:/Users/VICTUS/projects/banana containing an npx-runnable Node CLI with four commands — init (harness auto-detect + idempotent wiring), project (project-grain init), brief (per-intent context compiler), doctor (wiring checks + liveness audits) — plus genericized canon docs (CONTINUITY v1.1 embedding the brief/snapshot architecture), templates, wiring blocks, README, and a green test suite; pushed to GitHub as Q9-Ahimsa/banana and runnable via npx from there.
+End state:    A git repo at ~/projects/banana containing an npx-runnable Node CLI with four commands — init (harness auto-detect + idempotent wiring), project (project-grain init), brief (per-intent context compiler), doctor (wiring checks + liveness audits) — plus genericized canon docs (CONTINUITY v1.1 embedding the brief/snapshot architecture), templates, wiring blocks, README, and a green test suite; pushed to GitHub as Q9-Ahimsa/banana and runnable via npx from there.
 Verify by:    `npm run check && npm test` from the repo root — exit 0, full output shown (typecheck gate + unit/integration suite incl. sandbox-HOME e2e and idempotency tests)
-Do not touch: C:/Users/VICTUS/.claude/ (no writes), C:/Users/VICTUS/.agents/, C:/Users/VICTUS/.pi/, the Hermes home (C:/Users/VICTUS/AppData/Local/hermes/), any other project directory; no `npm publish`; all filesystem writes confined to the kit repo and OS temp/sandbox dirs.
+Do not touch: ~/.claude/ (no writes), ~/.agents/, ~/.pi/, the Hermes home (~/AppData/Local/hermes/), any other project directory; no `npm publish`; all filesystem writes confined to the kit repo and OS temp/sandbox dirs.
 Stop when:    all tasks checked + Verify passes, OR 45 turns/iterations elapsed, OR the same task hits BLOCKED twice
 
 ASSUMED: New public GitHub repo Q9-Ahimsa/banana; NOT published to the npm registry in v1 (npx-from-GitHub only).
@@ -23,7 +23,7 @@ ASSUMED: Constants — ghost threshold 48h, rotation threshold 700 lines, fence 
 <!-- Dependency order. done-when rungs: command | artifact | diff | REVIEW (auto-inserts a review task).
      On completion: flip [x], fill evidence:, append session.log entry (banana.n | build). -->
 
-- [x] T1 — Scaffold the repo: git init at C:/Users/VICTUS/projects/banana, package.json (name banana, type module, bin → bin/banana.mjs, scripts: check = `tsc --checkJs --noEmit`, test = `node --test`), bin entry with version/help flags, MIT LICENSE, .gitignore, initial conventional commit.
+- [x] T1 — Scaffold the repo: git init at ~/projects/banana, package.json (name banana, type module, bin → bin/banana.mjs, scripts: check = `tsc --checkJs --noEmit`, test = `node --test`), bin entry with version/help flags, MIT LICENSE, .gitignore, initial conventional commit.
       done-when: `node bin/banana.mjs --version` prints the package.json version and exits 0
       evidence: `node bin/banana.mjs --version` → 0.1.0, exit 0; gates green (tsc clean, node --test 3/3 pass); commit 2c8bf07, tag pre-ralph. Deviation logged: test script is `node --test` (dir-arg form broke on Windows); +@types/node dev dep for checkJs.
 

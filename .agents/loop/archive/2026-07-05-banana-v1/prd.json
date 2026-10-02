@@ -1,7 +1,7 @@
 {
   "project": "banana",
   "branchName": "ralph/banana-v1",
-  "description": "Harness-neutral continuity kit CLI (banana): init/project/brief/doctor. Authoritative done-whens: .agents/goal/packet.md. Behavioral contracts (brief include/exclude, doctor audits, adapter+fence contracts, constants): docs/DESIGN.md — read both before any story. Canon v1 sources to genericize (READ-ONLY, never write outside this repo): C:/Users/VICTUS/.agents/CONTINUITY.md, C:/Users/VICTUS/.claude/skills/logbook/STANDARD.md, C:/Users/VICTUS/.claude/skills/logbook/SESSION-LOG.md, C:/Users/VICTUS/.claude/skills/logbook/portable/session-log-directive.md.",
+  "description": "Harness-neutral continuity kit CLI (banana): init/project/brief/doctor. Authoritative done-whens: .agents/goal/packet.md. Behavioral contracts (brief include/exclude, doctor audits, adapter+fence contracts, constants): docs/DESIGN.md — read both before any story. Canon v1 sources to genericize (READ-ONLY, never write outside this repo): ~/.agents/CONTINUITY.md, ~/.claude/skills/logbook/STANDARD.md, ~/.claude/skills/logbook/SESSION-LOG.md, ~/.claude/skills/logbook/portable/session-log-directive.md.",
   "qualityGates": "npm run check && npm test",
   "userStories": [
     {

@@ -10,7 +10,7 @@
 ## Goal
 End state:    The banana repo reshaped agent-first: canon rev 1.2 with an agent bootstrap section (self-serve workspace setup), an upstream/sync model, and topic-grain language; wiring templates rewritten as thin v2 bootstrap-pointer blocks; init infers owner from git config and fails fast on no-TTY; a new `sync` command propagates canon + fence updates; `project` initializes non-git topics; `brief` gains slug discovery; `doctor` audits canon staleness; README inverted (one screen for the human, the rest addressed to agents); pushed to GitHub as Q9-Ahimsa/banana and runnable cold via npx.
 Verify by:    `npm run check && npm test` from the repo root — exit 0, full output shown (typecheck gate + full suite incl. sandbox-HOME e2e and idempotency tests)
-Do not touch: C:/Users/VICTUS/.claude/ (no writes), C:/Users/VICTUS/.agents/, C:/Users/VICTUS/.pi/, the Hermes home (C:/Users/VICTUS/AppData/Local/hermes/), any other project directory; no `npm publish`; all filesystem writes confined to the kit repo and OS temp/sandbox dirs.
+Do not touch: ~/.claude/ (no writes), ~/.agents/, ~/.pi/, the Hermes home (~/AppData/Local/hermes/), any other project directory; no `npm publish`; all filesystem writes confined to the kit repo and OS temp/sandbox dirs.
 Stop when:    all tasks checked + Verify passes, OR 30 turns/iterations elapsed, OR the same task hits BLOCKED twice
 
 ASSUMED: Canon rev is 1.2 (1.1 + agent-bootstrap section, upstream/sync model, topic-grain language); each canon file gains a machine-readable version marker line (HTML comment) that doctor and sync compare.
