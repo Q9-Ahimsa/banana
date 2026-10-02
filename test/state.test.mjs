@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 const KIT_ROOT_FOR_TEMPLATES = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 import {
+  bulletStampShapes,
   checkActiveThreads,
   checkAsOfMalformed,
   checkAsOfMissing,
@@ -44,6 +45,7 @@ import {
   isPlaceholderBullet,
   lintGlobalState,
   lintProjectState,
+  oldestValidStamp,
   parseStateArgs,
   prepareText,
   REQUIRED_GLOBAL_SECTIONS,
@@ -55,6 +57,7 @@ import {
   THREAD_INACTIVE_DAYS,
   topLevelBullets,
   topLevelBulletContinuationCounts,
+  validateAgentTag,
 } from '../lib/state.mjs';
 import { isRealCalendarDate, stateAsOf, stateAsOfMalformed } from '../lib/doctor.mjs';
 import { runInit } from '../lib/init.mjs';
@@ -1396,20 +1399,72 @@ test('formatStateLintLines: PASS + none prints only the summary line, no fix-it 
   assert.deepEqual(lines, ['project: PASS · global: none (no ~/.agents/STATE.md)']);
 });
 
-test('formatStateLintLines: a FAIL project prints findings (project first, then global) and the fix-it line', () => {
+test('formatStateLintLines: a FAIL project + a FAIL global prints findings in full (project first, then global) and the fix-it line', () => {
+  // A FAIL global side must still print every finding verbatim (#20c E7:
+  // the WARN-only one-line summary below never applies to a FAIL side).
   const lines = formatStateLintLines({
     project: {
       verdict: 'FAIL (1 fail, 0 warn)',
       findings: ['FAIL [missing-section] STATE.md: missing required section "## Blocked"'],
     },
-    global: { verdict: 'WARN (1 warn)', findings: ['WARN [dirty-marker] ~/.agents/STATE.md: m'] },
+    global: {
+      verdict: 'FAIL (1 fail, 0 warn)',
+      findings: ['FAIL [missing-section] ~/.agents/STATE.md: missing required section "## Watch"'],
+    },
   });
   assert.deepEqual(lines, [
-    'project: FAIL (1 fail, 0 warn) · global: WARN (1 warn)',
+    'project: FAIL (1 fail, 0 warn) · global: FAIL (1 fail, 0 warn)',
     'FAIL [missing-section] STATE.md: missing required section "## Blocked"',
-    'WARN [dirty-marker] ~/.agents/STATE.md: m',
+    'FAIL [missing-section] ~/.agents/STATE.md: missing required section "## Watch"',
     'Fix these before relying on the page: a FAIL means STATE no longer projects its sources.',
   ]);
+});
+
+// --- #20c E7: a WARN-only global side never dumps every #20 WARN verbatim
+// into brief/log close — critic K1 measured the real page's block growing
+// from 1 line to 19 (~5 KB) once #20's five WARN checks landed. One line
+// stands in: the verdict, a count per finding TYPE, and a pointer to the
+// standalone command. A FAIL global side is untouched by this (tested
+// above) — only standalone `state lint` prints every WARN, and it never
+// calls formatStateLintLines at all (confirmed by the dedicated
+// runStateLint test further down, which still prints the WARN in full).
+
+test('formatStateLintLines: a WARN-only global side collapses to one line — verdict, per-type counts, pointer to `state lint --global`', () => {
+  const lines = formatStateLintLines({
+    project: { verdict: 'PASS', findings: [] },
+    global: {
+      verdict: 'WARN (3 warn)',
+      findings: [
+        'WARN [line-over-limit] ~/.agents/STATE.md: a',
+        'WARN [line-over-limit] ~/.agents/STATE.md: b',
+        'WARN [closed-undated] ~/.agents/STATE.md: c',
+      ],
+    },
+  });
+  assert.deepEqual(lines, [
+    'project: PASS · global: WARN (3 warn)',
+    'global state lint: WARN (3 warn) (2 line-over-limit, 1 closed-undated) — run `banana state lint --global` for details',
+  ]);
+});
+
+test('formatStateLintLines: a WARN-only global side never prints the fix-it line (no FAIL present)', () => {
+  const lines = formatStateLintLines({
+    project: { verdict: 'PASS', findings: [] },
+    global: { verdict: 'WARN (1 warn)', findings: ['WARN [dirty-marker] ~/.agents/STATE.md: m'] },
+  });
+  assert.ok(!lines.some((l) => l.includes('Fix these before relying on the page')));
+});
+
+test('formatStateLintLines: a WARN-only global side still respects `quiet` the same as any other non-clean outcome', () => {
+  const lines = formatStateLintLines(
+    {
+      project: { verdict: 'PASS', findings: [] },
+      global: { verdict: 'WARN (1 warn)', findings: ['WARN [dirty-marker] ~/.agents/STATE.md: m'] },
+    },
+    { quiet: true },
+  );
+  assert.equal(lines[0], 'project: PASS · global: WARN (1 warn)');
+  assert.ok(lines.some((l) => l.startsWith('global state lint: WARN')));
 });
 
 test('formatStateLintLines: quiet suppresses the summary line ONLY when both sides are PASS or none', () => {
@@ -1513,6 +1568,18 @@ test('D2: a multi-line comment still blanks every line fully inside it', () => {
   const raw = '## Watch\n- before\n<!--\nhidden line one\nhidden line two\n-->\n- after\n';
   const text = prepareText(raw);
   assert.equal(text, '## Watch\n- before\n\n\n\n\n- after\n');
+});
+
+test('D2/H29: a multi-line comment preserves real text before "<!--" on its OPENING line and after "-->" on its CLOSING line', () => {
+  const raw = '- **alpha** (as of 2026-09-30) — status → `~/p/STATE.md` <!-- note\nmore note --> tail\n';
+  const text = prepareText(raw);
+  assert.equal(text, '- **alpha** (as of 2026-09-30) — status → `~/p/STATE.md` \n tail\n');
+});
+
+test('topLevelBullets: D2/H29 — the bullet survives a multi-line comment tail carrying real text on both boundary lines', () => {
+  const raw = '## Watch\n- **alpha** (as of 2026-09-30) — status → `~/p/STATE.md` <!-- note\nmore note --> tail\n';
+  const text = prepareText(raw);
+  assert.deepEqual(topLevelBullets(text, 'Watch'), ['- **alpha** (as of 2026-09-30) — status → `~/p/STATE.md` ']);
 });
 
 test('D2: several comments on one line are ALL removed, surrounding text kept', () => {
@@ -2458,4 +2525,779 @@ test('SECTION_LINE_LIMITS / CLOSED_EXPIRY_DAYS / THREAD_INACTIVE_DAYS match the 
   });
   assert.equal(CLOSED_EXPIRY_DAYS, 7);
   assert.equal(THREAD_INACTIVE_DAYS, 30);
+});
+
+// =====================================================================
+// #20c re-review fixes. Public-repo hygiene: every fixture below is
+// synthetic. Each test's expected value is written out independently,
+// never computed by calling the function under test.
+// =====================================================================
+
+// --- H42: an owner name containing a space can own a REAL bullet, not
+// just a placeholder — #20b item 5 widened the PLACEHOLDER wildcard but
+// left the OWNER MATCHER at a single-token `\S+`, so a page bootstrapped
+// with a spaced owner lints clean only until the first real line in that
+// owner's name is written.
+// =====================================================================
+
+test('classifyOwnerBullet: H42 — a multi-word owner on a REAL (non-placeholder) bullet is owned', () => {
+  assert.equal(classifyOwnerBullet('- Jane Doe — review the draft proposal'), 'owned');
+});
+
+test('classifyOwnerBullet: H42 — an owner whose LAST word happens to be "unowned" is still owned (the literal check is on the WHOLE captured token)', () => {
+  // The owner token is everything up to the first " — "; "Jane unowned"
+  // as a whole is not the literal string "unowned", so this must NOT be
+  // caught by the unowned-literal check — a sanity guard that widening
+  // the capture to `.+?` didn't also widen what counts as the literal.
+  assert.equal(classifyOwnerBullet('- Jane unowned — pick this up'), 'owned');
+});
+
+test('checkUnownedBullets: H42 — a real Backlog bullet owned by a two-word name is NOT flagged backlog-unowned', () => {
+  const text = '## Backlog (owned)\n- Jane Doe — review the draft proposal\n';
+  assert.deepEqual(checkUnownedBullets(text, 'Backlog (owned)', 'backlog-unowned'), []);
+});
+
+test('checkUnownedBullets: H42 — a real project Next bullet owned by a two-word name is NOT flagged unowned-next', () => {
+  const text = '## Next\n- Jane Doe — fix the build\n';
+  assert.deepEqual(checkUnownedBullets(text, 'Next', 'unowned-next'), []);
+});
+
+test('runStateLint --global: H42 — a home bootstrapped with a spaced owner lints clean after writing a REAL Backlog line in that owner\'s name', async (t) => {
+  const home = sandbox(t);
+  const initIo = { out: () => {}, err: () => {}, prompt: async () => { throw new Error('not expected'); } };
+  const initResult = await runInit(
+    { owner: 'Jane Doe', tag: null, harnesses: [], yes: true, deliver: false },
+    { home, io: initIo, isTTY: false, gitUserName: () => null, env: { PATH: '' } },
+  );
+  assert.equal(initResult.code, 0);
+  const stateMdPath = join(home, '.agents', 'STATE.md');
+  const withRealBullet = readFileSync(stateMdPath, 'utf8').replace(
+    '- (queued cross-project items, each owned: `Jane Doe — action` or an agent tag)',
+    '- Jane Doe — review the draft proposal',
+  );
+  assert.notEqual(withRealBullet, readFileSync(stateMdPath, 'utf8'), 'sanity: the replace actually hit');
+  writeFileSync(stateMdPath, withRealBullet, 'utf8');
+  const res = await runGlobal(home);
+  assert.equal(res.code, 0, `expected PASS, got: ${res.lines.join('\n')}`);
+  assert.deepEqual(res.lines, ['state lint: PASS']);
+});
+
+// =====================================================================
+// E3 — H67: a bullet whose only content is an HTML comment is not a
+// bullet at all (D2's span-only blanking reduces `- <!-- note -->` to the
+// bare marker `- `, which every OTHER check then misread as a real, empty
+// bullet). H68: a `- - -` / `* * *` thematic break is a RULE, not a
+// bullet, even though its own first marker satisfies BULLET_MARKER_RE.
+// =====================================================================
+
+test('topLevelBullets: E3/H67 — a bullet whose only content is an HTML comment is not a bullet, in either grain', () => {
+  const globalText = prepareText('## Active threads\n- <!-- nothing in flight -->\n');
+  assert.deepEqual(topLevelBullets(globalText, 'Active threads'), []);
+  const projectText = prepareText('## Next\n- <!-- owner — action, once we know -->\n');
+  assert.deepEqual(topLevelBullets(projectText, 'Next'), []);
+});
+
+test('topLevelBullets: E3/H67 — the multi-line comment form behaves the same way', () => {
+  const text = prepareText('## Watch\n- <!--\n  nothing yet\n-->\n');
+  assert.deepEqual(topLevelBullets(text, 'Watch'), []);
+});
+
+test('lintGlobalState: E3/H67 — a page whose only Active/Backlog/Closed content is a commented-out bullet lints clean', (t) => {
+  const home = sandbox(t);
+  const text = [
+    '# GLOBAL STATE — cross-project projection',
+    '> Owner: testagent. Protocol: `~/.agents/canon/CONTINUITY.md`.',
+    '',
+    '## Active threads',
+    '- <!-- nothing in flight -->',
+    '',
+    '## Backlog (owned)',
+    '- <!-- add items -->',
+    '',
+    '## Watch',
+    '- x',
+    '',
+    '## Recently closed (context for next session)',
+    '- <!-- none yet -->',
+    '',
+  ].join('\n');
+  assert.deepEqual(lintGlobalState(text, { home }), []);
+});
+
+test('lintProjectState: E3/H67 — a `## Next` holding only a commented-out bullet does not FAIL unowned-next', () => {
+  const text = CLEAN_STATE.replace(
+    '- testagent — ship the next slice\n- ahimsa — review the shipped slice',
+    '- <!-- owner — action, once we know -->',
+  );
+  const findings = lintProjectState(text, { logbookText: CLEAN_LOGBOOK, sessionEntries: [] });
+  assert.ok(!findings.some((f) => f.type === 'unowned-next'), JSON.stringify(findings));
+});
+
+test('topLevelBullets: E3/H68 — a `- - -` / `* * *` thematic break is a RULE, not a bullet, in every section', () => {
+  const text = prepareText('## Recently closed (context for next session)\n- - -\n* * *\n');
+  assert.deepEqual(topLevelBullets(text, 'Recently closed (context for next session)'), []);
+});
+
+test('checkClosedUndated: E3/H68 — a thematic break between Recently-closed bullets is never flagged closed-undated', () => {
+  const text = '## Recently closed (context for next session)\n- - -\n- gamma finished (closed 2026-09-01)\n';
+  assert.deepEqual(checkClosedUndated(text), []);
+});
+
+test('checkUnownedBullets: E3/H68 — a thematic break in Backlog is never flagged backlog-unowned', () => {
+  const text = '## Backlog (owned)\n* * *\n- testagent — sweep the backlog\n';
+  assert.deepEqual(checkUnownedBullets(text, 'Backlog (owned)', 'backlog-unowned'), []);
+});
+
+// =====================================================================
+// E4 — the CommonMark code-span rule: a run of N backticks is closed only
+// by a LATER run of exactly N backticks; an unpaired run is literal text.
+// H8: the pre-E4 toggle-per-backtick masked everything after an unpaired
+// (apostrophe-typo) backtick, hiding a real stamp. H61: the pre-E4 toggle
+// read a double-backtick span as two EMPTY single-backtick spans, leaving
+// its content (including a stamp) unmasked.
+// =====================================================================
+
+test('bulletStampShapes: E4/H8 — an unpaired backtick no longer masks a real stamp after it', () => {
+  assert.deepEqual(bulletStampShapes("- **x** → `~/p/STATE.md` — won`t ship (as of 2026-09-30)"), ['2026-09-30']);
+});
+
+test('checkActiveThreads: E4/H8 — an unpaired backtick no longer hides a real stamp, end to end', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'p', 'STATE.md'), '2026-09-01');
+  const text = "## Active threads\n- **x** → `~/projects/p/STATE.md` — won`t ship (as of 2026-09-30)\n";
+  const findings = checkActiveThreads(text, home);
+  assert.ok(!findings.some((f) => f.type === 'thread-unstamped'), JSON.stringify(findings));
+});
+
+test('checkClosedUndated: E4/H8 — an unpaired backtick no longer hides a real "(closed ...)" stamp', () => {
+  const text = "## Recently closed (context for next session)\n- didn`t ship docs (closed 2026-09-30)\n";
+  assert.deepEqual(checkClosedUndated(text), []);
+});
+
+test('bulletStampShapes: E4/H61 — a double-backtick span masks as ONE span, not two empty single-backtick ones', () => {
+  assert.deepEqual(bulletStampShapes('- e.g. ``(as of 2099-01-01)`` more text'), []);
+});
+
+test('bulletStampShapes: E4 — a double-backtick span containing a literal single backtick is still masked whole (CommonMark pairing)', () => {
+  assert.deepEqual(bulletStampShapes('- ``quoted `code` (as of 2099-01-01)`` text'), []);
+});
+
+test('globalReferenceDate: E4/H61 — a double-backtick-quoted example stamp never becomes the reference date', () => {
+  const text = [
+    '## Active threads',
+    '- **alpha** — e.g. ``(as of 2099-01-01)`` → memory a',
+    '- **beta** (as of 2026-01-01) — real thread → memory b',
+  ].join('\n');
+  assert.equal(globalReferenceDate(text), '2026-01-01');
+});
+
+// =====================================================================
+// H43/C50 — trimLine (the 120-char FAIL excerpt) is cut at CODE POINTS,
+// same as excerpt60's cut, never a naive UTF-16 slice (C50's existing pin
+// covers only excerpt60/line-over-limit; trimLine was still unpinned).
+// =====================================================================
+
+test('checkUnownedBullets: H43/C50 — the FAIL excerpt (trimLine) is cut at 120 CODE POINTS, never splitting a surrogate pair', () => {
+  const emoji = '\u{1F680}'; // one code point, a UTF-16 surrogate pair
+  // "- " (2 code points) + 117 'x' (117 code points) = 119 code points
+  // before the emoji, so it sits exactly at the 120th code point — the
+  // correct cut includes it whole; a naive UTF-16 `.slice(0, 120)` would
+  // take only its high-surrogate half. No em-dash anywhere, so this is
+  // unowned by the "no em-dash at all" rule, independent of the owner regex.
+  const line = '- ' + 'x'.repeat(117) + emoji + ' and plenty more unowned prose after it';
+  const findings = checkUnownedBullets(`## Next\n${line}\n`, 'Next', 'unowned-next');
+  assert.equal(findings.length, 1);
+  const msg = findings[0].message;
+  const loneSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+  assert.ok(loneSurrogate.test(line.slice(0, 120)), 'sanity: a naive UTF-16 .slice(0, 120) DOES split this surrogate pair');
+  assert.ok(!loneSurrogate.test(msg), 'the FAIL message must never contain a lone surrogate half');
+  assert.ok(msg.includes(emoji), 'the excerpt must include the WHOLE emoji, not a split half');
+});
+
+// =====================================================================
+// E1/C15/H11 — a WARN's printed excerpt is cut from the RAW page line
+// (comment included), never the fence/comment-blanked line every other
+// check reads: when a bullet carries an inline comment inside its first
+// 60 code points, an excerpt cut from the PREPARED line (with the comment
+// span already removed) is NOT a substring of the page, so pasting it as
+// `--match` fails with "no line matches" — even though the decision (the
+// bullet IS over the limit) is still made on the prepared line.
+// =====================================================================
+
+test('checkLineOverLimit: E1/C15/H11 — the excerpt is a substring of the RAW page line, comment included, through the real lintGlobalState pipeline', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const name = 'Watch';
+  const limit = SECTION_LINE_LIMITS[name];
+  // The comment sits inside the first 60 code points of the RAW line; the
+  // PREPARED (comment-blanked) line reads differently there — an excerpt
+  // cut from the prepared line would not be a substring of the raw page.
+  const rawLine = bulletOfLength('- Commented <!-- note --> watch word ', limit + 20);
+  const text = CLEAN_GLOBAL.replace(
+    '- an assumption needing validation (validate-by: 2026-10-01)',
+    rawLine,
+  );
+  const findings = lintGlobalState(text, { home });
+  const overLimit = findings.find((f) => f.type === 'line-over-limit');
+  assert.ok(overLimit, `expected line-over-limit: ${JSON.stringify(findings)}`);
+  const quoted = overLimit.message.match(/: "([^"]*)" —/);
+  assert.ok(quoted, overLimit.message);
+  assert.ok(rawLine.includes(quoted[1]), `excerpt "${quoted[1]}" must be a substring of the RAW page line`);
+});
+
+// =====================================================================
+// E2 (refining D1): the continuation scan reads RAW lines (never
+// fence/comment-blanked), so an INDENTED fence/comment and its body are
+// absorbed as continuation "whatever they hold" (C4), while a comment-only
+// line at column 0 is a barrier but NEVER the loose-paragraph's "one
+// blank separator" (H9). topLevelBulletContinuationCounts' third
+// (optional) `rawLines` argument carries the true raw lines in these
+// fixtures — the first two args alone (defaulting rawLines to the
+// prepared text) would reproduce the OLD, wrong behavior these tests
+// pin against.
+// =====================================================================
+
+test('topLevelBulletContinuationCounts: E2/C4 — an INDENTED fence mid-bullet, with prose after it, is captured whole (not split)', () => {
+  const raw = [
+    '## Watch',
+    '- beta-watch: re-check with this command.',
+    '  ```powershell',
+    '  Get-PSDrive C,D',
+    '  ```',
+    '  then compare. Validate-by 2026-10-12.',
+    '- sibling',
+    '',
+  ].join('\n');
+  const rawLines = raw.split('\n');
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch', rawLines), [4, 0]);
+});
+
+test('topLevelBulletContinuationCounts: E2/C4 — a bullet whose ENTIRE continuation is an indented fence (nothing follows it)', () => {
+  const raw = ['## Watch', '- beta-watch: see below.', '  ```', '  fenced content', '  ```', ''].join('\n');
+  const rawLines = raw.split('\n');
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch', rawLines), [3]);
+});
+
+test('topLevelBulletContinuationCounts: E2/C4 — an INDENTED multi-line comment mid-bullet, with prose after it, is captured whole', () => {
+  const raw = [
+    '## Watch',
+    '- beta-watch: re-check per note.',
+    '  <!-- internal note',
+    '  spans two lines -->',
+    '  then compare. Validate-by 2026-10-12.',
+    '- sibling',
+    '',
+  ].join('\n');
+  const rawLines = raw.split('\n');
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch', rawLines), [3, 0]);
+});
+
+test('topLevelBulletContinuationCounts: H9 — a comment-only line at column 0 ends the bullet, and is NEVER the loose-paragraph\'s one blank separator', () => {
+  const raw = [
+    '## Watch',
+    '- Cache check: 3 GB used (validate-by 2026-10-12)',
+    '<!-- the next line is an unrelated section note -->',
+    '  numbers measured with dir /s',
+    '',
+  ].join('\n');
+  const rawLines = raw.split('\n');
+  // Pre-H9 fix: the comment blanked to one empty line, which the loose
+  // rule misread as the "exactly one blank" separator, counting the
+  // comment line PLUS the indented line after it as continuation ([2] or
+  // [3]). Correct: the comment-only line is a barrier; the bullet has
+  // ZERO continuation lines, and the indented paragraph is NOT its tail.
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch', rawLines), [0]);
+});
+
+test('checkBulletWrapped: H9 — the comment-only-line case through the real WARN check, not just the helper', () => {
+  const raw = [
+    '## Watch',
+    '- Cache check: 3 GB used (validate-by 2026-10-12)',
+    '<!-- the next line is an unrelated section note -->',
+    '  numbers measured with dir /s',
+    '',
+  ].join('\n');
+  const rawLines = raw.split('\n');
+  assert.deepEqual(checkBulletWrapped(prepareText(raw), rawLines), []);
+});
+
+// =====================================================================
+// H31 — every D1/E2 barrier type pinned by more than one representative;
+// H59 — the loose-paragraph rule's exact thresholds (one blank only, 2+
+// spaces or a tab, every contiguous indented line counted).
+// =====================================================================
+
+test('topLevelBulletContinuationCounts: H31 — a level-4 heading ("####") ends the bullet, not just "###"', () => {
+  const raw = '## Watch\n- item\n#### Notes\n';
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch'), [0]);
+});
+
+test('topLevelBulletContinuationCounts: H31 — a "***" thematic break ends the bullet, not just "---"', () => {
+  const raw = '## Watch\n- item\n***\n';
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch'), [0]);
+});
+
+test('topLevelBulletContinuationCounts: H31 — a blank line then a TAB-indented paragraph counts as continuation, not just 2-space', () => {
+  const raw = '## Watch\n- item\n\n\tindented with a tab\n';
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch'), [2]);
+});
+
+test('topLevelBulletContinuationCounts: H59 — TWO blank lines in a row end the bullet; the loose rule needs EXACTLY one', () => {
+  const raw = '## Watch\n- item\n\n\n  indented\n';
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch'), [0]);
+});
+
+test('topLevelBulletContinuationCounts: H59 — a single leading space after the blank does not count as indented (needs 2+ spaces or a tab)', () => {
+  const raw = '## Watch\n- item\n\n x one-space\n';
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch'), [0]);
+});
+
+test('topLevelBulletContinuationCounts: H59 — every contiguous indented line after the one blank is counted, not just the first', () => {
+  const raw = '## Watch\n- item\n\n  line one\n  line two\n';
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch'), [3]);
+});
+
+// =====================================================================
+// H76 — a bullet that is BOTH over its section limit AND wrapped WARNs
+// both independently; neither check suppresses the other.
+// =====================================================================
+
+test('checkLineOverLimit + checkBulletWrapped: H76 — a bullet over its limit AND wrapped WARNs both, together', () => {
+  const name = 'Watch';
+  const limit = SECTION_LINE_LIMITS[name];
+  const firstLine = bulletOfLength('- a long watch bullet ', limit + 50);
+  const text = `## ${name}\n${firstLine}\n  a continuation line\n`;
+  const overLimit = checkLineOverLimit(text);
+  const wrapped = checkBulletWrapped(text);
+  assert.equal(overLimit.length, 1, `expected line-over-limit: ${JSON.stringify(overLimit)}`);
+  assert.equal(wrapped.length, 1, `expected bullet-wrapped: ${JSON.stringify(wrapped)}`);
+});
+
+// =====================================================================
+// C28 — line-over-limit through lintGlobalState on a CRLF page, boundary
+// exact, with NO hand normalization by the test itself.
+// =====================================================================
+
+test('lintGlobalState: C28 — a CRLF global page with a Backlog bullet EXACTLY at its limit stays clean', (t) => {
+  const name = 'Backlog (owned)';
+  const limit = SECTION_LINE_LIMITS[name];
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const atLimit = CLEAN_GLOBAL.replace(
+    '- testagent — sweep the backlog',
+    bulletOfLength('- testagent — sweep the backlog ', limit),
+  );
+  const crlf = atLimit.replace(/\n/g, '\r\n');
+  assert.deepEqual(lintGlobalState(crlf, { home }), []);
+});
+
+test('lintGlobalState: C28 — the same CRLF page one char over the limit WARNs exactly once', (t) => {
+  const name = 'Backlog (owned)';
+  const limit = SECTION_LINE_LIMITS[name];
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const overLimit = CLEAN_GLOBAL.replace(
+    '- testagent — sweep the backlog',
+    bulletOfLength('- testagent — sweep the backlog ', limit + 1),
+  );
+  const crlf = overLimit.replace(/\n/g, '\r\n');
+  const findings = lintGlobalState(crlf, { home });
+  assert.equal(findings.filter((f) => f.type === 'line-over-limit').length, 1, JSON.stringify(findings));
+});
+
+// =====================================================================
+// C44 — the reference date's scope: Watch/Backlog stamps never count,
+// and it is computed from the PREPARED (fence/comment-blanked) text, not
+// a hand-normalized or raw one.
+// =====================================================================
+
+test('globalReferenceDate: C44 — stamps in Watch/Backlog never count toward the reference date', () => {
+  const text = [
+    '## Active threads',
+    '- **alpha** (as of 2026-09-30) — real thread → memory a',
+    '## Backlog (owned)',
+    '- testagent — reopen gamma (closed 2026-12-15)',
+    '## Watch',
+    '- vendor quote validity (as of 2026-12-01)',
+    '## Recently closed (context for next session)',
+    '- gamma finished (closed 2026-09-29)',
+  ].join('\n');
+  assert.equal(globalReferenceDate(text), '2026-09-30');
+});
+
+test('lintGlobalState: C44 — a Watch/Backlog stamp never makes a real thread read inactive or a real closed line read expired', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-30');
+  const text = [
+    '# GLOBAL STATE — cross-project projection',
+    '> Owner: testagent. Protocol: `~/.agents/canon/CONTINUITY.md`.',
+    '',
+    '## Active threads',
+    '- **alpha** (as of 2026-09-30) — real thread → `~/projects/alpha/STATE.md`',
+    '',
+    '## Backlog (owned)',
+    '- testagent — reopen gamma (closed 2026-12-15)',
+    '',
+    '## Watch',
+    '- vendor quote validity (as of 2026-12-01)',
+    '',
+    '## Recently closed (context for next session)',
+    '- gamma finished (closed 2026-09-29)',
+    '',
+  ].join('\n');
+  const findings = lintGlobalState(text, { home });
+  assert.ok(!findings.some((f) => f.type === 'thread-inactive'), JSON.stringify(findings));
+  assert.ok(!findings.some((f) => f.type === 'closed-expired'), JSON.stringify(findings));
+});
+
+test('lintGlobalState: C44 — a commented-out stamp on Active threads never feeds the reference date', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-30');
+  const text = [
+    '# GLOBAL STATE — cross-project projection',
+    '> Owner: testagent. Protocol: `~/.agents/canon/CONTINUITY.md`.',
+    '',
+    '## Active threads',
+    '<!-- - **hidden** (as of 2099-01-01) — commented out -->',
+    '- **alpha** (as of 2026-09-30) — real thread → `~/projects/alpha/STATE.md`',
+    '',
+    '## Backlog (owned)',
+    '- testagent — sweep the backlog',
+    '',
+    '## Watch',
+    '- an assumption needing validation (validate-by: 2026-10-01)',
+    '',
+    '## Recently closed (context for next session)',
+    '- gamma finished (closed 2026-09-29)',
+    '',
+  ].join('\n');
+  const findings = lintGlobalState(text, { home });
+  assert.ok(
+    !findings.some((f) => f.type === 'thread-inactive' || f.type === 'closed-expired'),
+    JSON.stringify(findings),
+  );
+});
+
+// =====================================================================
+// C45 — checkLineOverLimit's own 60-code-point cut, independently
+// computed (not merely "the message includes a short marker").
+// H58 — the SAME 60-code-point cut (excerpt60, not trimLine's 120)
+// pinned for the other four excerpt-bearing WARNs too.
+// =====================================================================
+
+test('checkLineOverLimit: C45 — the excerpt is exactly the first 60 code points, independently computed', () => {
+  const name = 'Active threads';
+  const limit = SECTION_LINE_LIMITS[name];
+  const line = bulletOfLength('- alpha ', limit + 200);
+  const findings = checkLineOverLimit(`## ${name}\n${line}\n`);
+  assert.equal(findings.length, 1);
+  const expected60 = Array.from(line).slice(0, 60).join('');
+  const expected61 = Array.from(line).slice(0, 61).join('');
+  assert.ok(findings[0].message.includes(`"${expected60}"`), findings[0].message);
+  assert.ok(!findings[0].message.includes(expected61), 'must not leak a 61st code point (that would mean trimLine\'s 120 cut, not excerpt60\'s 60)');
+});
+
+test('checkBulletWrapped: H58 — the excerpt is cut at 60 code points, not trimLine\'s 120', () => {
+  const name = 'Watch';
+  const limit = SECTION_LINE_LIMITS[name];
+  const line = bulletOfLength('- a wrapped watch bullet with plenty of padding text right here ', limit + 100);
+  const text = `## ${name}\n${line}\n  a continuation line\n`;
+  const findings = checkBulletWrapped(text);
+  assert.equal(findings.length, 1);
+  const expected60 = Array.from(line).slice(0, 60).join('');
+  const expected61 = Array.from(line).slice(0, 61).join('');
+  assert.ok(findings[0].message.includes(`"${expected60}"`), findings[0].message);
+  assert.ok(!findings[0].message.includes(expected61));
+});
+
+test('checkClosedUndated: H58 — the excerpt is cut at 60 code points, not trimLine\'s 120', () => {
+  const name = 'Recently closed (context for next session)';
+  const limit = SECTION_LINE_LIMITS[name];
+  const line = bulletOfLength('- gamma finished, no stamp here at all, plenty of padding text ', limit + 100);
+  const findings = checkClosedUndated(`## ${name}\n${line}\n`);
+  assert.equal(findings.length, 1);
+  const expected60 = Array.from(line).slice(0, 60).join('');
+  const expected61 = Array.from(line).slice(0, 61).join('');
+  assert.ok(findings[0].message.includes(`"${expected60}"`), findings[0].message);
+  assert.ok(!findings[0].message.includes(expected61));
+});
+
+test('checkClosedExpired: H58 — the excerpt is cut at 60 code points, not trimLine\'s 120', () => {
+  const name = 'Recently closed (context for next session)';
+  const limit = SECTION_LINE_LIMITS[name];
+  const line = bulletOfLength('- gamma (closed 2026-01-01) finished, way back, plenty of padding ', limit + 100);
+  const findings = checkClosedExpired(`## ${name}\n${line}\n`, '2026-02-01');
+  assert.equal(findings.length, 1);
+  const expected60 = Array.from(line).slice(0, 60).join('');
+  const expected61 = Array.from(line).slice(0, 61).join('');
+  assert.ok(findings[0].message.includes(`"${expected60}"`), findings[0].message);
+  assert.ok(!findings[0].message.includes(expected61));
+});
+
+test('checkThreadInactive: H58 — the excerpt is cut at 60 code points, not trimLine\'s 120', () => {
+  const name = 'Active threads';
+  const limit = SECTION_LINE_LIMITS[name];
+  const line = bulletOfLength('- **alpha** (as of 2026-01-01) idle for a while, plenty of padding ', limit + 100);
+  const findings = checkThreadInactive(`## ${name}\n${line}\n`, '2026-06-01', NOHOME);
+  assert.equal(findings.length, 1);
+  const expected60 = Array.from(line).slice(0, 60).join('');
+  const expected61 = Array.from(line).slice(0, 61).join('');
+  assert.ok(findings[0].message.includes(`"${expected60}"`), findings[0].message);
+  assert.ok(!findings[0].message.includes(expected61));
+});
+
+// =====================================================================
+// C55 — the stamp keyword is per-section: an "(as of ...)" on a
+// Recently-closed line, or a "(closed ...)" on an Active-threads line,
+// never counts for the OTHER section's checks (only one of four mutants
+// was previously pinned).
+// =====================================================================
+
+test('checkClosedExpired: C55 — an "(as of ...)" stamp on a Recently-closed bullet is never read by this check', () => {
+  const text = '## Recently closed (context for next session)\n- **beta** (as of 2026-08-01) — shipped (closed 2026-09-30)\n';
+  assert.deepEqual(checkClosedExpired(text, '2026-09-30'), []);
+});
+
+test('globalReferenceDate: C55 — an "(as of ...)" stamp on a Recently-closed bullet never feeds the reference date', () => {
+  const text = [
+    '## Active threads',
+    '- **alpha** (as of 2026-01-01) — old thread → memory a',
+    '## Recently closed (context for next session)',
+    '- gamma (as of 2026-12-31) finished, no closed stamp',
+  ].join('\n');
+  assert.equal(globalReferenceDate(text), '2026-01-01');
+});
+
+test('checkThreadInactive: C55 — a "(closed ...)" stamp on an Active-threads bullet is never read by this check', () => {
+  const text = '## Active threads\n- **alpha** (as of 2026-09-25) — reopened, was (closed 2026-07-01) → memory a\n';
+  assert.deepEqual(checkThreadInactive(text, '2026-09-30', NOHOME), []);
+});
+
+// =====================================================================
+// C56/H28 — an impossible date is filtered on the CLOSED side of
+// globalReferenceDate and in BOTH age checks, with the impossible date
+// chosen so Date.UTC's month/day rollover still lands BEFORE the
+// reference — the existing 2026-13-45 fixtures roll forward PAST every
+// reference date used, so the filter's absence can never change their
+// (already-skipped) outcome.
+// =====================================================================
+
+test('checkClosedExpired: C56/H28 — an impossible (closed 2025-02-30) stamp is filtered, never rolled forward into a false WARN', () => {
+  const text = '## Recently closed (context for next session)\n- gamma unique (closed 2025-02-30)\n';
+  assert.deepEqual(checkClosedExpired(text, '2026-01-09'), []);
+});
+
+test('checkThreadInactive: C56/H28 — an impossible (as of 2026-02-30) stamp is filtered, never rolled forward into a false WARN', () => {
+  const text = '## Active threads\n- **alpha** (as of 2026-02-30) — unique thread → memory a\n';
+  assert.deepEqual(checkThreadInactive(text, '2026-06-01', NOHOME), []);
+});
+
+test('globalReferenceDate: C56/H28 — an impossible (closed ...) stamp never becomes the reference date', () => {
+  const text = [
+    '## Active threads',
+    '- **alpha** (as of 2026-09-25) — real thread → memory a',
+    '## Recently closed (context for next session)',
+    '- gamma (closed 2026-19-01)',
+  ].join('\n');
+  assert.equal(globalReferenceDate(text), '2026-09-25');
+});
+
+// =====================================================================
+// C29 — re-pin the four placeholder exemptions (checkLineOverLimit,
+// globalReferenceDate, checkClosedExpired, checkThreadInactive) with a
+// WILDCARD-SUBSTITUTED placeholder that WOULD be flagged if the exemption
+// were not applied — the original removed tests used template text far
+// too short/undated to ever reach the skip.
+// =====================================================================
+
+test('checkLineOverLimit: C29/P1 — the Backlog placeholder stays exempt even when its substituted owner pushes the WHOLE bullet over the limit', () => {
+  const name = 'Backlog (owned)';
+  const limit = SECTION_LINE_LIMITS[name];
+  const longOwner = 'x'.repeat(320);
+  const bullet = `- (queued cross-project items, each owned: \`${longOwner} — action\` or an agent tag)`;
+  assert.ok(bullet.length > limit, 'sanity: the substituted placeholder now exceeds the Backlog limit');
+  assert.ok(isPlaceholderBullet(bullet), 'sanity: still recognized as a placeholder');
+  assert.deepEqual(checkLineOverLimit(`## ${name}\n${bullet}\n`), []);
+});
+
+test('checkClosedExpired: C29/P2 — a Recently-closed bullet matching the PROJECT Next placeholder\'s wildcard, with an old stamp, stays exempt', () => {
+  const bullet = '- beta (closed 2026-01-01) — (owned actions only; unowned items are not allowed here)';
+  assert.ok(isPlaceholderBullet(bullet), 'sanity: matches the wildcard-substituted project placeholder');
+  const text = `## Recently closed (context for next session)\n${bullet}\n`;
+  assert.deepEqual(checkClosedExpired(text, '2026-09-01'), []);
+});
+
+test('checkThreadInactive: C29/P3 — an Active-threads bullet matching the PROJECT Next placeholder\'s wildcard, with an old stamp, stays exempt', () => {
+  const bullet = '- gamma (as of 2026-01-01) — (owned actions only; unowned items are not allowed here)';
+  assert.ok(isPlaceholderBullet(bullet), 'sanity: matches the wildcard-substituted project placeholder');
+  const text = `## Active threads\n${bullet}\n`;
+  assert.deepEqual(checkThreadInactive(text, '2026-09-01', NOHOME), []);
+});
+
+test('globalReferenceDate: C29/P4 — a Recently-closed bullet matching the placeholder wildcard, even carrying the NEWEST stamp, stays exempt', () => {
+  const text = [
+    '## Active threads',
+    '- **alpha** (as of 2026-01-01) — real thread → memory a',
+    '## Recently closed (context for next session)',
+    '- beta (closed 2026-06-01) — (owned actions only; unowned items are not allowed here)',
+  ].join('\n');
+  assert.equal(globalReferenceDate(text), '2026-01-01');
+});
+
+// =====================================================================
+// H36 — bulletIsThreadStale's malformed-stamp guard (thread-inactive
+// suppression requires ALL of the bullet's stamps to be valid; it mirrors
+// checkActiveThreads "exactly").
+// =====================================================================
+
+test('checkThreadInactive: H36 — a malformed stamp alongside a valid one is never treated as "all stamps valid" by the stale-suppression guard', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'p', 'STATE.md'), '2026-03-01');
+  const text = '## Active threads\n- **alpha** (as of 2026-01-01) (as of 2026-02-30) → `~/projects/p/STATE.md`\n';
+  const activeFindings = checkActiveThreads(text, home);
+  assert.ok(activeFindings.some((f) => f.type === 'thread-stamp-malformed'), JSON.stringify(activeFindings));
+  assert.ok(!activeFindings.some((f) => f.type === 'thread-stale'), 'sanity: a malformed stamp never also FAILs thread-stale');
+  const inactive = checkThreadInactive(text, '2026-03-05', home);
+  assert.ok(inactive.some((f) => f.type === 'thread-inactive'), `expected NOT suppressed: ${JSON.stringify(inactive)}`);
+});
+
+// =====================================================================
+// H55 — the thread-stale suppression of thread-inactive must survive the
+// COMPOSED pipeline, not just a direct call with `home` handed in by the
+// test — `lintGlobalState` must thread `home` all the way through.
+// =====================================================================
+
+test('lintGlobalState: H55 — thread-inactive is suppressed by thread-stale through the composed pipeline (home threaded from lintGlobalState)', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'p', 'STATE.md'), '2026-03-01');
+  const text = [
+    '# GLOBAL STATE — cross-project projection',
+    '> Owner: testagent. Protocol: `~/.agents/canon/CONTINUITY.md`.',
+    '',
+    '## Active threads',
+    '- **alpha** (as of 2026-01-01) — stale thread → `~/projects/p/STATE.md`',
+    '',
+    '## Backlog (owned)',
+    '- testagent — sweep the backlog',
+    '',
+    '## Watch',
+    '- an assumption needing validation (validate-by: 2026-10-01)',
+    '',
+    '## Recently closed (context for next session)',
+    '- gamma finished (closed 2026-03-04)',
+    '',
+  ].join('\n');
+  const findings = lintGlobalState(text, { home });
+  assert.ok(findings.some((f) => f.type === 'thread-stale'), `sanity: must FAIL thread-stale: ${JSON.stringify(findings)}`);
+  assert.ok(!findings.some((f) => f.type === 'thread-inactive'), `must be suppressed: ${JSON.stringify(findings)}`);
+});
+
+// =====================================================================
+// H63 — repeated-flag rejection applies to EVERY value flag, not just
+// --match. H66 — a value made only of whitespace is rejected, for --match
+// AND --tag, not just an empty string.
+// =====================================================================
+
+test('parseStateArgs archive: H63 — a repeated --reason throws, not just --match', () => {
+  assert.throws(
+    () => parseStateArgs([
+      'archive', '--global', '--match', 'x', '--reason', 'removed', '--reason', 'expired', '--tag', 'testagent',
+    ]),
+    /--reason may only be given once/,
+  );
+});
+
+test('parseStateArgs archive: H63 — a repeated --tag throws, not just --match', () => {
+  assert.throws(
+    () => parseStateArgs([
+      'archive', '--global', '--match', 'x', '--reason', 'expired', '--tag', 'alice', '--tag', 'bob',
+    ]),
+    /--tag may only be given once/,
+  );
+});
+
+test('parseStateArgs archive: H66 — a whitespace-only --match throws (not just an empty string)', () => {
+  assert.throws(
+    () => parseStateArgs(['archive', '--global', '--match', ' ', '--reason', 'removed', '--tag', 'testagent']),
+    /--match requires a non-blank value/,
+  );
+});
+
+test('parseStateArgs archive: H66 — a whitespace-only --tag throws (not just an empty string)', () => {
+  assert.throws(
+    () => parseStateArgs(['archive', '--global', '--match', 'x', '--reason', 'removed', '--tag', ' ']),
+    /--tag requires a non-blank value/,
+  );
+});
+
+// =====================================================================
+// E8/K2 — `state archive --tag` reuses the SAME single-token validator as
+// `banana log` (validateAgentTag), exported from lib/state.mjs.
+// =====================================================================
+
+test('validateAgentTag: a single-token tag passes', () => {
+  assert.doesNotThrow(() => validateAgentTag('claude'));
+});
+
+test('validateAgentTag: a tag containing a space throws, naming the single-token rule', () => {
+  assert.throws(() => validateAgentTag('Jane Doe'), /single token/);
+});
+
+test('validateAgentTag: a tag containing a tab throws too (any whitespace, not just a literal space)', () => {
+  assert.throws(() => validateAgentTag('a\tb'), /single token/);
+});
+
+test('parseStateArgs archive: E8/K2 — a --tag containing internal whitespace throws, even though it is non-blank', () => {
+  assert.throws(
+    () => parseStateArgs([
+      'archive', '--global', '--match', 'x', '--reason', 'removed', '--tag', 'claude — expired · Watch',
+    ]),
+    /single token/,
+  );
+});
+
+// =====================================================================
+// E10 — oldestValidStamp, the shared stamp-selection primitive exported
+// for `lib/state-archive.mjs`'s D3 gate (same selection the age checks
+// use: the oldest VALID stamp, never the newest, never an impossible one).
+// =====================================================================
+
+test('oldestValidStamp: the oldest of several valid stamps on one line, default keyword "as of"', () => {
+  assert.equal(oldestValidStamp('- **x** (as of 2026-03-01) reopened (as of 2026-01-01) → p'), '2026-01-01');
+});
+
+test('oldestValidStamp: a custom keyword ("closed") is honored', () => {
+  assert.equal(oldestValidStamp('- gamma (closed 2026-09-01) reopened, (closed 2026-09-29)', 'closed'), '2026-09-01');
+});
+
+test('oldestValidStamp: no valid stamp at all is null', () => {
+  assert.equal(oldestValidStamp('- just prose, no stamp'), null);
+});
+
+test('oldestValidStamp: an impossible date is filtered out, even though it would sort "oldest" as text', () => {
+  assert.equal(oldestValidStamp('- gamma (as of 2026-02-30) (as of 2026-03-01)'), '2026-03-01');
+});
+
+// =====================================================================
+// E7 (critic K1) — see the dedicated formatStateLintLines tests above;
+// this end-to-end pin confirms a WARN-only global page, read through
+// `banana brief`'s own seam (collectStateLint + formatStateLintLines),
+// collapses to the one-line summary rather than every #20 WARN verbatim.
+// =====================================================================
+
+test('collectStateLint + formatStateLintLines: E7 — a WARN-only global page collapses to one summary line through the real seam', (t) => {
+  const name = 'Backlog (owned)';
+  const limit = SECTION_LINE_LIMITS[name];
+  const text = CLEAN_GLOBAL.replace(
+    '- testagent — sweep the backlog',
+    bulletOfLength('- testagent — sweep the backlog ', limit + 1),
+  );
+  const home = makeGlobalHome(t, text);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const cwd = sandbox(t);
+  const collected = collectStateLint({ cwd, home });
+  assert.ok('verdict' in collected.global && collected.global.verdict.startsWith('WARN'), JSON.stringify(collected.global));
+  const lines = formatStateLintLines(collected);
+  assert.ok(lines.some((l) => l.startsWith('global state lint: WARN') && l.includes('line-over-limit')), lines.join('\n'));
+  assert.ok(!lines.some((l) => l.startsWith('WARN [line-over-limit]')), 'the raw WARN line must not appear verbatim');
 });
