@@ -191,11 +191,14 @@ report yet keep their single placeholder line rather than being omitted):
   before today. A missing stamp refuses and suggests `--reason removed`.
   The gate is LINE-SCOPED: it refuses on a future-dated stamp only when
   that stamp sits on the MATCHED line itself, naming it so it can be fixed
-  first; a future-dated stamp on any OTHER line never blocks the move — the
-  gate's own verdict is decided entirely by the matched line's own stamp
-  against the real clock, so a stray mistake elsewhere cannot make that
-  decision wrong. The command still proceeds in that case, printing one
-  note naming the other line and its stamp so its owner can be told.
+  first; a future-dated stamp on any OTHER Active-threads `(as of …)` or
+  Recently-closed `(closed …)` line — the same two non-placeholder sections
+  and keywords the reference date itself reads above, so Watch and Backlog
+  are never scanned for it either — never blocks the move: the gate's own
+  verdict is decided entirely by the matched line's own stamp against the
+  real clock, so a stray mistake elsewhere cannot make that decision wrong.
+  The command still proceeds in that case, printing one note naming the
+  other line and its stamp so its owner can be told.
 - **Secrets** — a credential, token, or key pasted onto the page is deleted
   outright, never archived. If one already reached the archive, delete it
   there too; it is the only edit the archive file ever takes.

@@ -543,16 +543,21 @@ placeholder token is always unowned (checked before the placeholder-pattern
 check, so its own wrapping underscores can't hide it from the comparison —
 see `lib/state.mjs`'s `classifyOwnerBullet`). A MULTI-WORD owner token (one
 with an internal space once emphasis is stripped) is accepted only when it
-equals the page's OWN declared owner — the global header's `Owner: <name>.
+equals the GLOBAL page's own declared owner — the header's `Owner: <name>.
 Protocol:` phrase (the same name-extraction rule E9 uses for the archive's
-placeholder swap-in), or for a project page, whatever owner source the lint
-already reads for it, if any — or is a recognized agent tag; any other
-multi-word token is NOT owned (#20d G4), so a line that merely LOOKS like
-`name — text` because the "owner" half happens to be a few real words (`-
-review the draft — waiting on the vendor`, `` - see `a — b` for details ``)
-is not accepted on the strength of looking like a name. A single-word owner
-token needs only the `unowned`/`__OWNER__` exclusion above; the multi-word
-authority check never applies to it.
+placeholder swap-in) — or is a recognized agent tag; any other multi-word
+token is NOT owned (#20d G4), so a line that merely LOOKS like `name —
+text` because the "owner" half happens to be a few real words (`- review
+the draft — waiting on the vendor`, `` - see `a — b` for details ``) is not
+accepted on the strength of looking like a name. A single-word owner token
+needs only the `unowned`/`__OWNER__` exclusion above; the multi-word
+authority check never applies to it. PROJECT pages carry no declared-owner
+header at all (`headerDeclaredOwner` is a global-only read; `## Next`'s
+caller always passes `null`) — so on a project page a multi-word owner is
+accepted ONLY as a recognized agent tag, never by equaling the page's own
+`--owner` value, even though `banana project --owner "<name>"` writes that
+exact name into the `## Next` placeholder (#20e F2; see ADR 0006's Known
+limits).
 
 **As-of / freshness-stamp date parsing** (shared `lib/doctor.mjs` helper
 `stateAsOf`, single-sourced — review hardening 2026-09-28): searched only in

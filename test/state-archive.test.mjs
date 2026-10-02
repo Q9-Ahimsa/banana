@@ -18,6 +18,7 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -794,6 +795,10 @@ test('runStateArchive: D3 gate never fires for a non-expired/inactive reason, ev
   assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
   assert.ok(!readFileSync(pagePath, 'utf8').includes('ship the next slice'));
   assert.ok(readFileSync(archivePath, 'utf8').includes('ship the next slice'));
+  // #20e F8: the future-stamp-elsewhere NOTE is computed only for
+  // --reason expired/inactive — a mutant that drops that reason scope
+  // would print a note naming "mistyped" here even under --reason removed.
+  assert.ok(!result.out.some((l) => l.includes('note:')), `out: ${result.out.join('\n')}`);
 });
 
 // =====================================================================
@@ -1195,6 +1200,28 @@ test('runStateArchive: a bullet that closes a multi-line HTML comment opened on 
   assert.ok(!existsSync(archivePath), 'nothing appended');
 });
 
+// #20e F6: both tests above use a two-line comment (opens and closes on
+// consecutive lines) — nothing exercises a genuine UNFENCED middle line
+// (no markers of its own) carrying `inComment` through to the real closer
+// on a THIRD line. A mutant that drops the carried-in state at that middle
+// line (lib/state.mjs:468, `stripCommentsFromLine(line, false)` instead of
+// `..., entering`) survives both tests above but must be caught here.
+test('runStateArchive: a bullet that closes a comment carried through an UNFENCED middle line (3+ lines) also refuses (#20e F6)', async (t) => {
+  const page = buildPage({
+    watch: ['<!-- reviewed 2026-09-20:', 'nothing new this week', '-->- cache: re-check by 2026-10-12'],
+  });
+  const { home, pagePath, archivePath } = makeHome(t, page);
+
+  const result = await archive(home, { match: 'cache: re-check', reason: 'removed' });
+  assert.equal(result.code, 2);
+  assert.ok(
+    result.err.some((l) => l.includes('opens or closes a multi-line HTML comment')),
+    `err: ${result.err.join('\n')}`,
+  );
+  assert.equal(readFileSync(pagePath, 'utf8'), page, 'page untouched');
+  assert.ok(!existsSync(archivePath), 'nothing appended');
+});
+
 // #20d G3/C1/H6/F3: a fenced code block holding an unclosed `<!--` must
 // NOT mark every later line on the page "inside a comment" — the #20c
 // regression this module's own un-fenced comment-boundary walk introduced.
@@ -1453,9 +1480,11 @@ test('runStateArchive: guard 2 catches the page being DELETED after the archive 
 
 // =====================================================================
 // #20c H30 (also X1): the SUCCESS-path temp file is gone afterward, and
-// never left behind — the pin that also catches the X1 mutation (replacing
-// the atomic rename with an in-place `writeFileSync(page, readFileSync(temp))`
-// copy leaves the temp file sitting there, since nothing unlinks it).
+// never left behind. This only catches an in-place `writeFileSync(page,
+// readFileSync(temp))` copy that LEAVES the temp file sitting there —
+// a copy-then-`unlinkSync(temp)` variant (#20e F10 mutant A2) deletes its
+// own temp file too, so it passes this pin; see the inode-change test
+// below (F10 mutant A2) for that variant.
 // =====================================================================
 
 test('runStateArchive: after a SUCCESSFUL move, the temp file is gone — no leftover `.tmp-*` (#20c H30, X1)', async (t) => {
@@ -1466,6 +1495,23 @@ test('runStateArchive: after a SUCCESSFUL move, the temp file is gone — no lef
   assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
   assert.deepEqual(tmpLeftovers(home), [], 'no leftover temp file after a successful move');
   assert.ok(existsSync(pagePath));
+});
+
+// #20e F10 (mutant A2): the H30/X1 pin above only checks that no `.tmp-*`
+// NAME is left behind — an in-place `writeFileSync(page, readFileSync(temp))`
+// followed by `unlinkSync(temp)` also leaves no such name, since it deletes
+// its own temp file after copying. A REAL rename replaces the page's inode;
+// an in-place copy-then-delete keeps the original inode untouched. This is
+// the pin the spec names: it must go red under that exact substitution.
+test('runStateArchive: a SUCCESSFUL move really RENAMES the page — its inode changes, never an in-place copy (#20e F10 mutant A2)', async (t) => {
+  const page = buildPage({ backlog: ['- testagent — ship the next slice'] });
+  const { home, pagePath } = makeHome(t, page);
+  const inoBefore = statSync(pagePath, { bigint: true }).ino;
+
+  const result = await archive(home, { match: 'ship the next slice', reason: 'removed' });
+  assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
+  const inoAfter = statSync(pagePath, { bigint: true }).ino;
+  assert.notEqual(inoAfter, inoBefore, "the page's inode must change — a real rename replaces it, an in-place write keeps it");
 });
 
 // #20d F10/H30: the temp file sits NEXT TO the real page (its own
@@ -2205,6 +2251,11 @@ test('runStateArchive: D3 — a stamp dated EXACTLY today does not trigger the f
   assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
   assert.ok(!readFileSync(pagePath, 'utf8').includes('stalled'));
   assert.ok(readFileSync(archivePath, 'utf8').includes('stalled'));
+  // #20e F8: the only OTHER stamp on the page is dated exactly today — the
+  // strict `date > today` boundary must exclude it from the elsewhere-note
+  // scan too, not just from the gate; a mutant loosening either check to
+  // `>=` would print a note naming "today-stamped" here.
+  assert.ok(!result.out.some((l) => l.includes('note:')), `out: ${result.out.join('\n')}`);
 });
 
 // #20d H17 superseded this scenario — a future stamp on a DIFFERENT line
@@ -2226,6 +2277,11 @@ test('runStateArchive: D3 — an impossible future-SHAPED stamp (month 13) is fi
   assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
   assert.ok(!readFileSync(pagePath, 'utf8').includes('stalled'));
   assert.ok(readFileSync(archivePath, 'utf8').includes('stalled'));
+  // #20e F8: the "bogus" stamp is impossible-shaped, not merely future — the
+  // elsewhere-note scan's own `isRealCalendarDate` filter must drop it too,
+  // not just the gate's; a mutant dropping that filter would print a note
+  // naming "bogus" and 2026-13-45 here.
+  assert.ok(!result.out.some((l) => l.includes('note:')), `out: ${result.out.join('\n')}`);
 });
 
 // =====================================================================
@@ -2435,6 +2491,78 @@ test("runStateArchive: G1 — a concurrent edit landing during the rename retry'
     'must refuse BEFORE the second rename attempt — the page-unchanged guard runs before every attempt, not only the first',
   );
   assert.equal(readFileSync(pagePath, 'utf8'), otherSessionEdit, "the other session's edit survives — never renamed over");
+  assert.ok(readFileSync(archivePath, 'utf8').includes('ship the next slice'), 'the archive already has the copy');
+  assert.deepEqual(tmpLeftovers(home), [], 'no leftover temp file');
+});
+
+// #20e F5: the test above changes the page's LENGTH (a longer Watch line),
+// so a guard mutated to compare `.length` only would still catch it. This
+// fixture edits the SAME line to a DIFFERENT same-length string, so only a
+// real full-content comparison (`rawCheck !== raw1`) can catch it.
+test("runStateArchive: G1 — a SAME-LENGTH concurrent edit landing during the backoff is still caught (a length-only guard would miss it) (#20e F5)", async (t) => {
+  const page = buildPage({ backlog: ['- testagent — ship the next slice'] });
+  const { home, pagePath, archivePath } = makeHome(t, page);
+  const watchPlaceholder = templatePlaceholder('Watch');
+  const sameLengthEdit = `${watchPlaceholder.slice(0, -1)}${watchPlaceholder.endsWith('.') ? '!' : '.'}`;
+  const otherSessionEdit = page.replace(watchPlaceholder, sameLengthEdit);
+  assert.equal(otherSessionEdit.length, page.length, 'sanity: the edit must be the SAME length as the original');
+  assert.notEqual(otherSessionEdit, page, 'sanity: the edit must actually change the content');
+
+  let attempts = 0;
+  const flakyRename = (/** @type {string} */ from, /** @type {string} */ to) => {
+    attempts++;
+    if (attempts === 1) {
+      writeFileSync(pagePath, otherSessionEdit, 'utf8');
+      const error = /** @type {Error & { code?: string }} */ (new Error('simulated transient hold'));
+      error.code = 'EPERM';
+      throw error;
+    }
+    renameSync(from, to);
+  };
+
+  const result = await archive(
+    home,
+    { match: 'ship the next slice', reason: 'removed' },
+    { renameSyncOverride: flakyRename, renameRetryBudgetMs: 2000 },
+  );
+
+  assert.equal(result.code, 2);
+  assert.ok(result.err.some((l) => l.includes('changed after archiving')), `err: ${result.err.join('\n')}`);
+  assert.equal(attempts, 1, 'must refuse BEFORE the second rename attempt');
+  assert.equal(readFileSync(pagePath, 'utf8'), otherSessionEdit, "the other session's edit survives — never renamed over");
+  assert.ok(readFileSync(archivePath, 'utf8').includes('ship the next slice'), 'the archive already has the copy');
+  assert.deepEqual(tmpLeftovers(home), [], 'no leftover temp file');
+});
+
+// #20e F5: the "missing" branch of the SAME retry check (a `readFileSync`
+// that throws, e.g. because the page vanished during the backoff) had no
+// test at all — only the "changed" branch (`rawCheck !== raw1`) was pinned.
+test("runStateArchive: G1 — the page VANISHING during the backoff is caught too, the 'missing' branch of the retry guard (#20e F5)", async (t) => {
+  const page = buildPage({ backlog: ['- testagent — ship the next slice'] });
+  const { home, pagePath, archivePath } = makeHome(t, page);
+
+  let attempts = 0;
+  const flakyRename = (/** @type {string} */ from, /** @type {string} */ to) => {
+    attempts++;
+    if (attempts === 1) {
+      rmSync(pagePath);
+      const error = /** @type {Error & { code?: string }} */ (new Error('simulated transient hold'));
+      error.code = 'EPERM';
+      throw error;
+    }
+    renameSync(from, to);
+  };
+
+  const result = await archive(
+    home,
+    { match: 'ship the next slice', reason: 'removed' },
+    { renameSyncOverride: flakyRename, renameRetryBudgetMs: 2000 },
+  );
+
+  assert.equal(result.code, 2);
+  assert.ok(result.err.some((l) => l.includes('is missing or unreadable after archiving')), `err: ${result.err.join('\n')}`);
+  assert.equal(attempts, 1, 'must refuse BEFORE the second rename attempt');
+  assert.ok(!existsSync(pagePath), 'the page really is gone — nothing recreated it');
   assert.ok(readFileSync(archivePath, 'utf8').includes('ship the next slice'), 'the archive already has the copy');
   assert.deepEqual(tmpLeftovers(home), [], 'no leftover temp file');
 });

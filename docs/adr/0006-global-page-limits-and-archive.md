@@ -330,11 +330,13 @@ text, never a comment boundary, to either tool. Before this, a fence anywhere ab
 line could make the archive falsely refuse a line that has no comment at all.
 
 **G4 — a multi-word owner needs real authority.** A multi-word Backlog owner token is accepted
-only when it equals the page's own declared owner (the global header's `Owner: <name>.
-Protocol:` line, or for a project page, whatever owner source the lint already reads, if any)
-or a recognized agent tag; any other multi-word token falls back to the single-word rule and
-is unowned. Closes the gap where a line merely shaped like `name — text` (`- review the draft
-— waiting on the vendor`) read as owned on the strength of looking like a name.
+only when it equals the GLOBAL page's own declared owner (the header's `Owner: <name>.
+Protocol:` line) or is a recognized agent tag; any other multi-word token falls back to the
+single-word rule and is unowned. Closes the gap where a line merely shaped like `name — text`
+(`- review the draft — waiting on the vendor`) read as owned on the strength of looking like a
+name. PROJECT pages carry no declared-owner header, so this comparison has no source there — a
+multi-word owner on a project `## Next` is unowned unless it is a recognized agent tag, even
+when it is spelled exactly as the page's own `--owner` value (#20e F2; see Known limits below).
 
 **G5 — whitespace-only is blank.** A line of nothing but spaces or a tab, directly after a
 bullet, is a blank line for the one-line rule's continuation check — never a continuation line
@@ -382,8 +384,20 @@ hold.
 - The machine-wiring roster still tells agents about `state lint` only; teaching it `state
   archive` too would mean re-fencing every already-wired instruction file on every machine for
   one line. Agents learn `state archive` from the page header and the canon instead.
-- A global page created before v1.7 keeps its old header text until someone runs the command
-  that rebuilds it — there is no automatic header migration.
+- A global page created before v1.7 keeps its old header text; no kit command rebuilds or
+  migrates an existing page's header — `init` only ever CREATES `~/.agents/STATE.md` when it is
+  missing (`lib/init.mjs`'s `createIfMissing`), it never rewrites one that already exists, and
+  `sync` never touches user-owned surfaces like `STATE.md` either. The only way an old header
+  picks up the new lines is for an agent to edit the header by hand — there is no automatic or
+  command-driven migration (#20e F3).
+- A project page's `## Next` owner check has no declared-owner header to compare against — only
+  global pages carry an `Owner: <name>. Protocol:` line (see G4 above). A multi-word human
+  owner on a project `## Next` (`- Jane Doe — fix the build`) is therefore unowned unless it is
+  a recognized agent tag, even when `banana project --owner "Jane Doe"` wrote that exact name
+  into the `## Next` placeholder it then rejects in real use (#20e F2).
+- A "blank" archive that holds nothing but line breaks (no real content) takes the PAGE's own
+  line ending, not its own existing break characters — G7's blank/non-blank branch treats a
+  breaks-only file as blank (#20e, H65).
 - A wrapped continuation line that starts with a number and a period (e.g. a bare year) can
   read as a numbered list marker rather than prose — rare, and now visible anyway through
   `bullet-wrapped` and the other WARNs it would also trip.

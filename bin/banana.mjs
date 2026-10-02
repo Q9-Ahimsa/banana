@@ -41,10 +41,10 @@ Open a new entry for <feature>. --status defaults to in-progress; a terminal
 --status (complete|blocked|abandoned) requires an owned --next.
 
 PowerShell:
-  banana log stub corpo --tag testagent --phase build --title "Today loop" --approach "ship the smallest vertical slice"
+  banana log stub myapp --tag testagent --phase build --title "Login form" --approach "ship the smallest vertical slice"
 
 POSIX:
-  banana log stub corpo --tag testagent --phase build --title "Today loop" --approach 'ship the smallest vertical slice'
+  banana log stub myapp --tag testagent --phase build --title "Login form" --approach 'ship the smallest vertical slice'
 
 Exit codes: 0 ok, 1 usage, 2 state`;
 
@@ -55,10 +55,10 @@ Add checkpoint body lines to your own open entry for <feature>. \`--body -\`
 reads stdin to EOF and must be the only --body flag.
 
 PowerShell:
-  banana log append corpo --tag testagent --body "FILES: lib/today.mjs" --body "VALIDATED: 12 tests green"
+  banana log append myapp --tag testagent --body "FILES: lib/login.mjs" --body "VALIDATED: 12 tests green"
 
 POSIX:
-  banana log append corpo --tag testagent --body 'FILES: lib/today.mjs' --body 'VALIDATED: 12 tests green'
+  banana log append myapp --tag testagent --body 'FILES: lib/login.mjs' --body 'VALIDATED: 12 tests green'
 
 Exit codes: 0 ok, 1 usage, 2 state`;
 
@@ -70,10 +70,10 @@ Write a terminal STATUS + owned NEXT to your own open entry for <feature>.
 Closed entries are immutable; corrections go through \`banana log supersede\`.
 
 PowerShell:
-  banana log close corpo --tag testagent --status complete --next-owner ahimsa --next "review the shipped loop"
+  banana log close myapp --tag testagent --status complete --next-owner ahimsa --next "review the shipped form"
 
 POSIX:
-  banana log close corpo --tag testagent --status complete --next-owner ahimsa --next 'review the shipped loop'
+  banana log close myapp --tag testagent --status complete --next-owner ahimsa --next 'review the shipped form'
 
 Exit codes: 0 ok, 1 usage, 2 state`;
 
@@ -164,8 +164,11 @@ Recently-closed entry for it by hand — the command prints a reminder.
 unless the MATCHED line's own stamp is already past its limit (\`(closed
 YYYY-MM-DD)\`, 7 days; \`(as of YYYY-MM-DD)\`, 30 days), naming that stamp if
 it is instead dated after today, or suggesting \`--reason removed\` when the
-line carries no stamp at all. A future-dated stamp on a DIFFERENT line never
-blocks the move — the command proceeds and prints a one-line note naming
+line carries no stamp at all.
+A future-dated stamp on a DIFFERENT Active-threads or Recently-closed line
+— the same two non-placeholder sections and keywords the reference date
+itself reads; Watch and Backlog never carry this stamp convention — never
+blocks the move: the command proceeds and prints a one-line note naming
 that other line instead.
 
 A pasted secret (a credential, token, or key) is deleted outright, never

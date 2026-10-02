@@ -374,8 +374,8 @@ test("CONTINUITY.md Global-grain body states the archive command's clock-aware g
     'CONTINUITY.md Global-grain body missing the line-scoped future-stamp refusal rule (#20d H17)'
   );
   assert.ok(
-    flat.includes('a future-dated stamp on any OTHER line never blocks the move'),
-    'CONTINUITY.md Global-grain body missing the "future stamp elsewhere never blocks" rule (#20d H17)'
+    flat.includes('a future-dated stamp on any OTHER Active-threads `(as of …)` or Recently-closed `(closed …)` line'),
+    'CONTINUITY.md Global-grain body missing the "future stamp elsewhere never blocks" rule (#20d H17, scoped #20e H52)'
   );
 });
 
@@ -558,13 +558,31 @@ test('CONTINUITY.md Global-grain body prints a non-blocking NOTE for a future-da
   const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
   assert.ok(
     flat.includes(
-      'a future-dated stamp on any OTHER line never blocks the move — the gate\'s own verdict is decided entirely by the matched line\'s own stamp against the real clock'
+      "a future-dated stamp on any OTHER Active-threads `(as of …)` or Recently-closed `(closed …)` line"
     ),
+    'CONTINUITY.md Global-grain body missing the "future stamp elsewhere never blocks" rule'
+  );
+  assert.ok(
+    flat.includes('never blocks the move: the gate\'s own verdict is decided entirely by the matched line\'s own stamp against the real clock'),
     'CONTINUITY.md Global-grain body missing the "future stamp elsewhere never blocks" rule'
   );
   assert.ok(
     flat.includes('The command still proceeds in that case, printing one note naming the other line and its stamp'),
     'CONTINUITY.md Global-grain body missing the non-blocking note rule'
+  );
+});
+
+// #20e H52: the recheck found this sentence still unscoped (promising a
+// note for "any OTHER line") after the reference-date half was already
+// scoped to Active-threads/Recently-closed stamps — ADR 0006 and DESIGN.md
+// already said so; CONTINUITY.md's gate bullet had not caught up.
+test('CONTINUITY.md scopes the future-stamp-elsewhere NOTE to Active-threads/Recently-closed stamps, not "any OTHER line" (#20e H52)', () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  assert.ok(
+    flat.includes(
+      "the same two non-placeholder sections and keywords the reference date itself reads above, so Watch and Backlog are never scanned for it either"
+    ),
+    'CONTINUITY.md gate bullet missing the Active-threads/Recently-closed note scope'
   );
 });
 
@@ -634,6 +652,27 @@ test('CONTINUITY.md scopes the reference date to Active-threads/Recently-closed 
   assert.ok(
     flat.includes('the newest valid Active-threads or Recently-closed stamp on the page, never the clock'),
     'CONTINUITY.md v1.7 changelog item 17 missing the section-scoped reference-date definition'
+  );
+});
+
+// #20e H45: E11 ("filling in a placeholder is not a removal — it is
+// replaced, not archived") was documented correctly in both the canon and
+// the ADR, but nothing pinned either sentence, so a revert of either one
+// passed every test.
+test('CONTINUITY.md and docs/adr/0006 state E11: a placeholder is replaced by its section\'s first real bullet, never archived (#20e H45)', () => {
+  const canonFlat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  const adrFlat = flatten(readFileSync(join(docsDir, 'adr', '0006-global-page-limits-and-archive.md'), 'utf8'));
+  assert.ok(
+    canonFlat.includes(
+      "neither is a section's placeholder line giving way to that section's first real bullet"
+    ),
+    'CONTINUITY.md missing the E11 placeholder-is-not-a-removal clause'
+  );
+  assert.ok(
+    adrFlat.includes(
+      'Adding a section\'s first real bullet, where only the bootstrap placeholder stood before, deletes that placeholder line — but this is not "content leaving the page" in the sense the archive rule exists to catch'
+    ),
+    'docs/adr/0006 missing the E11 paragraph'
   );
 });
 

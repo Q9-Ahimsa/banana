@@ -140,6 +140,21 @@ test('bin: `banana state archive --help` ALSO names non-usage causes of exit 2 i
   assert.ok(!/\bD1\b/.test(stdout) && !/\bD3\b/.test(stdout), `stdout still names a spec label: ${stdout}`);
 });
 
+// #20e H52: the elsewhere-future-stamp NOTE's help text promised it for
+// "a DIFFERENT line" with no section scope, but futureStampElsewhereNote
+// (lib/state-archive.mjs) only ever scans non-placeholder Active-threads
+// `(as of …)` and Recently-closed `(closed …)` lines — Watch/Backlog are
+// never read for it. The help must say so.
+test('bin: `banana state archive --help` scopes the future-stamp-elsewhere NOTE to Active-threads/Recently-closed lines, not "any other line" (#20e H52)', () => {
+  const { status, stdout } = run(['state', 'archive', '--help']);
+  assert.equal(status, 0);
+  assert.ok(
+    stdout.includes('A future-dated stamp on a DIFFERENT Active-threads or Recently-closed line'),
+    `stdout: ${stdout}`,
+  );
+  assert.ok(stdout.includes('Watch and Backlog never carry this stamp convention'), `stdout: ${stdout}`);
+});
+
 // #20c E12/H15/H69/H71: instead of per-shell quoting rules (which break on
 // an excerpt containing an embedded quote, $, % or backtick), the help
 // tells the reader to pick a --match substring free of those characters —

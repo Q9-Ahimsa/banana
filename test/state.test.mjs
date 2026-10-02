@@ -1617,6 +1617,41 @@ test('D2: a REAL bullet carrying an inline comment is no longer invisible to che
 });
 
 // =====================================================================
+// F1 (#20e) — a "<!--" or "-->" quoted inside a backtick CODE SPAN is
+// literal text (the E4 CommonMark rule), not a real comment boundary.
+// blankNonSemanticRegions/stripCommentsFromLine must mask code spans
+// (the same maskBacktickSpans rule bulletStampShapes/classifyOwnerBullet
+// already apply) before scanning for comment markers.
+// =====================================================================
+
+test('D2/F1 (#20e): a "<!--" quoted inside a backtick code span is literal text, not a real comment opener — later lines are not blanked', () => {
+  const raw = '## Watch\n- teach the lint that a `<!--` inside a code span is literal\n- second watch line\n';
+  const text = prepareText(raw);
+  assert.equal(text, raw);
+});
+
+test('D2/F1 (#20e): a "-->" quoted inside a backtick code span does not close a REAL comment opened earlier', () => {
+  const raw = '## Watch\n<!-- real note\nquoting `-->` as example text\nstill inside -->\n- after\n';
+  const text = prepareText(raw);
+  assert.equal(text, '## Watch\n\n\n\n- after\n');
+});
+
+test('F1 (#20e, end-to-end): a Blocked bullet quoting "<!--" in a code span does not hide the sections after it from lintProjectState', () => {
+  const raw = CLEAN_STATE.replace(
+    '## Blocked\n- (none)\n',
+    '## Blocked\n- waiting on review: teach the lint that a `<!--` inside a code span is literal\n',
+  );
+  const text = prepareText(raw);
+  assert.equal(hasSection(text, 'Watch'), true);
+  assert.equal(hasSection(text, 'Dead ends'), true);
+  const findings = lintProjectState(text, { logbookText: CLEAN_LOGBOOK, sessionEntries: [] });
+  assert.ok(
+    !findings.some((f) => f.type === 'missing-section'),
+    `no missing-section FAIL expected: ${JSON.stringify(findings)}`,
+  );
+});
+
+// =====================================================================
 // G3 (#20d, fixing C1/H6/H40/F3) — commentBoundaryFlags: the SAME
 // open/close walk the archive used to do on its own, but fence-aware —
 // `lib/state-archive.mjs` consumes this exported helper instead of its own
@@ -1660,6 +1695,33 @@ test('commentBoundaryFlags: G3/H40 — a real comment opened BEFORE a fence stay
     { entering: false, leaving: false }, // fenced "-->" — never a real closer
     { entering: false, leaving: false }, // fence closer — blanked
     { entering: true, leaving: false }, // the REAL closer, still inside the comment carried through the fence
+  ]);
+});
+
+test('commentBoundaryFlags: F6 (#20e) — a genuinely UNFENCED middle line with no comment markers of its own still carries the open state through to the real closer two lines later', () => {
+  const rawLines = ['<!-- reviewed 2026-09-20:', 'nothing new this week', '-->- cache: re-check by 2026-10-12'];
+  assert.deepEqual(commentBoundaryFlags(rawLines), [
+    { entering: false, leaving: true },
+    { entering: true, leaving: true },
+    { entering: true, leaving: false },
+  ]);
+});
+
+test('commentBoundaryFlags: F1 (#20e) — a "<!--" quoted inside a backtick code span is literal text, never opens a real comment', () => {
+  const rawLines = ['- teach the lint that a `<!--` inside a code span is literal', '- second watch line'];
+  assert.deepEqual(commentBoundaryFlags(rawLines), [
+    { entering: false, leaving: false },
+    { entering: false, leaving: false },
+  ]);
+});
+
+test('commentBoundaryFlags: F1 (#20e) — a "-->" quoted inside a backtick code span does not close a REAL comment carried in from an earlier line', () => {
+  const rawLines = ['<!-- real note', 'quoting `-->` as example text', 'still inside -->', '- after'];
+  assert.deepEqual(commentBoundaryFlags(rawLines), [
+    { entering: false, leaving: true },
+    { entering: true, leaving: true },
+    { entering: true, leaving: false },
+    { entering: false, leaving: false },
   ]);
 });
 
@@ -2631,6 +2693,17 @@ test('classifyOwnerBullet: G4 — with no declared owner to compare against, a m
 
 test('classifyOwnerBullet: G4/F4 — an em-dash quoted inside a code span is masked, so it is never read as the owner delimiter', () => {
   assert.equal(classifyOwnerBullet('- see `a — b` for details'), 'unowned');
+});
+
+// #20e F7: the test above is unowned EITHER way (masked: no em-dash left to
+// match at all; unmasked: the captured owner "see `a" still has a space, so
+// G4's multi-word rule catches it too) — it cannot tell masking from no
+// masking. This fixture does: the captured owner is a SINGLE word either
+// way (no space, so G4 never even applies), so only the masking decides
+// whether a real owner delimiter is found at all.
+test('classifyOwnerBullet: F7 (#20e) — a fixture where code-span masking actually changes the verdict: masked finds no owner delimiter, unmasked would', () => {
+  assert.equal(classifyOwnerBullet('- `npm — test` fails on CI'), 'unowned');
+  assert.equal(classifyOwnerBullet('- `claude — later` — note'), 'unowned');
 });
 
 test('classifyOwnerBullet: G4/F4 — prose before the first em-dash is not an owner unless it is the page\'s declared owner or a known agent tag', () => {
