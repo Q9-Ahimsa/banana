@@ -126,20 +126,26 @@ report yet keep their single placeholder line rather than being omitted):
 - **Limits and the one-line rule** (v1.7, ADR 0006) — the rule: every
   top-level bullet is written as one physical line, nothing else following
   it. A bullet has already broken that rule the moment it carries even one
-  continuation line — a line directly after it that is not a heading, a
-  `---` rule, a fence opener, a comment-only line, or another top-level
-  bullet (plus, after a blank line, an indented paragraph — a loose item's
-  next line); those are the only lines `banana state lint --global` treats
-  as the bullet's own for measuring and flagging, never as compliant with
-  the rule. Each section caps a bullet's own marker line at its own char
-  limit (thread 400 · backlog 300 · watch 350 · closed 250): WARNs
-  `line-over-limit` when that line alone is over its cap, and WARNs
-  `bullet-wrapped` separately the moment any continuation line exists at
-  all, however short — join it back onto one line.
+  continuation line. A line indented 2+ spaces or a tab, directly after the
+  bullet, is always a continuation line — whatever it itself holds, even an
+  indented heading, fence, or comment — with no blank line needed first. At
+  column 0, a blank line continues the bullet only when the very next line
+  is itself indented (a loose item's paragraph separator); otherwise a
+  heading, a `---` rule, a fence opener, a comment-only line, or another
+  top-level bullet ends the bullet uncounted, and any other column-0 line
+  still counts as a continuation. Those are the only lines `banana state
+  lint --global` treats as the bullet's own for measuring and flagging,
+  never as compliant with the rule. Each section caps a bullet's own marker
+  line at its own char limit (thread 400 · backlog 300 · watch 350 · closed
+  250): WARNs `line-over-limit` when that line alone is over its cap, and
+  WARNs `bullet-wrapped` separately the moment any continuation line exists
+  at all, however short — join it back onto one line.
 - **Closed stamp and expiry** — a Recently-closed bullet carries `(closed
   YYYY-MM-DD)`, parsed with the same hardened rules as the freshness stamp
   above. It expires when its stamp is more than 7 days before the page's own
-  reference date — the newest valid stamp on the page, never the clock.
+  reference date — the newest valid Active-threads `(as of …)` or
+  Recently-closed `(closed …)` stamp on the page (Watch and Backlog never
+  carry this stamp convention, so they are never counted), never the clock.
 - **Thread inactivity** — an Active-threads bullet whose `(as of)` stamp is
   more than 30 days before that same reference date — 31 or more — becomes
   a Backlog line instead of staying put, unless that same bullet already
@@ -347,9 +353,10 @@ for a single log entry.)
   project-worthy events to the logbook (operational test: `SESSION-LOG.md`
   §6's promotion rule), rebuild stale projections (project STATE.md: rebuild
   exactly when this session promoted or the dirty marker stands —
-  `STANDARD.md` §3's two-trigger test; global STATE.md: rebuild when
-  cross-project state changed). Conflicts with
-  concurrently-landed work reconcile here, not mid-flight.
+  `STANDARD.md` §3's two-trigger test; global STATE.md: never rebuilt — edit
+  only the threads and items this session owns or changed, right after a
+  fresh read, per the Global-grain per-thread-edits rule above). Conflicts
+  with concurrently-landed work reconcile here, not mid-flight.
 
 Counter-failure: mutable shared files changing under a session mid-task.
 
@@ -369,13 +376,14 @@ into a **kit-owned** directory: `~/.agents/canon/` (`CONTINUITY.md`,
   archives, `LOGBOOK.md` and its `logbook/` archives, and any wired
   instruction file's content outside the kit's fence markers. The kit
   creates these only if missing and rewrites only inside its own fences.
-  The one exception: `banana state archive` removes exactly the one line
-  its caller named from the global `STATE.md`, after copying it verbatim
-  into `STATE-archive.md` first, and — only when that removal would leave
-  the line's section with no bullet at all — writes back that section's own
-  single placeholder line in its place. That is the full extent of it: the
-  single kit command permitted to touch the global page's content, and only
-  ever that one named line plus, when needed, its section's placeholder.
+  The one exception (v1.7, ADR 0006 in the kit repo): `banana state archive`
+  removes exactly the one line its caller named from the global `STATE.md`,
+  after copying it verbatim into `STATE-archive.md` first, and — only when
+  that removal would leave the line's section with no bullet at all —
+  writes back that section's own single placeholder line in its place. That
+  is the full extent of it: the single kit command permitted to touch the
+  global page's content, and only ever that one named line plus, when
+  needed, its section's placeholder.
 - **Version markers:** the first line of every canon file is a
   machine-readable marker, `<!-- banana:canon rev X.Y -->`. The doctor
   compares installed markers against the kit's bundled canon and flags stale
@@ -514,10 +522,11 @@ v1.1 is removed.
    Counter-failure: cold landings producing ad-hoc or absent record-keeping.
 10. **Upstream/sync surface ownership** — `~/.agents/canon/` is kit-owned and
     sync-overwritable; STATE pages, session logs, and logbooks are user-owned
-    and never overwritten by the kit. Rule 2's append-only scope is restated
-    accordingly: it governs the record, and the kit-owned canon directory
-    sits outside it. Counter-failure: stale-protocol drift on wired machines,
-    and updaters trampling user record surfaces.
+    and never overwritten by the kit, except `state archive`'s one named-line
+    exception (v1.7, ADR 0006; see "Upstream and sync" above). Rule 2's
+    append-only scope is restated accordingly: it governs the record, and the
+    kit-owned canon directory sits outside it. Counter-failure: stale-protocol
+    drift on wired machines, and updaters trampling user record surfaces.
 11. **Version markers** — every canon file opens with
     `<!-- banana:canon rev X.Y -->`, giving the doctor and `sync` a
     mechanical staleness check. Counter-failure: undetectable canon drift.
@@ -576,24 +585,28 @@ Nothing else changes.
     sessions write concurrently, actively cause.
 
 v1.7 amends the **global-grain limits, expiry, and archive** rule (ADR 0006 in
-the kit repo); the same pass also extends the "Upstream and sync" carve-out
-above to cover the placeholder line `state archive` writes back when a
-section empties. Nothing else changes.
+the kit repo); the same pass also introduces `state archive`'s one exception
+to the "Upstream and sync" carve-out above — the kit may remove exactly the
+one line its caller named from the global page, and write back that
+section's placeholder line when the removal empties it. Nothing else
+changes.
 
 17. **Line limits, closed stamp, inactivity, and the archive move** — every
     top-level bullet must be written as one physical line — a bullet with
-    even one non-heading, non-rule, non-fence, non-comment continuation
-    line has already broken that rule — and carries a per-section
-    character limit (`## Active threads` 400 · `## Backlog (owned)` 300 ·
-    `## Watch` 350 · `## Recently closed (context for next session)` 250);
-    `banana state lint --global` WARNs
+    even one continuation line (an indented line, whatever it holds, or a
+    column-0 line that is not a heading, rule, fence opener, comment-only
+    line, or another bullet) has already broken that rule — and carries a
+    per-section character limit (`## Active threads` 400 · `## Backlog
+    (owned)` 300 · `## Watch` 350 · `## Recently closed (context for next
+    session)` 250); `banana state lint --global` WARNs
     `line-over-limit` on the limit and `bullet-wrapped` on any continuation
     lines at all. A Recently-closed bullet carries `(closed YYYY-MM-DD)`,
     parsed with the same hardened rules as the v1.5 freshness stamp, and
     counts as expired once its stamp trails the page's own reference date —
-    the newest valid stamp on the page, never the clock — by eight days or
-    more; an Active-threads bullet trailing that same reference date by
-    thirty-one days or more becomes a Backlog line instead. Removal from the
+    the newest valid Active-threads or Recently-closed stamp on the page,
+    never the clock — by eight days or more; an Active-threads bullet
+    trailing that same reference date by thirty-one days or more becomes a
+    Backlog line instead. Removal from the
     page is never a deletion: any line leaving it — or the long form of a
     line trimmed in place — is first copied verbatim into the append-only
     `~/.agents/STATE-archive.md`, via `banana state archive` (whose five
@@ -603,8 +616,10 @@ section empties. Nothing else changes.
     before it is removed; the archive is never loaded at session start,
     searched with `grep` only. A pasted credential, token, or key is deleted
     outright, never archived. Exception to item 16's "edit only your own
-    threads": any session may archive an `expired` closed line on sight — no
-    judgment is needed to recognize one. Counter-failure: a line removed from
+    threads": any session may archive an `expired` closed line, or correct
+    an impossible future-dated stamp that is blocking someone else's move,
+    on sight — no judgment is needed to recognize either. Counter-failure: a
+    line removed from
     the global page used to leave no trace at all — unlike every other record
     on this machine (session.log and LOGBOOK.md are append-only with ids,
     project STATE lines cite logbook ids), it simply vanished.

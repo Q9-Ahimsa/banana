@@ -38,7 +38,9 @@ page is the one surface on this machine where lines used to simply vanish.
 Every other check in `lib/state.mjs` is reproducible from file bytes alone — no check reads
 the clock (ADR 0004's module invariant) — and `closed-expired`/`thread-inactive` keep that
 property by never consulting `now`. Instead, the **reference date** is the newest real
-calendar date among the page's own non-placeholder `(as of …)` and `(closed …)` stamps. This
+calendar date among the page's own non-placeholder Active-threads `(as of …)` and
+Recently-closed `(closed …)` stamps — Watch and Backlog never carry this stamp convention, so
+they are never counted either (#20d H52). This
 makes "is X stale relative to the rest of this page" a self-contained, deterministic
 question: the page ages against its own freshest edit, not against whatever day `state lint`
 happens to run. The alternative — inject `now` — was rejected (see below).
@@ -133,11 +135,17 @@ one place in this feature allowed to read the injected clock. For `--reason expi
 refuses (exit 2) unless the line's own `(closed …)` stamp really is more than 7 days before
 today; for `--reason inactive` it refuses unless the `(as of …)` stamp really is more than 30
 days before today. A missing stamp refuses outright and suggests `--reason removed` instead.
-If any stamp on the page is dated after today, the refusal names it, so the fix is "correct
-that stamp first," not "pick a different reason." The stamp parsing itself is not
-re-derived: `state archive` imports the same hardened parser `lib/state.mjs` already exports
-for `(as of …)`/`(closed …)`, so there is only ever one definition of what a valid stamp
-looks like.
+Before either check, the gate scans every non-placeholder Active-threads `(as of …)` and
+Recently-closed `(closed …)` stamp on the page — the same two sections and keywords the
+reference date itself reads above, so Watch and Backlog are never scanned either (#20d
+H17/H52) — and if any of those is dated after today, the refusal names it, so the fix is
+"correct that stamp first," not "pick a different reason." Any session may make that one
+correction even on a thread it does not own, since recognizing an impossible future date needs
+no judgment — the same carve-out that already lets any session archive an `expired`
+Recently-closed line on sight (see Consequences, below; #20d H17). The stamp parsing itself is
+not re-derived: `state archive` imports the same hardened parser `lib/state.mjs` already
+exports for `(as of …)`/`(closed …)`, so there is only ever one definition of what a valid
+stamp looks like.
 
 ## Consequences
 
@@ -148,9 +156,16 @@ looks like.
   one-line Backlog item naming what it's waiting on. The check only flags the first half;
   a model does the second.
 - Exception to ADR 0005's "edit only your own threads" rule: any session may archive an
-  `expired` Recently-closed line on sight, since recognizing one needs no judgment (a date
-  comparison, not a content decision) — unlike `trimmed`/`inactive`/`closed`/`removed`, which
-  still want the touching session's own judgment about what to keep.
+  `expired` Recently-closed line, or correct an impossible future-dated stamp that is blocking
+  someone else's archive move (D3, above), on sight — recognizing either needs no judgment (a
+  date comparison, not a content decision) — unlike `trimmed`/`inactive`/`closed`/`removed`,
+  which still want the touching session's own judgment about what to keep (#20d H17).
+- The kit's "never rewrites their content" promise for user-owned surfaces (`canon/
+  CONTINUITY.md`'s "Upstream and sync") gets its one exception here, introduced by this ADR,
+  not merely extended by it: `state archive` may remove exactly the one line its caller named
+  from the global page, and write back that section's placeholder line when the removal
+  empties it — the only kit-written edit to user-owned content this canon permits (owner
+  ruling, 2026-10-02; #20d H22).
 - D1 makes the one-line rule mechanical instead of aspirational: a bullet that wraps is
   flagged (`bullet-wrapped`) the moment it happens, not discovered later as a mysterious
   `line-over-limit` on the bullet it had silently swallowed.
@@ -287,6 +302,63 @@ feature's clock design are spelled out together, in matching words, in the canon
 expired`/`--reason inactive` gate. The two can disagree (see the clock-aware gate bullet in
 the canon's Global grain): a line lint already WARNed as expired is not automatically
 eligible for `--reason expired`, and vice versa.
+
+## #20d verification: eight corrections
+
+A third adversarial pass re-checked the #20c fixes against the real repo and found 14 fresh
+findings on top of the re-review's own leftovers. The owner's 2026-10-02 ruling (fix what is
+real, accept the exotic tail, verify) resolved eight of them with a real behavior change, split
+across the lint module (`lib/state.mjs`), the archive module (`lib/state-archive.mjs`,
+`bin/banana.mjs`), and this document.
+
+**G1 — no write over a concurrent edit.** The rename retry (see "Atomic write and the two
+re-read guards" in `docs/DESIGN.md`) re-runs the page's bytes-unchanged guard before EVERY
+rename attempt, not only once before the retry loop starts. On a change mid-retry it stops,
+unlinks the temp file, and exits 2 — the archive already holds a copy, the line is still on
+the page, and a rerun is safe.
+
+**G2 — no "delete by hand" remedy.** A failed rename or a re-read guard tripping never tells
+the caller to delete the line by hand — that would contradict "never delete a line." The
+remedy is always "rerun the command"; the archive's own duplicate-record skip (E5) is what
+makes a rerun safe.
+
+**G3 — comment boundaries respect fences.** The archive's "does this line open or close a
+multi-line comment" check now shares the SAME fence-aware scan the lint's own
+`blankNonSemanticRegions` uses: a `<!--` or `-->` sitting inside a fenced code block is literal
+text, never a comment boundary, to either tool. Before this, a fence anywhere above a matched
+line could make the archive falsely refuse a line that has no comment at all.
+
+**G4 — a multi-word owner needs real authority.** A multi-word Backlog owner token is accepted
+only when it equals the page's own declared owner (the global header's `Owner: <name>.
+Protocol:` line, or for a project page, whatever owner source the lint already reads, if any)
+or a recognized agent tag; any other multi-word token falls back to the single-word rule and
+is unowned. Closes the gap where a line merely shaped like `name — text` (`- review the draft
+— waiting on the vendor`) read as owned on the strength of looking like a name.
+
+**G5 — whitespace-only is blank.** A line of nothing but spaces or a tab, directly after a
+bullet, is a blank line for the one-line rule's continuation check — never a continuation line
+in its own right, whether or not the line after it is indented.
+
+**G6 — hard links, scoped to real replacement.** The hard-link refusal now only blocks a move
+that would actually replace the page (every reason except `trimmed`, and never under
+`--dry-run`): a rename over a hard-linked page would silently detach one copy from the other,
+but `trimmed`'s copy-only write and a `--dry-run` preview never touch the page at all, so a
+hard link blocks neither.
+
+**G7 — archive line endings, chosen from the archive itself.** A new record's line ending
+comes from the archive file's OWN existing line breaks whenever it already has real content;
+only a genuinely blank archive (missing, empty, a lone BOM, or nothing but line breaks) falls
+back to the page's own dominant ending. Both directions are pinned: a non-blank archive's
+ending always wins over the page's, and a blank one always takes the page's.
+
+**G8 — a symlinked page stays covered.** A test creates a symlinked global page (skipped where
+the platform refuses `fs.symlinkSync`, e.g. Windows without developer mode) and pins that the
+write path resolves and guards the REAL file the symlink points at, never the symlink's own
+directory entry.
+
+Each of G1–G8 is pinned by its own test in `test/state.test.mjs` or
+`test/state-archive.test.mjs`; this section is the normative record of what changed and why,
+alongside the matching `docs/DESIGN.md` contract text.
 
 ## Known limits (accepted)
 

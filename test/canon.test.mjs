@@ -1,14 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
 import { DIRTY_MARKER_LINE, RETIRED_HEADER_RE } from '../lib/state.mjs';
-import { ARCHIVE_HEADER_LINES } from '../lib/state-archive.mjs';
+import { ARCHIVE_HEADER_LINES, runStateArchive } from '../lib/state-archive.mjs';
 
 const canonDir = fileURLToPath(new URL('../canon', import.meta.url));
 const templatesDir = fileURLToPath(new URL('../templates', import.meta.url));
+const docsDir = fileURLToPath(new URL('../docs', import.meta.url));
 
 const REQUIRED_FILES = ['CONTINUITY.md', 'STANDARD.md', 'SESSION-LOG.md'];
 
@@ -451,4 +453,249 @@ test('canon/ contains zero machine-specific references', () => {
       assert.ok(!re.test(text), `canon/${f} contains forbidden reference: ${name}`);
     }
   }
+});
+
+// =====================================================================
+// #20d verification fixes (lane D2). The #20d spec's own findings file
+// (keys recheck.<id> / fresh.F<n>) is each test's source; see
+// .agents/specs/cli-20d-verify-fixes.md's Lane D2 paragraph.
+// =====================================================================
+
+test('CONTINUITY.md Session-lifecycle CLOSE step edits the global page per-thread, never rebuilds it (#20d F7)', () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  assert.ok(
+    flat.includes(
+      'global STATE.md: never rebuilt — edit only the threads and items this session owns or changed'
+    ),
+    'CONTINUITY.md CLOSE step missing the per-thread-edit rule for the global page'
+  );
+  assert.ok(
+    !flat.includes('global STATE.md: rebuild when cross-project state changed'),
+    'CONTINUITY.md CLOSE step still tells agents to rebuild the global page whole'
+  );
+});
+
+test('CONTINUITY.md Global-grain body states E2: an indented line right after a bullet is always a continuation (#20d F8)', () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  assert.ok(
+    flat.includes(
+      'A line indented 2+ spaces or a tab, directly after the bullet, is always a continuation line'
+    ),
+    'CONTINUITY.md Global-grain body missing the E2 indented-line-is-always-continuation rule'
+  );
+  assert.ok(
+    flat.includes('whatever it itself holds, even an indented heading, fence, or comment'),
+    'CONTINUITY.md Global-grain body missing E2\'s "whatever it holds" clause'
+  );
+});
+
+test('docs/DESIGN.md one-physical-line-per-bullet rule states E2 without a blank-line precondition (#20d F8)', () => {
+  const flat = flatten(readFileSync(join(docsDir, 'DESIGN.md'), 'utf8'));
+  assert.ok(
+    flat.includes(
+      'is ALWAYS a continuation line — whatever it itself holds (an indented heading'
+    ),
+    'docs/DESIGN.md one-physical-line-per-bullet rule missing the unconditional indented-line clause'
+  );
+  assert.ok(
+    flat.includes('with no blank line required first'),
+    'docs/DESIGN.md one-physical-line-per-bullet rule still requires a blank line before an indented continuation'
+  );
+});
+
+test('docs/DESIGN.md brief/log-close collapse is decided by the GLOBAL verdict alone, never both sides (#20d F9)', () => {
+  const flat = flatten(readFileSync(join(docsDir, 'DESIGN.md'), 'utf8'));
+  assert.ok(
+    flat.includes('Project findings always print in full, exactly as `state lint` prints them — never collapsed'),
+    'docs/DESIGN.md State-lint section missing the "project findings never collapse" rule'
+  );
+  assert.ok(
+    flat.includes('The GLOBAL side collapses on its own, independent of what the project side is doing'),
+    'docs/DESIGN.md State-lint section missing the GLOBAL-only collapse condition'
+  );
+  assert.ok(
+    !flat.includes("When BOTH sides' verdicts are"),
+    'docs/DESIGN.md State-lint section still conditions the collapse on BOTH sides agreeing'
+  );
+});
+
+test('CONTINUITY.md Global-grain body AND changelog item 17 state the ownership exception for a blocking future-dated stamp (#20d H17)', () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  assert.ok(
+    flat.includes(
+      "above: any session may archive an `expired` closed line, or correct an impossible future-dated stamp that is blocking someone else's move (below), on sight"
+    ),
+    'CONTINUITY.md Global-grain body missing the non-owner future-stamp-correction exception'
+  );
+  assert.ok(
+    flat.includes(
+      "threads\": any session may archive an `expired` closed line, or correct an impossible future-dated stamp that is blocking someone else's move, on sight"
+    ),
+    'CONTINUITY.md v1.7 changelog item 17 missing the non-owner future-stamp-correction exception'
+  );
+});
+
+test('CONTINUITY.md Upstream-and-sync carve-out names the placeholder write-back (#20d H18)', () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  assert.ok(
+    flat.includes("only ever that one named line plus, when needed, its section's placeholder"),
+    'CONTINUITY.md Upstream-and-sync bullet missing the placeholder write-back clause'
+  );
+});
+
+test('CONTINUITY.md v1.7 changelog introduces the archive content exception, rather than merely extending it (#20d H22)', () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  assert.ok(
+    flat.includes(
+      "the same pass also introduces `state archive`'s one exception to the \"Upstream and sync\" carve-out above"
+    ),
+    'CONTINUITY.md v1.7 changelog intro still describes the archive exception as a mere extension'
+  );
+});
+
+// #20d H46: the wording fix shipped in #20c (CONTINUITY.md:126-138, changelog
+// item 17) was never pinned — a revert of either sentence passed every test.
+test('CONTINUITY.md one-line rule is stated as "broken the moment", never "marker line plus" (#20d H46)', () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  assert.ok(
+    flat.includes(
+      'every top-level bullet is written as one physical line, nothing else following it. A bullet has already broken that rule the moment it carries even one continuation line'
+    ),
+    'CONTINUITY.md Global-grain body missing the corrected one-line rule statement'
+  );
+  assert.ok(
+    flat.includes(
+      'every top-level bullet must be written as one physical line — a bullet with even one continuation line'
+    ),
+    'CONTINUITY.md v1.7 changelog item 17 missing the corrected one-line rule statement'
+  );
+  assert.ok(
+    !flat.includes('is one physical line: its own marker line'),
+    'CONTINUITY.md still carries the retired "marker line plus" one-line-rule wording'
+  );
+});
+
+// #20d H47: the "lint vs. archive clock" reconciling sentence (canon +
+// DESIGN) was added in #20c but nothing failed when it was deleted.
+test('CONTINUITY.md and docs/DESIGN.md state that the lint and archive clocks can disagree (#20d H47)', () => {
+  const canonFlat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  const designFlat = flatten(readFileSync(join(docsDir, 'DESIGN.md'), 'utf8'));
+  const SHARED_SENTENCE =
+    "lint compares a stamp against the page's reference date, the gate compares the same stamp against today";
+  assert.ok(canonFlat.includes(SHARED_SENTENCE), 'CONTINUITY.md missing the lint-vs-archive-clock disagreement sentence');
+  assert.ok(designFlat.includes(SHARED_SENTENCE), 'docs/DESIGN.md missing the lint-vs-archive-clock disagreement sentence');
+});
+
+// #20d H52: the reference date and the D3 future-stamp scan only ever read
+// Active-threads/Recently-closed stamps — Watch/Backlog never carry the
+// convention — but the canon, its changelog, and the ADR all said "any
+// stamp on the page" with no section scope.
+test('CONTINUITY.md scopes the reference date to Active-threads/Recently-closed stamps, not "any stamp on the page" (#20d H52)', () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  assert.ok(
+    flat.includes(
+      "the newest valid Active-threads `(as of …)` or Recently-closed `(closed …)` stamp on the page (Watch and Backlog never carry this stamp convention"
+    ),
+    'CONTINUITY.md Global-grain body missing the section-scoped reference-date definition'
+  );
+  assert.ok(
+    flat.includes('the newest valid Active-threads or Recently-closed stamp on the page, never the clock'),
+    'CONTINUITY.md v1.7 changelog item 17 missing the section-scoped reference-date definition'
+  );
+});
+
+test('docs/adr/0006 scopes the reference date and the D3 future-stamp scan the same way (#20d H52)', () => {
+  const flat = flatten(readFileSync(join(docsDir, 'adr', '0006-global-page-limits-and-archive.md'), 'utf8'));
+  assert.ok(
+    flat.includes(
+      'the newest real calendar date among the page\'s own non-placeholder Active-threads `(as of …)` and Recently-closed `(closed …)` stamps — Watch and Backlog never carry this stamp convention'
+    ),
+    'docs/adr/0006 clock-free-reference-date section missing the section-scoped definition'
+  );
+  assert.ok(
+    flat.includes(
+      'Before either check, the gate scans every non-placeholder Active-threads `(as of …)` and Recently-closed `(closed …)` stamp on the page'
+    ),
+    'docs/adr/0006 D3 section missing the section-scoped future-stamp-scan definition'
+  );
+});
+
+// #20d H64 (fifth pin): the by-hand record heading `## [YYYY-MM-DD] {agent}
+// — {reason} · {section name}` (canon/CONTINUITY.md) was pinned only as a
+// literal string, never against what `banana state archive` itself writes
+// (lib/state-archive.mjs builds its own heading inline, un-exported). This
+// drives a real archive move through a sandboxed home, then checks that the
+// canon's own placeholder template, with the SAME values substituted,
+// equals the real record heading byte for byte — so the two can no longer
+// drift apart with every other test still green.
+test("CONTINUITY.md by-hand record heading matches what state archive actually writes, byte for byte (#20d H64 fifth pin)", async (t) => {
+  const continuity = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
+  const headingTemplateMatch = continuity.match(
+    /## \[YYYY-MM-DD\] \{agent\} — \{reason\} · \{section name\}/
+  );
+  assert.ok(headingTemplateMatch, 'CONTINUITY.md missing the literal by-hand record-heading template');
+
+  const dir = mkdtempSync(join(tmpdir(), 'banana-canon-h64-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, '.agents'), { recursive: true });
+  const pageText = [
+    '# GLOBAL STATE — cross-project projection',
+    '> One page, hard cap. Edit only your own threads; never rewrite the page.',
+    '> Chronology lives in project logbooks; this file only answers "what\'s live and',
+    '> what\'s queued across everything." Owner: tester. Protocol:',
+    '> `~/.agents/canon/CONTINUITY.md`.',
+    '',
+    '## Active threads',
+    '- (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)',
+    '',
+    '## Backlog (owned)',
+    '- tester — a synthetic backlog item for the pin',
+    '',
+    '## Watch',
+    '- (assumptions and deadlines needing attention, each with a validate-by date)',
+    '',
+    '## Recently closed (context for next session)',
+    '- (last few finished threads, one line each: **name** (closed YYYY-MM-DD) — outcome → pointer)',
+    '',
+  ].join('\n');
+  writeFileSync(join(dir, '.agents', 'STATE.md'), pageText, 'utf8');
+
+  /** @type {string[]} */
+  const outLines = [];
+  /** @type {string[]} */
+  const errLines = [];
+  const io = {
+    out: (/** @type {string} */ l = '') => outLines.push(l),
+    err: (/** @type {string} */ l = '') => errLines.push(l),
+  };
+  /** @type {import('../lib/state.mjs').StateArchiveFlags} */
+  const flags = {
+    verb: 'archive',
+    global: true,
+    match: 'a synthetic backlog item for the pin',
+    reason: 'removed',
+    tag: 'claude',
+    dryRun: false,
+  };
+  const now = new Date(2026, 9, 2, 12, 0, 0).getTime();
+  const result = await runStateArchive(flags, { home: dir, now, io });
+  assert.equal(result.code, 0, `archive call failed: ${errLines.join('\n')}`);
+
+  const archiveText = readFileSync(join(dir, '.agents', 'STATE-archive.md'), 'utf8').replace(/\r\n|\r/g, '\n');
+  const idx = archiveText.lastIndexOf('\n## [');
+  assert.ok(idx !== -1, 'STATE-archive.md has no record heading at all');
+  const recordBlock = archiveText.slice(idx + 1).replace(/\n+$/, '');
+  const recordHeadingLine = recordBlock.split('\n')[0];
+
+  const expectedHeading = headingTemplateMatch[0]
+    .replace('YYYY-MM-DD', '2026-10-02')
+    .replace('{agent}', 'claude')
+    .replace('{reason}', 'removed')
+    .replace('{section name}', 'Backlog (owned)');
+
+  assert.equal(
+    recordHeadingLine,
+    expectedHeading,
+    "the archive's real record heading disagrees with CONTINUITY.md's by-hand heading template"
+  );
 });
