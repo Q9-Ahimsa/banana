@@ -589,3 +589,5 @@ VALIDATED: #20c verify wf_925e8e8d-135 (189 agents): 72/102 closed; 30 open (24 
 Spec #20d: .agents/specs/cli-20d-verify-fixes.md (G1–G8, lanes L2 ∥ D2, then A2).
 VALIDATED: #20d verify (94 agents): 42/47 fixed; #20e batch + recheck (14 agents): all 13 closed. Fresh should-fix findings per round 81 -> 14 -> 8.
 FIX: privacy — fixture/JSDoc/help text copied from private notes replaced; unpushed history scrubbed by tree-filter (final tree unchanged, 0 hits). DECISION (ahimsa): 'Clean going forward' — strip paths from archived goal/loop files, leave past journal entries (append-only), new rule: this repo's records name other projects generically, no paths.
+STATUS: complete
+NEXT: ahimsa — ratify the CONTINUITY v1.7 text and go on the 0.4.0 push; then claude pushes, runs banana sync here, closes #20

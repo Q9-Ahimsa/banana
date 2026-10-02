@@ -91,3 +91,10 @@ WHAT: origin 76385c2..0c6fcca; npx serves 0.3.0; `npx … sync` installed the ki
 DONE: bytes outside every fence unchanged, identities kept, second sync a no-op, doctor clean at home; #6 #8 #10 #17 closed. Found on the real run: CRLF-only "refreshes" and a wrong doctor remedy for project fences (#19)
 ref: .agents/session.log cli.19; GitHub #11 #19
 NEXT: claude — #19, then #18
+
+
+## [2026-10-03] claude kit.13 | SESSION — #20 global page: line limits, expiry, inactivity, and an archive (0.4.0 built, not pushed)
+WHAT: global-mode lint WARNs line-over-limit / bullet-wrapped / closed-undated / closed-expired / thread-inactive, clock-free (measured from the page newest stamp); `banana state archive` moves one line into the append-only STATE-archive.md (copy before delete, atomic rename re-guarded before every retry, record dedupe, clock gate for expired/inactive, reason fits section); canon CONTINUITY v1.7 + ADR 0006; brief/log close print a WARN-only global verdict as one line
+DONE: owner ruled the rules, thresholds (30 / 7 days), archive-with-command, and two exceptions (the kit removes exactly one named line; a pasted secret is deleted outright); five adversarial review rounds (findings 64 -> 81 -> 14 -> 8, all fixed or accepted as ADR known limits), fixes #20b-#20e; 946 tests + 2 skipped; the owner machine page cleaned with the new command (9,912 -> 7,289 chars, 13 archive records verified verbatim, lint WARN only by design); text copied from private notes scrubbed from unpushed history (final tree unchanged)
+ref: .agents/session.log cli.20, cli.21; GitHub #20; .agents/specs/cli-20*.md; docs/adr/0006
+NEXT: ahimsa — ratify the v1.7 text, go on the 0.4.0 push; claude — then push, sync here, close #20
