@@ -37,6 +37,7 @@ import {
   classifyOwnerBullet,
   CLOSED_EXPIRY_DAYS,
   collectStateLint,
+  commentBoundaryFlags,
   DIRTY_MARKER_LINE,
   emitFindings,
   formatStateLintLines,
@@ -996,6 +997,19 @@ test('isPlaceholderBullet: a real thread bullet is not a placeholder', () => {
   assert.ok(!isPlaceholderBullet('- **alpha** (as of 2026-09-01) — building the thing → `~/projects/alpha/STATE.md`'));
 });
 
+test('isPlaceholderBullet: H41 — a placeholder carrying a trailing inline comment is still a placeholder, even on the RAW (comment-included) line', () => {
+  assert.ok(
+    isPlaceholderBullet(
+      '- (queued cross-project items, each owned: `testagent — action` or an agent tag) <!-- keep while empty -->',
+    ),
+  );
+  assert.ok(
+    isPlaceholderBullet(
+      '- (assumptions and deadlines needing attention, each with a validate-by date) <!-- keep while empty -->',
+    ),
+  );
+});
+
 // =====================================================================
 // checkMissingSections (global names) — the parenthetical is part of the
 // required name, not an optional qualifier
@@ -1600,6 +1614,53 @@ test('D2: a REAL bullet carrying an inline comment is no longer invisible to che
   const findings = checkUnownedBullets(prepareText(text), 'Backlog (owned)', 'backlog-unowned');
   assert.equal(findings.length, 1);
   assert.ok(findings[0].message.includes('unowned-marker'));
+});
+
+// =====================================================================
+// G3 (#20d, fixing C1/H6/H40/F3) — commentBoundaryFlags: the SAME
+// open/close walk the archive used to do on its own, but fence-aware —
+// `lib/state-archive.mjs` consumes this exported helper instead of its own
+// fence-blind copy. Expected values below are written out independently,
+// never computed by calling commentBoundaryFlags itself.
+// =====================================================================
+
+test('commentBoundaryFlags: G3 — an opener with no closer on its own line "leaves" inside the comment; the line that really closes it "enters" already inside one', () => {
+  const rawLines = [
+    '<!-- reviewed 2026-09-20: nothing new',
+    '-->- cache: re-check by 2026-10-12',
+    '- second watch line',
+  ];
+  assert.deepEqual(commentBoundaryFlags(rawLines), [
+    { entering: false, leaving: true },
+    { entering: true, leaving: false },
+    { entering: false, leaving: false },
+  ]);
+});
+
+test('commentBoundaryFlags: G3 — a comment that opens and closes on the SAME line never crosses a boundary', () => {
+  const rawLines = ['- a bullet <!-- note --> with an inline comment'];
+  assert.deepEqual(commentBoundaryFlags(rawLines), [{ entering: false, leaving: false }]);
+});
+
+test('commentBoundaryFlags: G3/H6/H40/F3 — an unclosed "<!--" quoted inside a fenced example never opens a real comment; a plain bullet below the fence never crosses a boundary', () => {
+  const rawLines = ['```', '<!-- unclosed example opener', '```', '- a plain bullet below the fence'];
+  assert.deepEqual(commentBoundaryFlags(rawLines), [
+    { entering: false, leaving: false }, // fence opener line itself
+    { entering: false, leaving: false }, // fenced content — never scanned for comments
+    { entering: false, leaving: false }, // fence closer line itself
+    { entering: false, leaving: false }, // real content below the fence — never crosses a boundary
+  ]);
+});
+
+test('commentBoundaryFlags: G3/H40 — a real comment opened BEFORE a fence stays open across it, even when the fence quotes a literal "-->"', () => {
+  const rawLines = ['<!-- owner notes:', '```', '-->', '```', '-->- a bullet that really closes the comment'];
+  assert.deepEqual(commentBoundaryFlags(rawLines), [
+    { entering: false, leaving: true }, // opens, unclosed on its own line
+    { entering: false, leaving: false }, // fence opener — blanked, carries the open comment through
+    { entering: false, leaving: false }, // fenced "-->" — never a real closer
+    { entering: false, leaving: false }, // fence closer — blanked
+    { entering: true, leaving: false }, // the REAL closer, still inside the comment carried through the fence
+  ]);
 });
 
 test('F1: a duplicated `## Next` heading is scanned under BOTH occurrences — an unowned bullet in the SECOND is still caught', () => {
@@ -2301,13 +2362,12 @@ test('checkClosedUndated: a "(closed ...)" stamp written only inside backticks d
   assert.equal(findings[0].type, 'closed-undated');
 });
 
-test('checkClosedExpired: a real stamp outside backticks is found even when an unrelated stamp sits inside backticks on the same line', () => {
+test('checkClosedExpired: H54 — a real, non-expired stamp outside backticks governs even when an OLDER example stamp sits inside backticks on the same line (masking must never widen the oldest-stamp selection)', () => {
   const text =
     '## Recently closed (context for next session)\n' +
-    '- gamma finished (closed 2026-01-01), e.g. `(closed 2026-09-01)` is the convention\n';
+    '- gamma finished (closed 2026-01-08), e.g. `(closed 2020-01-01)` is the convention\n';
   const findings = checkClosedExpired(text, '2026-01-09');
-  assert.equal(findings.length, 1);
-  assert.ok(findings[0].message.includes('2026-01-01'), 'the REAL (outside-backtick) stamp must govern');
+  assert.deepEqual(findings, [], 'the backticked example stamp must never widen the oldest-stamp selection');
 });
 
 test('checkThreadInactive: an "(as of ...)" stamp written only inside backticks does not count — thread-unstamped\'s job, not this one', () => {
@@ -2319,6 +2379,14 @@ test('globalReferenceDate: a stamp written only inside backticks is never a cand
   const text =
     '## Active threads\n- **alpha** — see the convention, e.g. `(as of 2026-01-01)` → memory a\n' +
     '## Recently closed (context for next session)\n- gamma finished (closed 2026-03-01)\n';
+  assert.equal(globalReferenceDate(text), '2026-03-01');
+});
+
+test('globalReferenceDate: H54 — a Recently-closed example stamp quoted inside backticks, NEWER than the real one, is never a candidate (masking must cover the closed-stamp read too)', () => {
+  const text =
+    '## Active threads\n- **alpha** (as of 2026-03-01) — real thread → memory a\n' +
+    '## Recently closed (context for next session)\n' +
+    '- gamma finished, e.g. `(closed 2099-01-01)` is the convention\n';
   assert.equal(globalReferenceDate(text), '2026-03-01');
 });
 
@@ -2540,26 +2608,51 @@ test('SECTION_LINE_LIMITS / CLOSED_EXPIRY_DAYS / THREAD_INACTIVE_DAYS match the 
 // owner's name is written.
 // =====================================================================
 
-test('classifyOwnerBullet: H42 — a multi-word owner on a REAL (non-placeholder) bullet is owned', () => {
-  assert.equal(classifyOwnerBullet('- Jane Doe — review the draft proposal'), 'owned');
+test('classifyOwnerBullet: H42/G4 — a multi-word owner on a REAL (non-placeholder) bullet is owned WHEN it equals the page\'s declared owner', () => {
+  assert.equal(classifyOwnerBullet('- Jane Doe — review the draft proposal', 'Jane Doe'), 'owned');
 });
 
-test('classifyOwnerBullet: H42 — an owner whose LAST word happens to be "unowned" is still owned (the literal check is on the WHOLE captured token)', () => {
+test('classifyOwnerBullet: H42/G4 — an owner whose LAST word happens to be "unowned" is still owned (the literal check is on the WHOLE captured token)', () => {
   // The owner token is everything up to the first " — "; "Jane unowned"
   // as a whole is not the literal string "unowned", so this must NOT be
   // caught by the unowned-literal check — a sanity guard that widening
   // the capture to `.+?` didn't also widen what counts as the literal.
-  assert.equal(classifyOwnerBullet('- Jane unowned — pick this up'), 'owned');
+  // G4 (#20d): a multi-word owner also needs to equal the declared owner.
+  assert.equal(classifyOwnerBullet('- Jane unowned — pick this up', 'Jane unowned'), 'owned');
 });
 
-test('checkUnownedBullets: H42 — a real Backlog bullet owned by a two-word name is NOT flagged backlog-unowned', () => {
+test('classifyOwnerBullet: G4 — a multi-word owner that does NOT equal the page\'s declared owner is unowned, even though a declared owner exists', () => {
+  assert.equal(classifyOwnerBullet('- Someone Else — review the draft proposal', 'Jane Doe'), 'unowned');
+});
+
+test('classifyOwnerBullet: G4 — with no declared owner to compare against, a multi-word owner is unowned (falls to the single-word rule)', () => {
+  assert.equal(classifyOwnerBullet('- Jane Doe — review the draft proposal'), 'unowned');
+});
+
+test('classifyOwnerBullet: G4/F4 — an em-dash quoted inside a code span is masked, so it is never read as the owner delimiter', () => {
+  assert.equal(classifyOwnerBullet('- see `a — b` for details'), 'unowned');
+});
+
+test('classifyOwnerBullet: G4/F4 — prose before the first em-dash is not an owner unless it is the page\'s declared owner or a known agent tag', () => {
+  assert.equal(classifyOwnerBullet('- review the draft — waiting on the vendor'), 'unowned');
+  assert.equal(classifyOwnerBullet('- Unowned item — needs an owner'), 'unowned');
+});
+
+test('checkUnownedBullets: H42/G4 — a real Backlog bullet owned by a two-word name matching the declared owner is NOT flagged backlog-unowned', () => {
   const text = '## Backlog (owned)\n- Jane Doe — review the draft proposal\n';
-  assert.deepEqual(checkUnownedBullets(text, 'Backlog (owned)', 'backlog-unowned'), []);
+  assert.deepEqual(checkUnownedBullets(text, 'Backlog (owned)', 'backlog-unowned', 'Jane Doe'), []);
 });
 
-test('checkUnownedBullets: H42 — a real project Next bullet owned by a two-word name is NOT flagged unowned-next', () => {
+test('checkUnownedBullets: H42/G4 — a real project Next bullet owned by a two-word name matching the declared owner is NOT flagged unowned-next', () => {
   const text = '## Next\n- Jane Doe — fix the build\n';
-  assert.deepEqual(checkUnownedBullets(text, 'Next', 'unowned-next'), []);
+  assert.deepEqual(checkUnownedBullets(text, 'Next', 'unowned-next', 'Jane Doe'), []);
+});
+
+test('checkUnownedBullets: G4/F4 — prose before an em-dash does not exempt a Backlog bullet from backlog-unowned', () => {
+  const text = '## Backlog (owned)\n- Widget cleanup — needs a volunteer\n';
+  const findings = checkUnownedBullets(text, 'Backlog (owned)', 'backlog-unowned');
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].type, 'backlog-unowned');
 });
 
 test('runStateLint --global: H42 — a home bootstrapped with a spaced owner lints clean after writing a REAL Backlog line in that owner\'s name', async (t) => {
@@ -2745,6 +2838,129 @@ test('checkLineOverLimit: E1/C15/H11 — the excerpt is a substring of the RAW p
   assert.ok(rawLine.includes(quoted[1]), `excerpt "${quoted[1]}" must be a substring of the RAW page line`);
 });
 
+// F13 — C15/H11's own pin covers only line-over-limit; the other four
+// #20 WARNs that name --match (bullet-wrapped, closed-undated,
+// closed-expired, thread-inactive) need the SAME pin, through the SAME
+// real lintGlobalState pipeline, or a revert to the prepared-line excerpt
+// on any of them goes uncaught.
+
+test('checkBulletWrapped: E1/C15/H11/F13 — the excerpt is a substring of the RAW page line, comment included, through the real lintGlobalState pipeline', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const rawLine = '- Commented <!-- note --> wrapped watch word';
+  const text = [
+    '# GLOBAL STATE — cross-project projection',
+    '> Owner: testagent. Protocol: `~/.agents/canon/CONTINUITY.md`.',
+    '',
+    '## Active threads',
+    '- **alpha** (as of 2026-09-01) — building the thing → memory a',
+    '',
+    '## Backlog (owned)',
+    '- testagent — sweep the backlog',
+    '',
+    '## Watch',
+    rawLine,
+    '  a continuation line',
+    '',
+    '## Recently closed (context for next session)',
+    '- gamma finished (closed 2026-09-01) — see alpha\'s logbook',
+    '',
+  ].join('\n');
+  const findings = lintGlobalState(text, { home });
+  const wrapped = findings.find((f) => f.type === 'bullet-wrapped');
+  assert.ok(wrapped, `expected bullet-wrapped: ${JSON.stringify(findings)}`);
+  const quoted = wrapped.message.match(/: "([^"]*)" —/);
+  assert.ok(quoted, wrapped.message);
+  assert.ok(rawLine.includes(quoted[1]), `excerpt "${quoted[1]}" must be a substring of the RAW page line`);
+});
+
+test('checkClosedUndated: E1/C15/H11/F13 — the excerpt is a substring of the RAW page line, comment included, through the real lintGlobalState pipeline', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const rawLine = '- gamma <!-- note --> finished, no stamp here';
+  const text = [
+    '# GLOBAL STATE — cross-project projection',
+    '> Owner: testagent. Protocol: `~/.agents/canon/CONTINUITY.md`.',
+    '',
+    '## Active threads',
+    '- **alpha** (as of 2026-09-01) — building the thing → memory a',
+    '',
+    '## Backlog (owned)',
+    '- testagent — sweep the backlog',
+    '',
+    '## Watch',
+    '- an assumption needing validation (validate-by: 2026-10-01)',
+    '',
+    '## Recently closed (context for next session)',
+    rawLine,
+    '',
+  ].join('\n');
+  const findings = lintGlobalState(text, { home });
+  const undated = findings.find((f) => f.type === 'closed-undated');
+  assert.ok(undated, `expected closed-undated: ${JSON.stringify(findings)}`);
+  const quoted = undated.message.match(/"([^"]*)"$/);
+  assert.ok(quoted, undated.message);
+  assert.ok(rawLine.includes(quoted[1]), `excerpt "${quoted[1]}" must be a substring of the RAW page line`);
+});
+
+test('checkClosedExpired: E1/C15/H11/F13 — the excerpt is a substring of the RAW page line, comment included, through the real lintGlobalState pipeline', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const rawLine = '- gamma <!-- note --> finished (closed 2026-01-01)';
+  const text = [
+    '# GLOBAL STATE — cross-project projection',
+    '> Owner: testagent. Protocol: `~/.agents/canon/CONTINUITY.md`.',
+    '',
+    '## Active threads',
+    '- **alpha** (as of 2026-09-01) — building the thing → memory a',
+    '',
+    '## Backlog (owned)',
+    '- testagent — sweep the backlog',
+    '',
+    '## Watch',
+    '- an assumption needing validation (validate-by: 2026-10-01)',
+    '',
+    '## Recently closed (context for next session)',
+    rawLine,
+    '',
+  ].join('\n');
+  const findings = lintGlobalState(text, { home });
+  const expired = findings.find((f) => f.type === 'closed-expired');
+  assert.ok(expired, `expected closed-expired: ${JSON.stringify(findings)}`);
+  const quoted = expired.message.match(/: "([^"]*)" —/);
+  assert.ok(quoted, expired.message);
+  assert.ok(rawLine.includes(quoted[1]), `excerpt "${quoted[1]}" must be a substring of the RAW page line`);
+});
+
+test('checkThreadInactive: E1/C15/H11/F13 — the excerpt is a substring of the RAW page line, comment included, through the real lintGlobalState pipeline', (t) => {
+  const home = sandbox(t);
+  const rawLine = '- **eta** <!-- note --> (as of 2026-01-01) — idle with a note. → memory eta';
+  const text = [
+    '# GLOBAL STATE — cross-project projection',
+    '> Owner: testagent. Protocol: `~/.agents/canon/CONTINUITY.md`.',
+    '',
+    '## Active threads',
+    rawLine,
+    '- **zeta** (as of 2026-09-01) — newer thread, sets the reference date → memory zeta',
+    '',
+    '## Backlog (owned)',
+    '- testagent — sweep the backlog',
+    '',
+    '## Watch',
+    '- an assumption needing validation (validate-by: 2026-10-01)',
+    '',
+    '## Recently closed (context for next session)',
+    '- gamma finished (closed 2026-09-01) — see alpha\'s logbook',
+    '',
+  ].join('\n');
+  const findings = lintGlobalState(text, { home: sandbox(t) });
+  const inactive = findings.find((f) => f.type === 'thread-inactive');
+  assert.ok(inactive, `expected thread-inactive: ${JSON.stringify(findings)}`);
+  const quoted = inactive.message.match(/: "([^"]*)" —/);
+  assert.ok(quoted, inactive.message);
+  assert.ok(rawLine.includes(quoted[1]), `excerpt "${quoted[1]}" must be a substring of the RAW page line`);
+});
+
 // =====================================================================
 // E2 (refining D1): the continuation scan reads RAW lines (never
 // fence/comment-blanked), so an INDENTED fence/comment and its body are
@@ -2857,6 +3073,53 @@ test('topLevelBulletContinuationCounts: H59 — every contiguous indented line a
   assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch'), [3]);
 });
 
+test('topLevelBulletContinuationCounts: H31 — a "___" thematic break ends the bullet, not just "---"/"***"', () => {
+  const raw = '## Watch\n- item\n___\n';
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch'), [0]);
+});
+
+test('topLevelBulletContinuationCounts: H31 — level-5 AND level-6 headings ("#####"/"######") both end the bullet, not just up to "####"', () => {
+  const raw5 = '## Watch\n- item\n##### Notes\n';
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw5), 'Watch'), [0]);
+  const raw6 = '## Watch\n- item\n###### Notes\n';
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw6), 'Watch'), [0]);
+});
+
+// =====================================================================
+// G5 (#20d, fixing H59/F2) — a line of ONLY spaces/tabs after a bullet is
+// blank for the continuation rule, never a continuation line (even though
+// it also matches the 2-space/tab INDENTED shape): the blank check must
+// run BEFORE the indented check, and a blank's own lookahead must require
+// the NEXT line to be non-blank too.
+// =====================================================================
+
+test('topLevelBulletContinuationCounts: G5/H59/F2 — a line of only two spaces right after the bullet is blank, not an indented continuation', () => {
+  const raw = '## Watch\n- item\n  \n- sibling\n';
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch'), [0, 0]);
+});
+
+test('topLevelBulletContinuationCounts: G5/H59/F2 — a TAB-only line right after the bullet is blank, not an indented continuation', () => {
+  const raw = '## Watch\n- item\n\t\n### Notes\n';
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch'), [0]);
+});
+
+test('topLevelBulletContinuationCounts: G5/H59/F2 — a whitespace-only SECOND blank line still ends the bullet (the lookahead needs a non-blank indented line, not merely an indented-SHAPED one)', () => {
+  const raw = '## Watch\n- item\n\n  \n  indented\n';
+  assert.deepEqual(topLevelBulletContinuationCounts(prepareText(raw), 'Watch'), [0]);
+});
+
+test('checkBulletWrapped: G5/H59/F2 — a whitespace-only line after a bullet never WARNs bullet-wrapped (through the real check, not just the helper)', () => {
+  const text = '## Watch\n- item\n  \n- sibling\n';
+  assert.deepEqual(checkBulletWrapped(text), []);
+});
+
+test('lintGlobalState: G5/H59/F2 — a whitespace-only line after a real Backlog bullet lints clean (no false bullet-wrapped) through the composed findings', (t) => {
+  const home = sandbox(t);
+  const text = CLEAN_GLOBAL.replace('- testagent — sweep the backlog\n', '- testagent — sweep the backlog\n  \n');
+  const findings = lintGlobalState(text, { home });
+  assert.ok(!findings.some((f) => f.type === 'bullet-wrapped'), JSON.stringify(findings));
+});
+
 // =====================================================================
 // H76 — a bullet that is BOTH over its section limit AND wrapped WARNs
 // both independently; neither check suppresses the other.
@@ -2950,7 +3213,7 @@ test('lintGlobalState: C44 — a Watch/Backlog stamp never makes a real thread r
   assert.ok(!findings.some((f) => f.type === 'closed-expired'), JSON.stringify(findings));
 });
 
-test('lintGlobalState: C44 — a commented-out stamp on Active threads never feeds the reference date', (t) => {
+test('lintGlobalState: C44/F14 — a hidden stamp on Active threads (a MULTI-LINE comment) or Recently closed (a FENCED bullet) never feeds the reference date', (t) => {
   const home = sandbox(t);
   makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-30');
   const text = [
@@ -2958,7 +3221,9 @@ test('lintGlobalState: C44 — a commented-out stamp on Active threads never fee
     '> Owner: testagent. Protocol: `~/.agents/canon/CONTINUITY.md`.',
     '',
     '## Active threads',
-    '<!-- - **hidden** (as of 2099-01-01) — commented out -->',
+    '<!--',
+    '- **hidden** (as of 2099-01-01) — commented out',
+    '-->',
     '- **alpha** (as of 2026-09-30) — real thread → `~/projects/alpha/STATE.md`',
     '',
     '## Backlog (owned)',
@@ -2968,9 +3233,22 @@ test('lintGlobalState: C44 — a commented-out stamp on Active threads never fee
     '- an assumption needing validation (validate-by: 2026-10-01)',
     '',
     '## Recently closed (context for next session)',
-    '- gamma finished (closed 2026-09-29)',
+    '```',
+    '- gamma finished (closed 2099-01-01)',
+    '```',
+    '- delta finished (closed 2026-09-29)',
     '',
   ].join('\n');
+  // Red-first sanity: this fixture can tell PREPARED text from RAW text —
+  // unlike the single-line `<!-- - **hidden** ... -->` shape, where
+  // isTopLevelBulletLine fails on BOTH raw and prepared text (the line
+  // starts with `<!--` either way), so no mutation of this test's own
+  // reach could ever turn it red (F14).
+  assert.equal(
+    globalReferenceDate(prepareText(text)),
+    '2026-09-30',
+    'sanity: the hidden (2099-01-01) stamps must never win on the PREPARED text',
+  );
   const findings = lintGlobalState(text, { home });
   assert.ok(
     !findings.some((f) => f.type === 'thread-inactive' || f.type === 'closed-expired'),
@@ -2997,53 +3275,62 @@ test('checkLineOverLimit: C45 — the excerpt is exactly the first 60 code point
   assert.ok(!findings[0].message.includes(expected61), 'must not leak a 61st code point (that would mean trimLine\'s 120 cut, not excerpt60\'s 60)');
 });
 
-test('checkBulletWrapped: H58 — the excerpt is cut at 60 code points, not trimLine\'s 120', () => {
+// H58's own emoji helper: 59 code points, then an emoji as the 60th — the
+// same shape the line-over-limit emoji test (above) uses. A naive UTF-16
+// `.slice(0, 60)` cuts the emoji's surrogate pair in half; `excerpt60`'s
+// code-point cut must not. A plain ASCII-padded fixture (the tests' OLD
+// shape) cannot tell `excerpt60` apart from a UTF-16 `.slice(0, 60)`, since
+// both give the identical result on ASCII text.
+const H58_EMOJI = '\u{1F600}';
+const H58_LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+const H58_HEAD = '- ' + 'x'.repeat(57) + H58_EMOJI; // 60 code points exactly
+
+/** Assert findings[0]'s excerpt is exactly the 60-code-point H58_HEAD, emoji whole. */
+function assertH58Excerpt(message, line) {
+  const expected60 = Array.from(line).slice(0, 60).join('');
+  const expected61 = Array.from(line).slice(0, 61).join('');
+  assert.equal(expected60, H58_HEAD, 'sanity: the emoji sits exactly at code point 60');
+  assert.ok(message.includes(`"${expected60}"`), message);
+  assert.ok(!message.includes(expected61), 'must not leak a 61st code point (trimLine\'s 120 cut, not excerpt60\'s 60)');
+  assert.ok(!H58_LONE_SURROGATE.test(message), 'the excerpt must never contain a lone surrogate half');
+  assert.ok(message.includes(H58_EMOJI), 'the excerpt must include the WHOLE emoji, not a split half');
+}
+
+test('checkBulletWrapped: H58 — the excerpt is cut at 60 CODE POINTS, not trimLine\'s 120 UTF-16 units (emoji at the cut)', () => {
   const name = 'Watch';
   const limit = SECTION_LINE_LIMITS[name];
-  const line = bulletOfLength('- a wrapped watch bullet with plenty of padding text right here ', limit + 100);
+  const line = bulletOfLength(H58_HEAD, limit + 100);
   const text = `## ${name}\n${line}\n  a continuation line\n`;
   const findings = checkBulletWrapped(text);
   assert.equal(findings.length, 1);
-  const expected60 = Array.from(line).slice(0, 60).join('');
-  const expected61 = Array.from(line).slice(0, 61).join('');
-  assert.ok(findings[0].message.includes(`"${expected60}"`), findings[0].message);
-  assert.ok(!findings[0].message.includes(expected61));
+  assertH58Excerpt(findings[0].message, line);
 });
 
-test('checkClosedUndated: H58 — the excerpt is cut at 60 code points, not trimLine\'s 120', () => {
+test('checkClosedUndated: H58 — the excerpt is cut at 60 CODE POINTS, not trimLine\'s 120 UTF-16 units (emoji at the cut)', () => {
   const name = 'Recently closed (context for next session)';
   const limit = SECTION_LINE_LIMITS[name];
-  const line = bulletOfLength('- gamma finished, no stamp here at all, plenty of padding text ', limit + 100);
+  const line = bulletOfLength(H58_HEAD, limit + 100);
   const findings = checkClosedUndated(`## ${name}\n${line}\n`);
   assert.equal(findings.length, 1);
-  const expected60 = Array.from(line).slice(0, 60).join('');
-  const expected61 = Array.from(line).slice(0, 61).join('');
-  assert.ok(findings[0].message.includes(`"${expected60}"`), findings[0].message);
-  assert.ok(!findings[0].message.includes(expected61));
+  assertH58Excerpt(findings[0].message, line);
 });
 
-test('checkClosedExpired: H58 — the excerpt is cut at 60 code points, not trimLine\'s 120', () => {
+test('checkClosedExpired: H58 — the excerpt is cut at 60 CODE POINTS, not trimLine\'s 120 UTF-16 units (emoji at the cut)', () => {
   const name = 'Recently closed (context for next session)';
   const limit = SECTION_LINE_LIMITS[name];
-  const line = bulletOfLength('- gamma (closed 2026-01-01) finished, way back, plenty of padding ', limit + 100);
+  const line = bulletOfLength(H58_HEAD, limit + 100) + ' (closed 2026-01-01)';
   const findings = checkClosedExpired(`## ${name}\n${line}\n`, '2026-02-01');
   assert.equal(findings.length, 1);
-  const expected60 = Array.from(line).slice(0, 60).join('');
-  const expected61 = Array.from(line).slice(0, 61).join('');
-  assert.ok(findings[0].message.includes(`"${expected60}"`), findings[0].message);
-  assert.ok(!findings[0].message.includes(expected61));
+  assertH58Excerpt(findings[0].message, line);
 });
 
-test('checkThreadInactive: H58 — the excerpt is cut at 60 code points, not trimLine\'s 120', () => {
+test('checkThreadInactive: H58 — the excerpt is cut at 60 CODE POINTS, not trimLine\'s 120 UTF-16 units (emoji at the cut)', () => {
   const name = 'Active threads';
   const limit = SECTION_LINE_LIMITS[name];
-  const line = bulletOfLength('- **alpha** (as of 2026-01-01) idle for a while, plenty of padding ', limit + 100);
+  const line = bulletOfLength(H58_HEAD, limit + 100) + ' (as of 2026-01-01)';
   const findings = checkThreadInactive(`## ${name}\n${line}\n`, '2026-06-01', NOHOME);
   assert.equal(findings.length, 1);
-  const expected60 = Array.from(line).slice(0, 60).join('');
-  const expected61 = Array.from(line).slice(0, 61).join('');
-  assert.ok(findings[0].message.includes(`"${expected60}"`), findings[0].message);
-  assert.ok(!findings[0].message.includes(expected61));
+  assertH58Excerpt(findings[0].message, line);
 });
 
 // =====================================================================
@@ -3144,6 +3431,15 @@ test('globalReferenceDate: C29/P4 — a Recently-closed bullet matching the plac
   assert.equal(globalReferenceDate(text), '2026-01-01');
 });
 
+test('globalReferenceDate: C29/P5 — an Active-threads bullet matching the placeholder wildcard, even carrying the NEWEST stamp, stays exempt', () => {
+  const text = [
+    '## Active threads',
+    '- **alpha** (as of 2026-01-01) — real thread → memory a',
+    '- delta (as of 2026-06-01) — (owned actions only; unowned items are not allowed here)',
+  ].join('\n');
+  assert.equal(globalReferenceDate(text), '2026-01-01');
+});
+
 // =====================================================================
 // H36 — bulletIsThreadStale's malformed-stamp guard (thread-inactive
 // suppression requires ALL of the bullet's stamps to be valid; it mirrors
@@ -3190,6 +3486,19 @@ test('lintGlobalState: H55 — thread-inactive is suppressed by thread-stale thr
   const findings = lintGlobalState(text, { home });
   assert.ok(findings.some((f) => f.type === 'thread-stale'), `sanity: must FAIL thread-stale: ${JSON.stringify(findings)}`);
   assert.ok(!findings.some((f) => f.type === 'thread-inactive'), `must be suppressed: ${JSON.stringify(findings)}`);
+});
+
+test('checkThreadInactive: H55/S7 — the stale-suppression guard reads the OLDEST stamp, same as thread-stale (two stamps straddling the target as-of)', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'p', 'STATE.md'), '2026-02-01');
+  const text =
+    '## Active threads\n- **alpha** (as of 2026-01-01) reopened (as of 2026-03-01) → `~/projects/p/STATE.md`\n';
+  const active = checkActiveThreads(text, home);
+  assert.ok(
+    active.some((f) => f.type === 'thread-stale'),
+    `sanity: the OLDEST of the two stamps (2026-01-01) is stale against the target's 2026-02-01: ${JSON.stringify(active)}`,
+  );
+  assert.deepEqual(checkThreadInactive(text, '2026-03-04', home), []);
 });
 
 // =====================================================================
