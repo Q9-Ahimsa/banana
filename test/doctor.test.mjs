@@ -922,6 +922,37 @@ test('stale fence (#19): a cwd naming the home harness dir another way (letter c
     assert.equal(findings.length, 1, `cwd ${cwd}:\n${findings.map((finding) => finding.message).join('\n')}`);
     assert.ok(findings[0].message.includes('run banana sync to re-fence'), findings[0].message);
   }
+
+  // The HOME itself spelled another way (a junction to it).
+  const homeLink = join(sandbox(t), 'home-link');
+  symlinkSync(home, homeLink, 'junction');
+  const viaHomeLink = auditUpstream(homeLink, codexDir).filter((finding) => finding.type === 'stale-fence');
+  assert.equal(
+    viaHomeLink.length,
+    1,
+    `home ${homeLink}, cwd ${codexDir}:\n${viaHomeLink.map((finding) => finding.message).join('\n')}`,
+  );
+  assert.ok(viaHomeLink[0].message.includes('run banana sync to re-fence'), viaHomeLink[0].message);
+
+  // The pi harness: <home>/.pi/agent/AGENTS.md.
+  const piDir = join(home, '.pi', 'agent');
+  mkdirSync(piDir, { recursive: true });
+  writeFileSync(join(piDir, 'AGENTS.md'), fencedBlock('# continuity wiring', 1) + '\n');
+  const piSpellings = [piDir];
+  if (process.platform === 'win32') piSpellings.push(piDir.toUpperCase());
+  for (const cwd of piSpellings) {
+    const findings = auditUpstream(home, cwd).filter(
+      (finding) => finding.type === 'stale-fence' && finding.message.includes('AGENTS.md'),
+    );
+    const piFindings = findings.filter((finding) => finding.message.toLowerCase().includes(join('.pi', 'agent', 'agents.md')));
+    assert.equal(piFindings.length, 1, `pi, home ${home}, cwd ${cwd}:\n${findings.map((finding) => finding.message).join('\n')}`);
+    assert.ok(piFindings[0].message.includes('run banana sync to re-fence'), piFindings[0].message);
+    assert.equal(
+      findings.filter((finding) => finding.message.includes('run banana project')).length,
+      0,
+      `pi, home ${home}, cwd ${cwd}:\n${findings.map((finding) => finding.message).join('\n')}`,
+    );
+  }
 });
 
 test('report (#19): with cwd at a home harness dir, the Wiring fences section lists the shared AGENTS.md once', async (t) => {
@@ -932,12 +963,67 @@ test('report (#19): with cwd at a home harness dir, the Wiring fences section li
   const shared = join(codexDir, 'AGENTS.md');
   writeFileSync(shared, fencedBlock('# continuity wiring', 1) + '\n');
 
-  const captured = capturedIo();
-  await runDoctor({ verify: false }, { cwd: codexDir, home, io: captured.io, now: NOW, env: ENV });
-  const lines = captured.lines;
-  const start = lines.indexOf('Wiring fences:');
-  assert.ok(start >= 0, captured.text());
-  const end = lines.indexOf('', start);
-  const section = lines.slice(start, end);
-  assert.equal(section.filter((line) => line.includes(shared)).length, 1, section.join('\n'));
+  const linkDir = join(home, 'codex-link');
+  symlinkSync(codexDir, linkDir, 'junction');
+  const homeLink = join(sandbox(t), 'home-link');
+  symlinkSync(home, homeLink, 'junction');
+
+  /** @type {Array<[string, string]>} */
+  const runs = [
+    [codexDir, home],
+    [linkDir, home],
+    [codexDir, homeLink],
+  ];
+  if (process.platform === 'win32') runs.push([codexDir.toUpperCase(), home]);
+  for (const [cwd, homeArg] of runs) {
+    const section = await wiringSection(cwd, homeArg);
+    const label = `cwd ${cwd}, home ${homeArg}:\n${section.join('\n')}`;
+    const rows = section.filter((line) => line.includes(join(homeArg, '.codex', 'AGENTS.md')));
+    assert.equal(rows.length, 1, label);
+    assert.ok(rows[0].trim().startsWith('codex '), label);
+    assert.equal(section.filter((line) => line.trim().startsWith('project ')).length, 0, label);
+  }
+
+  // pi: <home>/.pi/agent/AGENTS.md
+  const piDir = join(home, '.pi', 'agent');
+  mkdirSync(piDir, { recursive: true });
+  writeFileSync(join(piDir, 'AGENTS.md'), fencedBlock('# continuity wiring', 1) + '\n');
+  const piSection = await wiringSection(piDir, home);
+  const piLabel = `pi, cwd ${piDir}, home ${home}:\n${piSection.join('\n')}`;
+  const piRows = piSection.filter((line) => line.includes(join(home, '.pi', 'agent', 'AGENTS.md')));
+  assert.equal(piRows.length, 1, piLabel);
+  assert.ok(piRows[0].trim().startsWith('pi '), piLabel);
+  assert.equal(piSection.filter((line) => line.trim().startsWith('project ')).length, 0, piLabel);
 });
+
+test('report (#19): a home harness dir with no AGENTS.md yet, reached another way, is listed once', async (t) => {
+  const home = sandbox(t);
+  installCanon(home);
+  const codexDir = join(home, '.codex');
+  mkdirSync(codexDir, { recursive: true }); // no AGENTS.md inside
+  const linkDir = join(home, 'codex-link');
+  symlinkSync(codexDir, linkDir, 'junction');
+
+  const cwds = [linkDir];
+  if (process.platform === 'win32') cwds.push(codexDir.toUpperCase());
+  for (const cwd of cwds) {
+    const section = await wiringSection(cwd, home);
+    const label = `cwd ${cwd}, home ${home}:\n${section.join('\n')}`;
+    assert.equal(section.filter((line) => line.trim().startsWith('project ')).length, 0, label);
+    assert.equal(section.filter((line) => line.includes(join(home, '.codex', 'AGENTS.md'))).length, 1, label);
+  }
+});
+
+/**
+ * The 'Wiring fences:' section of the doctor report: its header through the line before the next blank.
+ * @param {string} cwd
+ * @param {string} home
+ * @returns {Promise<string[]>}
+ */
+async function wiringSection(cwd, home) {
+  const captured = capturedIo();
+  await runDoctor({ verify: false }, { cwd, home, io: captured.io, now: NOW, env: ENV });
+  const start = captured.lines.indexOf('Wiring fences:');
+  assert.ok(start >= 0, captured.text());
+  return captured.lines.slice(start, captured.lines.indexOf('', start));
+}
