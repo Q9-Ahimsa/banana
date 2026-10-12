@@ -1,6 +1,6 @@
 # Global page gets an outflow for threads and backlog, and a due date for watch
 
-Decided (2026-10-10, ratified by the owner on 2026-10-12).
+Decided (2026-10-10, ratified by the owner on 2026-10-12). Decisions 1, 3, 4 and 5 follow owner rulings; decisions 2, 6, 7 and 8, the no-roll-up call and the header text were technical calls, ratified with the v1.8 text.
 
 ADR 0006 gave the global page (`~/.agents/STATE.md`), already capped at 10,000 chars by ADR 0004, per-section line limits and an archive, but only one section got an outflow by rule: Recently-closed lines expire. Active threads and Backlog lines never leave unless someone resolves them, and Watch lines never leave by rule. This ADR gives threads and Backlog a date-driven exit, gives Watch a due date, and moves the duty to file flagged lines onto whoever is about to add a line. It amends ADR 0006 in four places (see Consequences).
 
