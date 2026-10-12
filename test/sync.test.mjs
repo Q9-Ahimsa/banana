@@ -30,6 +30,13 @@ function sandbox(t) {
   return dir;
 }
 
+/** Line-ending helpers (#19). */
+const asLf = (s) => s.replace(/\r\n/g, '\n');
+const asCrlf = (s) => asLf(s).replace(/\n/g, '\r\n');
+const hasBareLf = (s) => /(^|[^\r])\n/.test(s);
+/** Whether two files hold the same text, CRLF read as LF. */
+const sameText = (a, b) => asLf(readFileSync(a, 'utf8')) === asLf(readFileSync(b, 'utf8'));
+
 function snapshot(root) {
   const files = new Map();
   const walk = (dir) => {
@@ -116,7 +123,7 @@ test('extractIdentity round-trips the rendered wiring templates', () => {
   }
 });
 
-test('e2e: sync refreshes a stale canon byte-for-byte and upgrades a v1 fence to v3', async (t) => {
+test('e2e: sync refreshes a stale canon to the bundled text and upgrades a v1 fence to v3', async (t) => {
   const home = sandbox(t);
   const { canonDir, claudeMd } = staleFixture(home);
   const { io, lines } = collectedIo();
@@ -124,12 +131,12 @@ test('e2e: sync refreshes a stale canon byte-for-byte and upgrades a v1 fence to
   const result = await runSync(parseSyncArgs([]), { home, io });
   assert.equal(result.code, 0);
 
-  // Canon dir byte-equal to the kit's bundled canon (incl. the missing file).
+  // Canon dir matches the kit's bundled canon text, CRLF read as LF (incl. the missing file).
   assert.deepEqual(readdirSync(canonDir).sort(), [...CANON_FILES].sort());
   for (const name of CANON_FILES) {
     assert.ok(
-      readFileSync(join(canonDir, name)).equals(readFileSync(join(KIT_ROOT, 'canon', name))),
-      `${name} must be byte-equal to the bundled canon`,
+      sameText(join(canonDir, name), join(KIT_ROOT, 'canon', name)),
+      `${name} must match the bundled canon's text`,
     );
   }
 
@@ -415,7 +422,7 @@ test('#6 A: a failing kit-update still refreshes canon/fences from whatever is a
   assert.equal(result.code, 0);
   for (const name of CANON_FILES) {
     assert.ok(
-      readFileSync(join(canonDir, name)).equals(readFileSync(join(KIT_ROOT, 'canon', name))),
+      sameText(join(canonDir, name), join(KIT_ROOT, 'canon', name)),
       `${name} must still refresh to the bundled canon despite the failed kit-update`,
     );
   }
@@ -603,7 +610,7 @@ test('#6 S1 / F4: a first-ever install landing NEWER than kitRoot — install ca
   for (const name of CANON_FILES) {
     if (name === 'CONTINUITY.md') continue;
     assert.ok(
-      readFileSync(join(home, '.agents', 'canon', name)).equals(readFileSync(join(installedDir, 'canon', name))),
+      sameText(join(home, '.agents', 'canon', name), join(installedDir, 'canon', name)),
       `${name} must come from the resolved GLOBAL install tree too`,
     );
   }
@@ -671,7 +678,7 @@ test('#6 F4: a non-kit-shaped install tree falls back to the launched tree, exit
   assert.equal(result.code, 0, 'a non-kit-shaped install tree must not fail the exit code');
   for (const name of CANON_FILES) {
     assert.ok(
-      readFileSync(join(home, '.agents', 'canon', name)).equals(readFileSync(join(kitRoot, 'canon', name))),
+      sameText(join(home, '.agents', 'canon', name), join(kitRoot, 'canon', name)),
       `${name} must fall back to the launched tree`,
     );
   }
@@ -751,7 +758,7 @@ test('#6 S2: a timed-out update on the npx path (resolved root differs from kitR
   );
   for (const name of CANON_FILES) {
     assert.ok(
-      readFileSync(join(canonDir, name)).equals(readFileSync(join(KIT_ROOT, 'canon', name))),
+      sameText(join(canonDir, name), join(KIT_ROOT, 'canon', name)),
       `${name} must still refresh from kitRoot (untouched by the timeout elsewhere)`,
     );
   }
@@ -769,7 +776,7 @@ test('#6 S2: every OTHER failure (non-timeout) still refreshes, even when resolv
   assert.equal(result.code, 0);
   for (const name of CANON_FILES) {
     assert.ok(
-      readFileSync(join(canonDir, name)).equals(readFileSync(join(KIT_ROOT, 'canon', name))),
+      sameText(join(canonDir, name), join(KIT_ROOT, 'canon', name)),
       `${name} must still refresh — a plain non-zero exit is not a timeout`,
     );
   }
@@ -807,7 +814,7 @@ test('#6 F1: npx cold-bootstrap (installRoot resolves, nothing installed yet) ti
   );
   for (const name of CANON_FILES) {
     assert.ok(
-      readFileSync(join(canonDir, name)).equals(readFileSync(join(kitRoot, 'canon', name))),
+      sameText(join(canonDir, name), join(kitRoot, 'canon', name)),
       `${name} must refresh from kitRoot despite the timeout`,
     );
   }
@@ -895,8 +902,8 @@ test('#6 F2: npm root -g succeeding with EMPTY stdout is never trusted — a kit
     'empty stdout must fall back to kitRoot, never a relative path resolved against cwd',
   );
   assert.equal(
-    readFileSync(join(home, '.agents', 'canon', 'CONTINUITY.md'), 'utf8'),
-    readFileSync(join(kitRoot, 'canon', 'CONTINUITY.md'), 'utf8'),
+    asLf(readFileSync(join(home, '.agents', 'canon', 'CONTINUITY.md'), 'utf8')),
+    asLf(readFileSync(join(kitRoot, 'canon', 'CONTINUITY.md'), 'utf8')),
     'canon must come from kitRoot, never the planted cwd dir',
   );
 });
@@ -1026,3 +1033,134 @@ for (const { label, exec } of SECTION_C_CASES) {
     assertTreesIdentical(omitKnownWriteSet(before), omitKnownWriteSet(snapshot(home)));
   });
 }
+
+// -----------------------------------------------------------------------
+// #19: a line-ending difference is never a change; a write keeps the
+// target's own style (LF for a new file).
+// -----------------------------------------------------------------------
+
+/** The kit's canon files as text, keyed by name. */
+function kitCanon(kitRoot) {
+  return new Map(CANON_FILES.map((name) => [name, readFileSync(join(kitRoot, 'canon', name), 'utf8')]));
+}
+
+/** Rewrite every canon file in a kit tree with the given line-ending transform. */
+function restyleKitCanon(kitRoot, transform) {
+  for (const [name, text] of kitCanon(kitRoot)) writeFileSync(join(kitRoot, 'canon', name), transform(text));
+}
+
+test('#19: a canon file that differs from the kit only in line endings is no change — nothing printed, nothing written', async (t) => {
+  const home = sandbox(t);
+  const kitRoot = sandboxKitRoot(t, '1.0.0');
+  const canonDir = join(home, '.agents', 'canon');
+  mkdirSync(canonDir, { recursive: true });
+  for (const [name, text] of kitCanon(kitRoot)) {
+    writeFileSync(join(canonDir, name), text.includes('\r\n') ? asLf(text) : asCrlf(text));
+  }
+  const before = snapshot(home);
+  const { io, lines } = collectedIo();
+
+  const result = await runSync(parseSyncArgs([]), { home, io, kitRoot });
+
+  assert.equal(result.code, 0);
+  assert.deepEqual(lines.filter((l) => /^(installed|refreshed) /.test(l)), []);
+  assert.ok(lines.includes('sync: no changes — canon and fences current'));
+  assertTreesIdentical(before, snapshot(home));
+});
+
+test('#19: a real canon change keeps the installed file\'s line-ending style', async (t) => {
+  // CRLF installed file, LF kit.
+  {
+    const home = sandbox(t);
+    const kitRoot = sandboxKitRoot(t, '1.0.0');
+    restyleKitCanon(kitRoot, asLf);
+    const canonDir = join(home, '.agents', 'canon');
+    mkdirSync(canonDir, { recursive: true });
+    const target = join(canonDir, 'CONTINUITY.md');
+    writeFileSync(target, '<!-- banana:canon rev 1.1 -->\r\nstale\r\n');
+    const { io, lines } = collectedIo();
+
+    await runSync(parseSyncArgs([]), { home, io, kitRoot });
+
+    assert.ok(lines.some((l) => l.startsWith('refreshed ') && l.includes('CONTINUITY.md')));
+    const file = readFileSync(target, 'utf8');
+    assert.equal(asLf(file), asLf(readFileSync(join(kitRoot, 'canon', 'CONTINUITY.md'), 'utf8')));
+    assert.ok(!hasBareLf(file), 'a CRLF installed file stays CRLF');
+  }
+  // LF installed file, CRLF kit.
+  {
+    const home = sandbox(t);
+    const kitRoot = sandboxKitRoot(t, '1.0.0');
+    restyleKitCanon(kitRoot, asCrlf);
+    const canonDir = join(home, '.agents', 'canon');
+    mkdirSync(canonDir, { recursive: true });
+    const target = join(canonDir, 'CONTINUITY.md');
+    writeFileSync(target, '<!-- banana:canon rev 1.1 -->\nstale\n');
+    const { io } = collectedIo();
+
+    await runSync(parseSyncArgs([]), { home, io, kitRoot });
+
+    const file = readFileSync(target, 'utf8');
+    assert.ok(!file.includes('\r'), 'an LF installed file stays LF');
+    assert.equal(file, asLf(readFileSync(join(kitRoot, 'canon', 'CONTINUITY.md'), 'utf8')));
+  }
+});
+
+test('#19: a canon file sync creates is written with LF', async (t) => {
+  const home = sandbox(t);
+  const kitRoot = sandboxKitRoot(t, '1.0.0');
+  restyleKitCanon(kitRoot, asCrlf);
+  const { io, lines } = collectedIo();
+
+  await runSync(parseSyncArgs([]), { home, io, kitRoot });
+
+  assert.equal(lines.filter((l) => l.startsWith('installed ')).length, CANON_FILES.length);
+  for (const [name, text] of kitCanon(kitRoot)) {
+    const file = readFileSync(join(home, '.agents', 'canon', name), 'utf8');
+    assert.ok(!file.includes('\r'), `${name} is LF`);
+    assert.equal(file, asLf(text));
+  }
+});
+
+test('#19: a harness file at the current fence version is no change whatever its line endings', async (t) => {
+  const home = sandbox(t);
+  const claudeMd = join(home, '.claude', 'CLAUDE.md');
+  mkdirSync(dirname(claudeMd), { recursive: true });
+  const block = renderWiringTemplate('claude-code.md', { owner: 'alice', tag: 'claude' });
+  const host = asCrlf(`# mine\n\n${block}\n`);
+  writeFileSync(claudeMd, host);
+  const { io, lines } = collectedIo();
+
+  await runSync(parseSyncArgs([]), { home, io });
+
+  assert.deepEqual(lines.filter((l) => l.startsWith('re-fenced ')), []);
+  assert.equal(readFileSync(claudeMd, 'utf8'), host);
+});
+
+test('#19: re-fencing a CRLF harness file writes the new block in CRLF; bytes outside the fence untouched; second run byte-identical', async (t) => {
+  const home = sandbox(t);
+  const claudeMd = join(home, '.claude', 'CLAUDE.md');
+  mkdirSync(dirname(claudeMd), { recursive: true });
+  const host = asCrlf(`# My instructions\n\nuser prose above\n\n${V1_BLOCK}\nuser prose below\n`);
+  writeFileSync(claudeMd, host);
+  const { io, lines } = collectedIo();
+
+  await runSync(parseSyncArgs([]), { home, io });
+
+  assert.ok(lines.some((l) => l.includes(`v1 -> v${CURRENT_FENCE}`)));
+  const after = readFileSync(claudeMd, 'utf8');
+  const beforeFence = findFence(host);
+  const afterFence = findFence(after);
+  assert.ok(beforeFence !== null && afterFence !== null);
+  assert.equal(after.slice(0, afterFence.start), host.slice(0, beforeFence.start));
+  assert.equal(after.slice(afterFence.end), host.slice(beforeFence.end));
+  const region = after.slice(afterFence.start, afterFence.end);
+  assert.ok(region.includes('\r\n'));
+  assert.ok(!hasBareLf(region), 'the new block is CRLF throughout');
+
+  const snap = snapshot(home);
+  const second = collectedIo();
+  await runSync(parseSyncArgs([]), { home, io: second.io });
+  assert.ok(second.lines.some((l) => l.includes('no changes')));
+  assertTreesIdentical(snap, snapshot(home));
+});

@@ -192,3 +192,20 @@ test('claude-code: wire accepts a wiringDir override and writes the overridden t
   const text = readFileSync(join(home, '.claude', 'CLAUDE.md'), 'utf8');
   assert.ok(findFence(text)?.version === BUMPED_CLAUDE_CODE_FENCE, 'the written fence reflects the override dir, not the kit-bundled template');
 });
+
+test('renderWiringTemplate returns LF whatever line endings the template file uses (#19)', (t) => {
+  const crlfDir = mkdtempSync(join(tmpdir(), 'banana-wiringdir-'));
+  t.after(() => rmSync(crlfDir, { recursive: true, force: true }));
+  const lfDir = mkdtempSync(join(tmpdir(), 'banana-wiringdir-'));
+  t.after(() => rmSync(lfDir, { recursive: true, force: true }));
+  cpSync(join(KIT_ROOT, 'templates', 'wiring'), crlfDir, { recursive: true });
+  cpSync(join(KIT_ROOT, 'templates', 'wiring'), lfDir, { recursive: true });
+  const lfText = readFileSync(join(lfDir, 'claude-code.md'), 'utf8').replace(/\r\n/g, '\n');
+  writeFileSync(join(lfDir, 'claude-code.md'), lfText);
+  writeFileSync(join(crlfDir, 'claude-code.md'), lfText.replace(/\n/g, '\r\n'));
+
+  const tokens = { owner: 'alice', tag: 'claude' };
+  const fromCrlf = renderWiringTemplate('claude-code.md', tokens, crlfDir);
+  assert.ok(!fromCrlf.includes('\r'), 'no CR in the render');
+  assert.equal(fromCrlf, renderWiringTemplate('claude-code.md', tokens, lfDir));
+});

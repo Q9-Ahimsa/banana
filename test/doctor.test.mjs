@@ -6,7 +6,8 @@
 // prints (never executes) the per-harness recital commands.
 // US-007 (v2) acceptance: two upstream audits — a home canon dir missing or
 // older than the kit's bundled canon, and any wired fence block older than
-// its current template — each flagged with exit 1 and a finding naming sync;
+// its current template — each flagged with exit 1 and a finding naming its fix
+// command (banana sync, or banana project for the project AGENTS.md — #19);
 // a current canon + current fences add no finding.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -492,6 +493,7 @@ test('stale canon: older rev marker flagged with exit 1, finding names sync', as
   const output = captured.text();
   assert.ok(output.includes('[stale-canon]'), 'stale canon flagged');
   assert.ok(output.includes('sync'), 'finding names sync as the remediation');
+  assert.ok(output.includes('run banana sync to refresh the canon'), 'finding names the full command');
   assert.ok(output.includes('rev 1.1'), 'finding names the installed rev');
   assert.ok(output.includes('CONTINUITY.md'), 'finding names the stale file');
 });
@@ -506,6 +508,7 @@ test('missing canon dir flagged with exit 1, finding names sync', async (t) => {
   const output = captured.text();
   assert.ok(output.includes('[stale-canon]'), 'missing canon dir flagged');
   assert.ok(output.includes('sync'), 'finding names sync as the remediation');
+  assert.ok(output.includes('run banana sync to install the canon'), 'finding names the full command');
 });
 
 test('stale fence: v1 block in a wired home file flagged with exit 1, finding names sync', async (t) => {
@@ -521,6 +524,7 @@ test('stale fence: v1 block in a wired home file flagged with exit 1, finding na
   const output = captured.text();
   assert.ok(output.includes('[stale-fence]'), 'stale fence flagged');
   assert.ok(output.includes('sync'), 'finding names sync as the remediation');
+  assert.ok(output.includes('— run banana sync to re-fence'), 'a home file is re-fenced by banana sync');
   assert.ok(output.includes('CLAUDE.md'), 'finding names the wired file');
   assert.ok(
     output.includes('v1') && output.includes(`v${CURRENT_FENCE}`),
@@ -565,6 +569,7 @@ test('stale fence (#10): a real v2 claude-code block is flagged once the bundled
   const output = captured.text();
   assert.ok(output.includes('[stale-fence]'), 'stale fence flagged');
   assert.ok(output.includes('sync'), 'finding names sync as the remediation');
+  assert.ok(output.includes('— run banana sync to re-fence'), 'a home file is re-fenced by banana sync');
   assert.ok(output.includes('CLAUDE.md'), 'finding names the wired file');
   assert.ok(
     output.includes('v2') && output.includes(`v${CURRENT_FENCE}`),
@@ -584,6 +589,8 @@ test('stale fence: repo-local AGENTS.md audited too', async (t) => {
   const output = captured.text();
   assert.ok(output.includes('[stale-fence]'), 'project fence staleness flagged');
   assert.ok(output.includes(join(project, 'AGENTS.md')), 'finding names the project file');
+  assert.ok(output.includes('— run banana project to re-fence'), 'a project fence is re-fenced by banana project');
+  assert.ok(!output.includes('run banana sync to re-fence'), 'sync never touches project files');
 });
 
 test('corrupt fence: dangling begin marker (no end) does not throw, surfaced via fenceStatus', async (t) => {
@@ -863,4 +870,24 @@ test('auditUpstream: current canon + current fences add no finding; both drifts 
     auditUpstream(driftedHome, cwd).map((f) => f.type).sort(),
     ['stale-canon', 'stale-fence'],
   );
+});
+
+test('stale fence (#19): each stale fence names the command that re-fences it — banana sync for a home file, banana project for the project AGENTS.md', (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  mkdirSync(join(home, '.codex'), { recursive: true });
+  const homeAgents = join(home, '.codex', 'AGENTS.md');
+  const projectAgents = join(project, 'AGENTS.md');
+  writeFileSync(homeAgents, fencedBlock('# continuity wiring', 1) + '\n');
+  writeFileSync(projectAgents, fencedBlock('# continuity wiring', 1) + '\n');
+
+  const current = wiringTemplateVersion('agents-md.md');
+  const messages = auditUpstream(home, project)
+    .filter((finding) => finding.type === 'stale-fence')
+    .map((finding) => finding.message);
+  assert.deepEqual(messages, [
+    `[stale-fence] ${homeAgents} fence is v1 but current is v${current} — run banana sync to re-fence`,
+    `[stale-fence] ${projectAgents} fence is v1 but current is v${current} — run banana project to re-fence`,
+  ]);
 });

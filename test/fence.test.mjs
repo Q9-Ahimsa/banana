@@ -11,6 +11,10 @@ import {
   fencedBlock,
   extractIdentity,
   readPreservedIdentity,
+  eolOf,
+  toLf,
+  withEol,
+  writeKitFile,
 } from '../lib/fence.mjs';
 
 const BLOCK_V1 = fencedBlock('## Continuity protocol\n\n- rule one\n- rule two', 1);
@@ -191,4 +195,102 @@ test('readPreservedIdentity falls back to io.out when io.err is absent', (t) => 
   assert.equal(readPreservedIdentity(target, { out: (line = '') => lines.push(line) }), null);
   assert.equal(lines.length, 1, 'warning lands on out when err is not provided');
   assert.ok(lines[0].includes(target));
+});
+
+// Line endings (#19): a line-ending difference is never a change; a write keeps
+// the target's own style, and a new file is LF.
+
+const asLf = (/** @type {string} */ s) => s.replace(/\r\n/g, '\n');
+const asCrlf = (/** @type {string} */ s) => asLf(s).replace(/\n/g, '\r\n');
+const hasBareLf = (/** @type {string} */ s) => /(^|[^\r])\n/.test(s);
+
+test('eolOf: CRLF only when CRLF line breaks outnumber bare LF; ties and break-less text are LF (#19)', () => {
+  assert.equal(eolOf('a\r\nb\r\n'), '\r\n');
+  assert.equal(eolOf('a\nb\n'), '\n');
+  assert.equal(eolOf('a\r\nb\n'), '\n');
+  assert.equal(eolOf('a\r\nb\r\nc\n'), '\r\n');
+  assert.equal(eolOf(''), '\n');
+  assert.equal(eolOf('one line'), '\n');
+});
+
+test('withEol / toLf: CRLF<->LF without doubling, lone CR untouched (#19)', () => {
+  assert.equal(withEol('a\nb\r\nc', '\r\n'), 'a\r\nb\r\nc');
+  assert.equal(withEol('a\r\nb\n', '\n'), 'a\nb\n');
+  assert.equal(toLf('a\rb\r\n'), 'a\rb\n');
+});
+
+test('spliceFence writes a replaced block in the CRLF host\'s style; bytes outside the fence untouched (#19)', () => {
+  const host = 'head\r\n\r\n' + asCrlf(BLOCK_V1) + '\r\ntail\r\n';
+  assert.equal(spliceFence(host, BLOCK_V2), 'head\r\n\r\n' + asCrlf(BLOCK_V2) + '\r\ntail\r\n');
+  const tailless = 'head\r\n\r\n' + asCrlf(BLOCK_V1);
+  assert.equal(spliceFence(tailless, BLOCK_V2), 'head\r\n\r\n' + asCrlf(BLOCK_V2), 'the text before the fence sets the style');
+  const headless = asCrlf(BLOCK_V1) + '\r\ntail\r\n';
+  assert.equal(spliceFence(headless, BLOCK_V2), asCrlf(BLOCK_V2) + '\r\ntail\r\n', 'so does the text after it');
+});
+
+test('spliceFence appends to a CRLF host in CRLF (#19)', () => {
+  const host = '# notes\r\nkeep\r\n';
+  assert.equal(spliceFence(host, BLOCK_V1), host + '\r\n' + asCrlf(BLOCK_V1) + '\r\n');
+  const bare = '# notes\r\nkeep';
+  assert.equal(spliceFence(bare, BLOCK_V1), bare + '\r\n\r\n' + asCrlf(BLOCK_V1) + '\r\n', 'no trailing break: a CRLF blank-line separator');
+});
+
+test('spliceFence fits a CRLF block into an LF host, and a new file is LF (#19)', () => {
+  assert.ok(!spliceFence('a\n', asCrlf(BLOCK_V1)).includes('\r'));
+  assert.equal(spliceFence('', asCrlf(BLOCK_V1)), BLOCK_V1 + '\n');
+  assert.equal(spliceFence('a\n' + BLOCK_V1 + '\n', asCrlf(BLOCK_V2)), 'a\n' + BLOCK_V2 + '\n', 'a replaced block is fitted to an LF host too');
+});
+
+test('spliceFence is idempotent on a mixed host: style judged outside the fence (#19)', () => {
+  const host = 'a\r\nb\r\nc\r\n' + fencedBlock('l1\nl2\nl3\nl4\nl5\nl6', 1) + '\r\n';
+  const nb = fencedBlock('x', 2);
+  const s1 = spliceFence(host, nb);
+  const s2 = spliceFence(s1, nb);
+  assert.equal(s1, s2);
+  const found = findFence(s1);
+  assert.ok(found !== null);
+  const region = s1.slice(found.start, found.end);
+  assert.ok(region.includes('\r\n'));
+  assert.ok(!hasBareLf(region));
+});
+
+test('applyFence on a CRLF host already carrying the same block reports unchanged and writes nothing (#19)', (t) => {
+  const target = join(sandbox(t), 'AGENTS.md');
+  const host = 'head\r\n\r\n' + asCrlf(BLOCK_V1) + '\r\ntail\r\n';
+  writeFileSync(target, host);
+  const report = applyFence(target, BLOCK_V1);
+  assert.equal(report.changed, false);
+  assert.equal(report.created, false);
+  assert.equal(readFileSync(target, 'utf8'), host);
+  const mixed = join(sandbox(t), 'AGENTS.md');
+  writeFileSync(mixed, 'head\r\n\r\n' + BLOCK_V1 + '\r\ntail\r\n');
+  assert.equal(applyFence(mixed, BLOCK_V1).changed, true, 'an LF fence in a CRLF host is refitted, so the file is no longer mixed');
+  assert.equal(readFileSync(mixed, 'utf8'), host);
+});
+
+test('writeKitFile: a CRLF-only difference is no change and writes nothing, both directions (#19)', (t) => {
+  const dir = sandbox(t);
+  const a = join(dir, 'a.md');
+  writeFileSync(a, 'x\r\ny\r\n');
+  assert.deepEqual(writeKitFile(a, 'x\ny\n'), { created: false, changed: false });
+  assert.equal(readFileSync(a, 'utf8'), 'x\r\ny\r\n');
+  const b = join(dir, 'b.md');
+  writeFileSync(b, 'x\ny\n');
+  assert.deepEqual(writeKitFile(b, 'x\r\ny\r\n'), { created: false, changed: false });
+  assert.equal(readFileSync(b, 'utf8'), 'x\ny\n');
+});
+
+test('writeKitFile: a real change keeps the existing file\'s style; a new file is LF (#19)', (t) => {
+  const dir = sandbox(t);
+  const a = join(dir, 'a.md');
+  writeFileSync(a, 'old\r\n');
+  assert.deepEqual(writeKitFile(a, 'new\nline\n'), { created: false, changed: true });
+  assert.equal(readFileSync(a, 'utf8'), 'new\r\nline\r\n');
+  const b = join(dir, 'b.md');
+  writeFileSync(b, 'old\n');
+  writeKitFile(b, 'new\r\nline\r\n');
+  assert.equal(readFileSync(b, 'utf8'), 'new\nline\n');
+  const c = join(dir, 'c.md');
+  assert.deepEqual(writeKitFile(c, 'a\r\nb\r\n'), { created: true, changed: true });
+  assert.equal(readFileSync(c, 'utf8'), 'a\nb\n');
 });

@@ -18,6 +18,9 @@ import { renderWiringTemplate, wiringTemplateVersion } from '../lib/wiring.mjs';
 /** Fence version the current agents-md wiring template declares. */
 const CURRENT_FENCE = wiringTemplateVersion('agents-md.md');
 
+/** @param {string} s @returns {string} s with every line ending CRLF */
+const asCrlf = (s) => s.replace(/\r\n/g, '\n').replace(/\n/g, '\r\n');
+
 /** @returns {string} a fresh temp dir, cleaned up when the test ends */
 function sandbox(t) {
   const dir = mkdtempSync(join(tmpdir(), 'banana-project-'));
@@ -359,4 +362,21 @@ test('e2e: a filesystem error mid-run fails gracefully instead of throwing', asy
     scripted.lines.some((line) => line.startsWith('banana project:')),
     'graceful "banana project: <message>" line printed, not a raw stack trace',
   );
+});
+
+test('#19: a CRLF project AGENTS.md already carrying the current block reports (already current)', async (t) => {
+  const repo = repoSandbox(t);
+  const first = await runProject(FLAGS, { cwd: repo, io: scriptedIo().io });
+  assert.equal(first.code, 0);
+  const agentsPath = join(repo, 'AGENTS.md');
+  const crlf = asCrlf(readFileSync(agentsPath, 'utf8'));
+  writeFileSync(agentsPath, crlf);
+
+  const scripted = scriptedIo();
+  const second = await runProject(FLAGS, { cwd: repo, io: scripted.io });
+  assert.equal(second.code, 0);
+  assert.equal(second.wired?.changed, false);
+  const wiredLine = scripted.lines.find((line) => line.startsWith('wired AGENTS.md'));
+  assert.ok(wiredLine?.includes('(already current)'), `got: ${wiredLine}`);
+  assert.equal(readFileSync(agentsPath, 'utf8'), crlf, 'bytes unchanged');
 });

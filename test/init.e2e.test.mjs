@@ -28,6 +28,12 @@ function sandbox(t) {
   return dir;
 }
 
+/** Line-ending helpers (#19). */
+const asLf = (s) => s.replace(/\r\n/g, '\n');
+const asCrlf = (s) => asLf(s).replace(/\n/g, '\r\n');
+/** Whether two files hold the same text, CRLF read as LF. */
+const sameText = (a, b) => asLf(readFileSync(a, 'utf8')) === asLf(readFileSync(b, 'utf8'));
+
 /**
  * Snapshot every file under root: relative path -> content bytes.
  * @param {string} root
@@ -114,8 +120,8 @@ test('e2e: fresh init installs the canon dir and STATE.md plus wiring for detect
     const target = join(home, '.agents', 'canon', name);
     assert.ok(existsSync(target), `canon/${name} installed`);
     assert.ok(
-      readFileSync(target).equals(readFileSync(join(KIT_ROOT, 'canon', name))),
-      `canon/${name} is the bundled canon byte-for-byte`,
+      sameText(target, join(KIT_ROOT, 'canon', name)),
+      `canon/${name} is the bundled canon's text`,
     );
     assert.ok(
       readFileSync(target, 'utf8').includes('<!-- banana:canon rev '),
@@ -195,9 +201,8 @@ test('e2e: a stale canon file is refreshed to the bundled canon', async (t) => {
   });
   assert.equal(result.code, 0);
   assert.ok(
-    readFileSync(join(canonDir, 'CONTINUITY.md'))
-      .equals(readFileSync(join(KIT_ROOT, 'canon', 'CONTINUITY.md'))),
-    'stale canon file refreshed byte-for-byte',
+    sameText(join(canonDir, 'CONTINUITY.md'), join(KIT_ROOT, 'canon', 'CONTINUITY.md')),
+    'stale canon file refreshed to the bundled text',
   );
   assert.ok(lines.join('\n').includes('refreshed '), 'refresh reported');
 });
@@ -435,4 +440,35 @@ test('e2e: a filesystem error mid-run fails gracefully instead of throwing', asy
     lines.some((line) => line.startsWith('banana init:')),
     'graceful "banana init: <message>" line printed, not a raw stack trace',
   );
+});
+
+test('#19: a canon file that differs from the kit only in line endings is no change for init', async (t) => {
+  const home = sandbox(t);
+  const canonDir = join(home, '.agents', 'canon');
+  mkdirSync(canonDir, { recursive: true });
+  /** @type {Map<string, string>} */
+  const seeded = new Map();
+  for (const name of CANON_FILES) {
+    const kit = readFileSync(join(KIT_ROOT, 'canon', name), 'utf8');
+    const twin = kit.includes('\r\n') ? asLf(kit) : asCrlf(kit);
+    writeFileSync(join(canonDir, name), twin);
+    seeded.set(name, twin);
+  }
+  const { io, lines } = scriptedIo();
+
+  const result = await runInit(parseInitArgs(['--owner', 'alice', '--yes']), {
+    home,
+    env: NO_PATH,
+    io,
+  });
+
+  assert.equal(result.code, 0);
+  assert.deepEqual(lines.filter((line) => line.startsWith('refreshed ')), []);
+  assert.ok(
+    !result.created.some((path) => path.startsWith(canonDir)),
+    'no canon path reported created',
+  );
+  for (const [name, twin] of seeded) {
+    assert.equal(readFileSync(join(canonDir, name), 'utf8'), twin, `${name} bytes unchanged`);
+  }
 });

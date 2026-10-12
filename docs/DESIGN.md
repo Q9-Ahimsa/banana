@@ -247,12 +247,25 @@ silently prevented. Three moves, in order:
    disk during THIS run, after move 0 — via the resolved root above, threaded into the
    wiring-template lookups too (`lib/wiring.mjs`'s `wiringDir` override on
    `renderWiringTemplate`/`wiringTemplateVersion`/`adapter.wire`).
-2. **Canon + fence refresh (v1.2, unchanged by #6).** Refreshes `~/.agents/canon/` to the bundled
-   canon byte-for-byte, then re-applies the fenced wiring block to every already-wired harness file
+2. **Canon + fence refresh (v1.2; compare rule #19).** Refreshes `~/.agents/canon/` to the bundled
+   canon's text, then re-applies the fenced wiring block to every already-wired harness file
    whose block version is older than the current template, preserving the owner/tag the block was
    rendered with (`lib/fence.mjs`'s identity preservation, #16). User-owned surfaces (STATE.md,
    session logs, logbooks, anything outside a fence) are never touched, and unwired files are never
    created.
+
+**Line endings (#19).** For sync, a line-ending difference is never a change (init and project
+refit a same-version fence whose line endings differ from its host's, once). The canon refresh
+compares text with CRLF read as LF, so a canon file whose text matches the kit's modulo CRLF/LF is
+left untouched and prints nothing; a fence re-apply is gated on the block's version number, never
+its bytes. When sync does write, the target keeps the style it already has: a refreshed canon file
+keeps its own, and a re-fenced block takes the style of its host's text outside the fence (CRLF
+when CRLF line breaks outnumber LF ones, else LF; a host with no line break outside the fence
+counts as LF). A canon file or fenced harness file the kit creates is LF, and rendered wiring
+templates are LF however the kit was checked out (the user-owned seed files, such as STATE.md, are
+copied from their templates as-is). The rule lives in `lib/fence.mjs` (`toLf`, `eolOf`, `withEol`,
+`writeKitFile`, `spliceFence`); `init` installs the canon through the same `writeKitFile`, and
+`init`/`project` write fences through the same `spliceFence`.
 
 **Known limitation, documented not built around:** a canon file or adapter that is *new* in a
 release is not picked up mid-run — the running process keeps the file list (`CANON_FILES`,
@@ -284,7 +297,9 @@ Reports: detected harnesses; fence-block versions found in wired files. Audits (
 - **Upstream staleness (v1.2):** `stale-canon` — the home canon dir (`~/.agents/canon/`) is missing,
   or an installed canon file's version marker is older than the kit's bundled canon · `stale-fence`
   — any wired fence block (home adapters plus the project's `AGENTS.md`) is older than its
-  template's current version. Both findings name `sync` as the remediation.
+  template's current version. `stale-canon` names `banana sync`; `stale-fence` names the command
+  that re-fences that file (#19): `banana sync` for a home harness file, `banana project` for the
+  project's `AGENTS.md` (sync never touches project files).
 
 `--verify` prints (never executes) per-harness headless recital commands.
 
@@ -346,8 +361,9 @@ Each adapter module exposes `detect(home)`, `describe()`, and either `wire(home,
 adapters) or `compose(opts)` (write-through adapters). File adapters write ONLY via `lib/fence.mjs`
 (insert-or-replace a version-marked block, `<!-- banana:begin vN -->` … `<!-- banana:end -->`,
 creating the file if missing, preserving everything outside the fence byte-for-byte — idempotency
-is THE contract: second run must be byte-identical). Every shipped wiring template
-(`templates/wiring/*.md`) is currently fenced at `v2`. **Identity preservation (#16):** when a
+is THE contract: second run must be byte-identical). The block is written in the line-ending style
+of the host's text outside the fence, LF for a new file, so a CRLF file stays CRLF (#19). Every
+shipped wiring template (`templates/wiring/*.md`) is currently fenced at `v3`. **Identity preservation (#16):** when a
 fence-writing path rewrites or upgrades an EXISTING fence, it reads the agent tag and owner off
 that fence's own identity line (`lib/fence.mjs`'s `readPreservedIdentity`/`extractIdentity` —
 single-sourced there for every fence-writing path: `project`'s own `AGENTS.md` write, `init`'s
