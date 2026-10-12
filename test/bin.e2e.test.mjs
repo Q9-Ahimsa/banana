@@ -250,8 +250,10 @@ test('bin: `banana log supersede --help` documents --target-agent and --all', ()
   assert.ok(stdout.startsWith('Usage: banana log supersede'), `stdout: ${stdout}`);
   assert.ok(stdout.includes('--target-agent <tag>'), `stdout: ${stdout}`);
   assert.ok(stdout.includes('[--target-agent <tag>] [--all]'), `stdout: ${stdout}`);
-  assert.ok(stdout.includes('copy title/phase from with --target-agent, or pass --all on its own.'), `stdout: ${stdout}`);
-  assert.ok(stdout.includes('SUPERSEDES is id-keyed: every entry under the id is retired either way.'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('Duplicate ids: when <feature>.<n> names more than one entry, pass --all on\n'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes("its own, or, when the entries' authors differ, pick the one to copy\n"), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('title/phase from with --target-agent. SUPERSEDES is id-keyed: every entry\n'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('under the id is retired either way.\n'), `stdout: ${stdout}`);
   assert.ok(!stdout.includes('--target-date'), `stdout: ${stdout}`);
   assert.equal(stderr, '');
 });

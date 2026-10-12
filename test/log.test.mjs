@@ -939,6 +939,31 @@ test('supersede (#18): --target-agent WARNs that the id-keyed line retires every
   assert.ok(supersededIds(parseSessionLog(readLog(dir))).has('dup.1'));
 });
 
+test('supersede: --target-agent naming no author of the id is a state error (exit 2), log untouched', async () => {
+  const dir = makeProject(SEED + '\n## [2026-08-01] alice dup.1 | build — a version\nSTATUS: complete\nNEXT: alice — x\n');
+  const before = readLog(dir);
+  const res = await run(dir, ['supersede', 'dup.1', '--tag', 'testagent', '--target-agent', 'carol', ...DUP_TAIL]);
+  assert.equal(res.code, 2);
+  assert.match(res.err.join('\n'), /no dup\.1 entry authored by 'carol'/);
+  assert.equal(readLog(dir), before);
+});
+
+test('supersede (#18): the --target-agent WARN counts every entry under the id', async () => {
+  const dir = makeProject(SEED + '\n## [2026-08-01] alice dup.1 | build — a version\nSTATUS: complete\nNEXT: alice — x\n\n' + '## [2026-08-02] bob dup.1 | build — b version\nSTATUS: complete\nNEXT: bob — x\n\n' + '## [2026-08-03] carol dup.1 | build — c version\nSTATUS: complete\nNEXT: carol — x\n');
+  const res = await run(dir, ['supersede', 'dup.1', '--tag', 'testagent', '--target-agent', 'bob', ...DUP_TAIL]);
+  assert.equal(res.code, 0);
+  assert.match(res.err.join('\n'), /WARN: SUPERSEDES is id-keyed — this entry retires all 3 dup\.1 entries/);
+});
+
+test('supersede (#18): a validation failure after target resolution prints no retirement note and writes nothing', async () => {
+  const dir = projectWithSameAgentDup();
+  const before = readLog(dir);
+  const res = await run(dir, ['supersede', 'dup.1', '--tag', 'testagent', '--reason', 'x', '--status', 'complete', '--all']);
+  assert.equal(res.code, 1);
+  assert.doesNotMatch(res.err.join('\n'), /retires all/);
+  assert.equal(readLog(dir), before);
+});
+
 test('supersede: an archive-only target resolves with a stderr note naming the archive', async () => {
   const dir = makeProject(SEED + '\n## [2026-08-02] testagent cli.2 | build — two\nSTATUS: complete\nNEXT: t — x\n');
   makeArchive(dir, '2026-Q1.log', '## [2026-02-01] testagent cli.1 | build — archived one\nSTATUS: complete\nNEXT: t — x\n');
