@@ -70,10 +70,10 @@ Write a terminal STATUS + owned NEXT to your own open entry for <feature>.
 Closed entries are immutable; corrections go through \`banana log supersede\`.
 
 PowerShell:
-  banana log close myapp --tag testagent --status complete --next-owner ahimsa --next "review the shipped form"
+  banana log close myapp --tag testagent --status complete --next-owner alice --next "review the shipped form"
 
 POSIX:
-  banana log close myapp --tag testagent --status complete --next-owner ahimsa --next 'review the shipped form'
+  banana log close myapp --tag testagent --status complete --next-owner alice --next 'review the shipped form'
 
 Exit codes: 0 ok, 1 usage, 2 state`;
 

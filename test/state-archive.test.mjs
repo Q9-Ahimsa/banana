@@ -134,7 +134,7 @@ function buildMixedPage() {
     '\r\n',
     '## Backlog (owned)\n',
     '- testagent — ship the next slice\r\n',
-    '- ahimsa — review the shipped slice\n',
+    '- alice — review the shipped slice\n',
     '\r\n',
     '## Watch\n',
     '- (assumptions and deadlines needing attention, each with a validate-by date)\r\n',
@@ -295,7 +295,7 @@ test('parseStateArgs: `lint`/unknown-verb vocabulary names both verbs truthfully
 // =====================================================================
 
 test('runStateArchive: move removes exactly the matched bullet and nothing else (byte-exact)', async (t) => {
-  const page = buildPage({ backlog: ['- testagent — ship the next slice', '- ahimsa — review the shipped slice'] });
+  const page = buildPage({ backlog: ['- testagent — ship the next slice', '- alice — review the shipped slice'] });
   const { home, pagePath, archivePath } = makeHome(t, page);
 
   const result = await archive(home, { match: 'ship the next slice', reason: 'removed' });
@@ -307,14 +307,14 @@ test('runStateArchive: move removes exactly the matched bullet and nothing else 
 });
 
 test('runStateArchive: `trimmed` leaves the page byte-identical, archive still gets the record', async (t) => {
-  const page = buildPage({ backlog: ['- testagent — ship the next slice', '- ahimsa — review the shipped slice'] });
+  const page = buildPage({ backlog: ['- testagent — ship the next slice', '- alice — review the shipped slice'] });
   const { home, pagePath, archivePath } = makeHome(t, page);
 
   const result = await archive(home, { match: 'review the shipped slice', reason: 'trimmed' });
   assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
 
   assert.equal(readFileSync(pagePath, 'utf8'), page);
-  assert.ok(readFileSync(archivePath, 'utf8').includes('- ahimsa — review the shipped slice'));
+  assert.ok(readFileSync(archivePath, 'utf8').includes('- alice — review the shipped slice'));
   assert.ok(result.out.some((l) => l.includes('was not modified')));
 });
 
@@ -338,7 +338,7 @@ test('runStateArchive: record format is exact — header once, record heading + 
 
 test('runStateArchive: archive is created with the header, then appended (no duplicate header, one blank line between records)', async (t) => {
   const page = buildPage({
-    backlog: ['- testagent — ship the next slice', '- ahimsa — review the shipped slice'],
+    backlog: ['- testagent — ship the next slice', '- alice — review the shipped slice'],
   });
   const { home, archivePath } = makeHome(t, page);
 
@@ -356,7 +356,7 @@ test('runStateArchive: archive is created with the header, then appended (no dup
   const afterSecond = readFileSync(archivePath, 'utf8');
   assert.equal(
     afterSecond,
-    afterFirst + `## [${TODAY}] claude — removed · Backlog (owned)\n- ahimsa — review the shipped slice\n\n`,
+    afterFirst + `## [${TODAY}] claude — removed · Backlog (owned)\n- alice — review the shipped slice\n\n`,
   );
   // Exactly one header, exactly one blank line between the two records.
   assert.equal(afterSecond.split('# GLOBAL STATE — archive').length - 1, 1);
@@ -364,7 +364,7 @@ test('runStateArchive: archive is created with the header, then appended (no dup
 
 test('runStateArchive: a CRLF page stays CRLF (plain removal and sole-bullet placeholder-insertion)', async (t) => {
   const page = buildPage({
-    backlog: ['- testagent — ship the next slice', '- ahimsa — review the shipped slice'],
+    backlog: ['- testagent — ship the next slice', '- alice — review the shipped slice'],
     watch: ['- an assumption needing validation (validate-by: 2026-09-01)'],
     eol: '\r\n',
   });
@@ -493,7 +493,7 @@ test('runStateArchive: D1 — a matched bullet with continuation lines refuses, 
       '- testagent — a wrapped backlog item',
       '  continuation line one',
       '  continuation line two',
-      '- ahimsa — a second, plain item',
+      '- alice — a second, plain item',
     ],
   });
   const { home, pagePath, archivePath } = makeHome(t, page);
@@ -1007,7 +1007,7 @@ test('runStateArchive: an EXISTING but BLANK archive takes the PAGE\'s own line 
 
 test('runStateArchive: a lone-CR (old-Mac) page stays lone-CR — plain removal', async (t) => {
   const page = buildPage({
-    backlog: ['- testagent — ship the next slice', '- ahimsa — review the shipped slice'],
+    backlog: ['- testagent — ship the next slice', '- alice — review the shipped slice'],
     eol: '\r',
   });
   const { home, pagePath } = makeHome(t, page);
@@ -1037,7 +1037,7 @@ test('runStateArchive: a lone-CR (old-Mac) page stays lone-CR — sole-bullet pl
 
 test('runStateArchive: a leading BOM elsewhere on the page survives untouched (byte-exact)', async (t) => {
   const page = '﻿' + buildPage({
-    backlog: ['- testagent — ship the next slice', '- ahimsa — review the shipped slice'],
+    backlog: ['- testagent — ship the next slice', '- alice — review the shipped slice'],
   });
   const { home, pagePath } = makeHome(t, page);
 
@@ -1054,7 +1054,7 @@ test('runStateArchive: a leading BOM elsewhere on the page survives untouched (b
 
 test('runStateArchive: several byte-identical matches move the first occurrence and say so', async (t) => {
   const page = buildPage({
-    backlog: ['- testagent — a shared duplicate sentinel wording', '- ahimsa — an unrelated backlog item'],
+    backlog: ['- testagent — a shared duplicate sentinel wording', '- alice — an unrelated backlog item'],
     watch: ['- testagent — a shared duplicate sentinel wording'],
   });
   const { home, pagePath, archivePath } = makeHome(t, page);
@@ -1396,7 +1396,7 @@ test('runStateArchive: a REAL append failure (read-only archive, not a compose-r
 
 test('runStateArchive: `trimmed`\'s REAL append failure exits 2, still says "nothing written" (#20c H72)', async (t) => {
   const page = buildPage({
-    backlog: ['- testagent — ship the next slice', '- ahimsa — review the shipped slice'],
+    backlog: ['- testagent — ship the next slice', '- alice — review the shipped slice'],
   });
   const { home, pagePath, archivePath } = makeHome(t, page);
   const priorArchive =
@@ -1647,7 +1647,7 @@ test('runStateArchive: a genuinely MIXED-ending page WITH a leading BOM stays by
 
   const result = await archive(home, { match: 'review the shipped slice', reason: 'removed' });
   assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
-  const expected = page.replace('- ahimsa — review the shipped slice\n', '');
+  const expected = page.replace('- alice — review the shipped slice\n', '');
   assert.equal(readFileSync(pagePath, 'utf8'), expected);
   assert.ok(readFileSync(pagePath, 'utf8').startsWith('﻿# GLOBAL STATE'));
 });
@@ -1682,7 +1682,7 @@ test('runStateArchive: two matches differing only by trailing whitespace are a R
 
 test('runStateArchive: `trimmed`\'s own re-read guard catches a concurrent edit (#20c H35)', async (t) => {
   const page = buildPage({
-    backlog: ['- testagent — ship the next slice', '- ahimsa — review the shipped slice'],
+    backlog: ['- testagent — ship the next slice', '- alice — review the shipped slice'],
   });
   const { home, pagePath, archivePath } = makeHome(t, page);
   const mutatedByOther = page.replace('review the shipped slice', 'review a DIFFERENT slice entirely');
@@ -1742,7 +1742,7 @@ test('runStateArchive: guard 2 catches a SAME-LENGTH edit to a DIFFERENT line, m
 test('runStateArchive: `trimmed`\'s own guard catches a SAME-LENGTH edit to a DIFFERENT line too (#20c C41)', async (t) => {
   const page = buildPage({
     active: ['- **alpha** (as of 2026-09-30) — in progress → `~/projects/alpha/STATE.md`'],
-    backlog: ['- testagent — ship the next slice', '- ahimsa — review the shipped slice'],
+    backlog: ['- testagent — ship the next slice', '- alice — review the shipped slice'],
   });
   const { home, pagePath, archivePath } = makeHome(t, page);
   const otherSessionBump = page.replace('(as of 2026-09-30)', '(as of 2026-10-01)');
@@ -1858,7 +1858,7 @@ test('runStateArchive: --dry-run on a D3-refused move still refuses (#20c H60)',
 
 test('runStateArchive: --dry-run still shows the byte-identical-duplicates note (#20c H60)', async (t) => {
   const page = buildPage({
-    backlog: ['- testagent — a shared duplicate sentinel wording', '- ahimsa — an unrelated backlog item'],
+    backlog: ['- testagent — a shared duplicate sentinel wording', '- alice — an unrelated backlog item'],
     watch: ['- testagent — a shared duplicate sentinel wording'],
   });
   const { home, pagePath, archivePath } = makeHome(t, page);
@@ -2317,7 +2317,7 @@ test('runStateArchive: a page with more than one hard link is refused outright, 
 // (writes nothing, for ANY reason) both proceed.
 test('runStateArchive: a hard-linked page still proceeds for `--reason trimmed` (#20d G6/F6)', async (t) => {
   const page = buildPage({
-    backlog: ['- testagent — ship the next slice', '- ahimsa — review the shipped slice'],
+    backlog: ['- testagent — ship the next slice', '- alice — review the shipped slice'],
   });
   const { home, pagePath, archivePath } = makeHome(t, page);
   linkSync(pagePath, join(home, '.agents', 'canonical-STATE.md'));

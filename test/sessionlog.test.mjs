@@ -170,7 +170,7 @@ test('nextOwner: owned, unowned, and multi-word owners', () => {
   assert.equal(nextOwner('NEXT: claude — wire refresh into login flow'), 'claude');
   assert.equal(nextOwner('NEXT: decide rounding policy'), null);
   assert.equal(nextOwner('NEXT: claude - hyphen is not the canon dash'), null);
-  assert.equal(nextOwner('NEXT: ahimsa+claude — pair on the review'), 'ahimsa+claude');
+  assert.equal(nextOwner('NEXT: alice+claude — pair on the review'), 'alice+claude');
 });
 
 // --- per-feature grouping and entry dates ---

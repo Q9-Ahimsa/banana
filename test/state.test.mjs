@@ -97,7 +97,7 @@ const CLEAN_STATE = [
   '',
   '## Next',
   '- testagent — ship the next slice',
-  '- ahimsa — review the shipped slice',
+  '- alice — review the shipped slice',
   '',
   '## Blocked',
   '- (none)',
@@ -299,7 +299,7 @@ test('parseStateArgs archive: a repeated value flag throws', () => {
 
 test('classifyOwnerBullet: bold-wrapped owner with a colon-bearing action is owned', () => {
   assert.equal(
-    classifyOwnerBullet('- **ahimsa — piece-a: proceed once review ships**'),
+    classifyOwnerBullet('- **alice — piece-a: proceed once review ships**'),
     'owned',
   );
 });
@@ -309,11 +309,11 @@ test('classifyOwnerBullet: plain owner with a bold-wrapped action tail is owned'
 });
 
 test('classifyOwnerBullet: slash-joined bold-wrapped owner is owned', () => {
-  assert.equal(classifyOwnerBullet('- **ahimsa/editor — SAVE the draft before closing**'), 'owned');
+  assert.equal(classifyOwnerBullet('- **alice/editor — SAVE the draft before closing**'), 'owned');
 });
 
 test('classifyOwnerBullet: plus-joined plain owner is owned', () => {
-  assert.equal(classifyOwnerBullet('- ahimsa+testagent — pair on the migration'), 'owned');
+  assert.equal(classifyOwnerBullet('- alice+testagent — pair on the migration'), 'owned');
 });
 
 test('classifyOwnerBullet: the joint tag is owned', () => {
@@ -381,13 +381,13 @@ test('topLevelBullets: only unindented -/* bullets count, bounded to the next ##
     'prose line, excluded',
     '',
     '### Sub-heading, excluded as a bullet',
-    '* ahimsa — asterisk bullets count too',
+    '* alice — asterisk bullets count too',
     '## Blocked',
     '- testagent — must not appear, past the boundary',
   ].join('\n');
   assert.deepEqual(topLevelBullets(text, 'Next'), [
     '- testagent — top-level, included',
-    '* ahimsa — asterisk bullets count too',
+    '* alice — asterisk bullets count too',
   ]);
 });
 
@@ -1761,7 +1761,7 @@ test('F1: the "Rebuilt, never patched." wording variant inside a fence is not fl
 
 test('F1 (end-to-end via runStateLint): fenced Next + fenced retired-header phrase in a real file are both correctly ignored', async (t) => {
   const text =
-    CLEAN_STATE.replace('## Next\n- testagent — ship the next slice\n- ahimsa — review the shipped slice\n', '## Next\n- testagent — ship the next slice\n- ahimsa — review the shipped slice\n') +
+    CLEAN_STATE.replace('## Next\n- testagent — ship the next slice\n- alice — review the shipped slice\n', '## Next\n- testagent — ship the next slice\n- alice — review the shipped slice\n') +
     '\n```\nRebuilt whole, never patched.\n```\n';
   const res = await run(makeProject(t, { state: text }));
   assert.ok(!res.lines.some((l) => l.includes('retired-header')), `fenced phrase must not be flagged: ${res.lines}`);
@@ -1905,11 +1905,11 @@ test('F9: a bullet after a deeper "#### H4" or a "---" rule stays IN the Next se
 // owner match.
 
 test('F11: two spaces after the marker is still owned', () => {
-  assert.equal(classifyOwnerBullet('-  ahimsa — do X'), 'owned');
+  assert.equal(classifyOwnerBullet('-  alice — do X'), 'owned');
 });
 
 test('F11: a tab after the marker is still owned', () => {
-  assert.equal(classifyOwnerBullet('-\tahimsa — do X'), 'owned');
+  assert.equal(classifyOwnerBullet('-\talice — do X'), 'owned');
 });
 
 // --- F12: stamp matching is case-insensitive but otherwise exact ---------
@@ -2814,9 +2814,10 @@ test('lintGlobalState: E3/H67 — a page whose only Active/Backlog/Closed conten
 
 test('lintProjectState: E3/H67 — a `## Next` holding only a commented-out bullet does not FAIL unowned-next', () => {
   const text = CLEAN_STATE.replace(
-    '- testagent — ship the next slice\n- ahimsa — review the shipped slice',
+    '- testagent — ship the next slice\n- alice — review the shipped slice',
     '- <!-- owner — action, once we know -->',
   );
+  assert.notEqual(text, CLEAN_STATE, 'sanity: the replace must hit the CLEAN_STATE Next bullets');
   const findings = lintProjectState(text, { logbookText: CLEAN_LOGBOOK, sessionEntries: [] });
   assert.ok(!findings.some((f) => f.type === 'unowned-next'), JSON.stringify(findings));
 });
