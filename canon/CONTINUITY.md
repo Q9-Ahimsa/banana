@@ -1,5 +1,5 @@
-<!-- banana:canon rev 1.7 -->
-# CONTINUITY — cross-harness protocol (canonical) — v1.7
+<!-- banana:canon rev 1.8 -->
+# CONTINUITY — cross-harness protocol (canonical) — v1.8
 
 Any agent working on this machine or its repos follows this. The record is
 **file-based and harness-neutral**: no agent's private memory is the source of
@@ -92,10 +92,11 @@ report yet keep their single placeholder line rather than being omitted):
 > Chronology lives in project logbooks; this file only answers "what's live and
 > what's queued across everything." Owner: {owner}. Protocol:
 > `~/.agents/canon/CONTINUITY.md`.
-> One line per bullet: thread 400 · backlog 300 · watch 350 · closed 250 chars.
-> Closed lines carry `(closed YYYY-MM-DD)`. By the page's newest stamp, closed lines expire
-> at 8+ days and threads idle 31+ days move to Backlog. Never delete a line — except
-> a pasted secret, deleted outright. `banana state archive` moves the rest to STATE-archive.md.
+> One line per bullet: thread 400 (waiting form 160) · backlog 300 · watch 350 · closed 250 chars.
+> Against the newest (as of)/(closed) stamp: closed lines expire at 8+ days, threads idle 15+ days
+> and backlog lines (queued …) 22+ days leave; a watch past its (validate-by: …) date is checked.
+> Never delete a line — except a pasted secret, deleted outright. Before adding a line, any session
+> archives the lines lint flags to leave (`banana state archive`), keeping them in STATE-archive.md.
 
 ## Active threads
 - (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)
@@ -114,7 +115,10 @@ report yet keep their single placeholder line rather than being omitted):
 - **Session close:** if cross-project state changed (thread opened/closed,
   backlog item added), edit only the threads and items your session owns or
   changed — a targeted edit right after a fresh read, re-stamping each touched
-  thread's `(as of)` from its source. Never rewrite the whole page: several
+  thread's `(as of)` from its source. Before adding a line, first archive
+  every line lint flags to leave (see "The archive move" below). When your
+  thread's next step becomes someone else's, write it in the waiting form.
+  Never rewrite the whole page: several
   sessions write it concurrently, and a whole-page write from a stale read
   deletes their updates. Freshness is enforced by `banana state lint --global`,
   not by rebuilding. Chronology does not live here; it lives in project
@@ -122,7 +126,11 @@ report yet keep their single placeholder line rather than being omitted):
 - **Freshness stamp** — every Active-threads bullet carries `(as of
   YYYY-MM-DD)`, the newest source it was rebuilt from (normally its project
   STATE's as-of); a project STATE dated later than the stamp means the
-  thread is stale, and `banana state lint --global` FAILs it.
+  thread is stale, and `banana state lint --global` FAILs it. At session
+  close, right after the fresh read, a session that worked a thread may
+  re-stamp its `(as of)` to the heading date of its own newest session-log
+  entry for that work, in that project's `.agents/session.log`; a stamp
+  never moves forward without such a source.
 - **Limits and the one-line rule** (v1.7, ADR 0006) — the rule: every
   top-level bullet is written as one physical line, nothing else following
   it. A bullet has already broken that rule the moment it carries even one
@@ -139,34 +147,75 @@ report yet keep their single placeholder line rather than being omitted):
   line at its own char limit (thread 400 · backlog 300 · watch 350 · closed
   250): WARNs `line-over-limit` when that line alone is over its cap, and
   WARNs `bullet-wrapped` separately the moment any continuation line exists
-  at all, however short — join it back onto one line.
+  at all, however short — join it back onto one line. A thread in the
+  waiting form caps at 160 (see "Waiting form" below).
+- **Waiting form** (v1.8) — a thread whose next step is someone else's (the
+  owner's review, ruling or action, or an outside party) is written in the
+  waiting form, at most 160 chars: `**name** (as of YYYY-MM-DD) — waiting on
+  {who}: {the ask} → pointer`. The marker is the exact lower-case text ` —
+  waiting on ` directly after the `(as of …)` stamp, then `{who}` (1-40
+  chars, no colon), `: ` and the ask. It only selects the cap (lint cannot
+  tell a waiting thread from a live one); every other Active-threads rule
+  still applies, and its stamp still counts toward the reference date. When
+  the wait ends, the session that picks the thread up rewrites it in the
+  full form.
+- **Near-cap** (v1.8) — `banana state lint --global` WARNs `near-cap` past
+  9,000 chars: archive the flagged lines first, then write your own waiting
+  threads in the waiting form. If it fires in two different weeks in a row,
+  the session that sees it proposes lowering the thread limit to 10 days and
+  the owner rules; per-section budgets are a later option, also the
+  owner's. No session changes a limit on its own.
 - **Closed stamp and expiry** — a Recently-closed bullet carries `(closed
   YYYY-MM-DD)`, parsed with the same hardened rules as the freshness stamp
   above. It expires when its stamp is more than 7 days before the page's own
   reference date — the newest valid Active-threads `(as of …)` or
-  Recently-closed `(closed …)` stamp on the page (Watch and Backlog never
-  carry this stamp convention, so they are never counted), never the clock.
-- **Thread inactivity** — an Active-threads bullet whose `(as of)` stamp is
-  more than 30 days before that same reference date — 31 or more — becomes
-  a Backlog line instead of staying put, unless that same bullet already
-  FAILs `thread-stale`: the two remedies contradict (refresh the stamp vs.
-  archive the thread), so a stale bullet skips `thread-inactive` until its
-  stamp is refreshed. `banana state lint --global` WARNs both
-  `closed-expired` and `thread-inactive` (judgment calls, not mechanical
+  Recently-closed `(closed …)` stamp on the page (Backlog `(queued …)` and
+  Watch `(validate-by: …)` stamps are measured against it but never feed it,
+  so they are never counted), never the clock.
+- **Thread inactivity** — an Active-threads bullet, in either form, whose
+  `(as of)` stamp is more than 14 days before that same reference date — 15
+  or more — leaves the page: archive it (`--reason inactive`); nothing
+  replaces it, because its next step already lives at its pointer. Only the
+  owner re-queues it as a Backlog item; a session that works the thread
+  again re-adds its Active line at that session's close, stamped from a real
+  source. A bullet that already FAILs `thread-stale` skips `thread-inactive`
+  until its stamp is refreshed: the two remedies contradict (refresh the
+  stamp vs. archive the thread). `banana state lint --global` WARNs
+  `closed-expired`, `thread-inactive` and `backlog-dormant` (advice, not
   defects — the page-wide cap stays the FAIL backstop).
+- **Queued stamp** (v1.8) — every Backlog (owned) bullet carries `(queued
+  YYYY-MM-DD)`, the day it was added, after the owner's ` — `: `{owner} —
+  name (queued YYYY-MM-DD): action → pointer`. Editing never changes it;
+  only a re-queue on the owner's word writes a new date, in place of the old
+  one — with two stamps the oldest counts, so an added stamp renews nothing.
+  An item goes dormant when its stamp is more than 21 days before the page's
+  reference date — 22 or more — agent items too, unless the owner renews it;
+  it leaves with `--reason dormant` and nothing replaces it. A stamp before
+  the owner's ` — ` FAILs `backlog-unowned` and still counts. `banana state
+  lint --global` WARNs `backlog-undated` and `backlog-dormant`.
+- **Watch date** (v1.8) — every Watch bullet carries `(validate-by:
+  YYYY-MM-DD)`, the date it is next checked; a watch that waits on an event
+  still gets the date it will next be checked, keeping the event in its
+  text. Once the page's reference date is past it, `banana state lint
+  --global` WARNs `watch-due`: the owner, or a session working on what the
+  line names, checks it and writes a new date in place of the old one;
+  dropping it (`--reason removed`) is the owner's call. A due Watch line is
+  never moved on sight. No valid stamp WARNs `watch-undated`.
 - **The archive move** — removal from the page is never a deletion: any
   line leaving it — or the long form of a line being trimmed in place — is
   first copied verbatim into the append-only `~/.agents/STATE-archive.md`,
   via `banana state archive --reason
-  <expired|inactive|trimmed|closed|removed>`, before it is removed; the
+  <expired|inactive|dormant|trimmed|closed|removed>`, before it is removed; the
   archive is never loaded at session start, searched with `grep` only. The
-  five reasons: `expired` (a closed line past its expiry), `inactive` (an
-  idle thread becoming a one-line Backlog item), `trimmed` (the archive
+  six reasons: `expired` (a closed line past its expiry), `inactive` (an
+  idle thread leaving the page), `dormant` (a Backlog item past its
+  dormancy), `trimmed` (the archive
   keeps a copy only — the live line is shortened in place by hand),
   `closed` (a finished Active thread: archive its line, add a
   Recently-closed line), `removed` (anything else the owner drops).
   `expired` only targets a Recently-closed line; `inactive` and `closed`
-  only target an Active-threads line; `trimmed`/`removed` have no such
+  only target an Active-threads line; `dormant` only targets a Backlog
+  (owned) line; `trimmed`/`removed` have no such
   restriction, and the command refuses, naming the right section, when a
   reason targets the wrong one. A routine status update to your own thread
   is not a removal — its history already lives at the pointer target — and
@@ -174,29 +223,45 @@ report yet keep their single placeholder line rather than being omitted):
   placeholder line giving way to that section's first real bullet;
   archiving applies only when text leaves the page outright or a line is
   trimmed. Exception to "edit only your own threads" above: any session may
-  archive an `expired` closed line on sight — no judgment is needed to
-  recognize one.
+  archive, on sight, a line that `banana state lint --global` WARNs
+  `closed-expired`, `thread-inactive` or `backlog-dormant` — a date
+  comparison that authors nothing, re-checked by the archive against the
+  real clock — and a session about to add a line to the page first archives
+  every such line. This is a filing step, not initiative under rule 5: the
+  dates have already decided, and nothing is re-planned. If the archive
+  reports no match and a fresh read shows the line gone, another session
+  moved it first — a normal outcome, not an error. After the archive exits
+  0, name each moved line to the owner in your reply. Nothing else about
+  another session's line is on sight: trimming, closing, rewriting into the
+  waiting form, re-queuing a Backlog item or re-stamping a thread stays with
+  its owning session or the owner, and a due Watch line is re-dated only as
+  "Watch date" above allows.
 - **The archive command is the clock-aware gate** — `banana state lint`
   stays clock-free (ADR 0004): a mistyped future stamp can make it WARN a
   whole page expired or inactive, and that is fine, because lint never
   changes anything. `banana state archive` is the side that acts, and it
-  does read the clock — which means its `expired`/`inactive` gate can
-  disagree with lint's own `closed-expired`/`thread-inactive` WARNs: lint
+  does read the clock — which means its `expired`/`inactive`/`dormant` gate
+  can disagree with lint's own
+  `closed-expired`/`thread-inactive`/`backlog-dormant` WARNs: lint
   compares a stamp against the page's reference date, the gate compares the
   same stamp against today, and those two dates differ whenever the page's
   newest stamp isn't dated today, so a line can pass one check before the
   other catches up. For `--reason expired` it refuses unless the line's own
   `(closed …)` stamp is more than 7 days before today; for `--reason
-  inactive` it refuses unless the `(as of …)` stamp is more than 30 days
-  before today. A missing stamp refuses and suggests `--reason removed`.
+  inactive` it refuses unless the `(as of …)` stamp is more than 14 days
+  before today, and it also refuses a thread whose project page is newer
+  than that stamp — refresh the stamp instead; for `--reason dormant` it
+  refuses unless the `(queued …)` stamp is more than 21 days before today.
+  A missing stamp refuses and suggests `--reason removed`.
   The gate is LINE-SCOPED: it refuses on a future-dated stamp only when
   that stamp sits on the MATCHED line itself, naming it so it can be fixed
   first; a future-dated stamp on any OTHER Active-threads `(as of …)` or
   Recently-closed `(closed …)` line — the same two non-placeholder sections
   and keywords the reference date itself reads above, so Watch and Backlog
   are never scanned for it either — never blocks the move: the gate's own
-  verdict is decided entirely by the matched line's own stamp against the
-  real clock, so a stray mistake elsewhere cannot make that decision wrong.
+  verdict is decided by the matched line alone — its own stamp against the
+  real clock and, for `--reason inactive`, its own pointer's project page —
+  so a stray mistake elsewhere cannot make that decision wrong.
   The command still proceeds in that case, printing one note naming the
   other line and its stamp so its owner can be told.
 - **Secrets** — a credential, token, or key pasted onto the page is deleted
@@ -360,7 +425,8 @@ for a single log entry.)
   exactly when this session promoted or the dirty marker stands —
   `STANDARD.md` §3's two-trigger test; global STATE.md: never rebuilt — edit
   only the threads and items this session owns or changed, right after a
-  fresh read, per the Global-grain per-thread-edits rule above). Conflicts
+  fresh read, per the Global-grain per-thread-edits rule above, after first
+  archiving the lines lint flags to leave). Conflicts
   with concurrently-landed work reconcile here, not mid-flight.
 
 Counter-failure: mutable shared files changing under a session mid-task.
@@ -626,3 +692,30 @@ changes.
     the global page used to leave no trace at all — unlike every other record
     on this machine (session.log and LOGBOOK.md are append-only with ids,
     project STATE lines cite logbook ids), it simply vanished.
+
+v1.8 amends the **global-grain outflow** rules (ADR 0007 in the kit repo).
+Nothing else changes.
+
+18. **Threads and Backlog leave by date; Watch gets a due date** — an
+    Active-threads bullet whose `(as of)` stamp trails the page's reference
+    date by fifteen days or more leaves the page whole (`--reason
+    inactive`); nothing replaces it, because its next step lives at its
+    pointer. A thread whose next step is someone else's is written in the
+    waiting form, ` — waiting on {who}: ` directly after its stamp, capped at
+    160 chars. Every Backlog (owned) bullet carries `(queued YYYY-MM-DD)`,
+    the day it was added, which only a re-queue on the owner's word
+    replaces; it goes dormant at twenty-two days or more and leaves with
+    `--reason dormant`. Every Watch bullet carries `(validate-by:
+    YYYY-MM-DD)`; a due line WARNs `watch-due` and is re-dated by the owner
+    or a session working on what it names, never moved on sight. Neither new
+    stamp feeds the reference date. `banana state lint --global` WARNs
+    `near-cap` past 9,000 chars. Exception to item 16's "edit only your own
+    threads", widened from item 17: any session may archive, on sight, a
+    line lint WARNs `closed-expired`, `thread-inactive` or `backlog-dormant`,
+    and a session about to add a line first archives every such line — a
+    filing step, not initiative under rule 5. `banana state archive --reason
+    inactive` also refuses a thread whose project page is newer than its
+    stamp. At close, a session that worked a thread may re-stamp it from the
+    heading date of its own newest session-log entry for that work.
+    Counter-failure: the page refilled to its cap within a week of v1.7's
+    cleanup, because only one section had an outflow.

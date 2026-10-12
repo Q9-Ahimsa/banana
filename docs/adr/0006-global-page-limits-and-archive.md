@@ -1,5 +1,7 @@
 # Global page gets line limits, closed-stamp expiry, thread inactivity, and an archive
 
+Amended by ADR 0007 (canon v1.8): the 30-day inactivity limit (now 14), the on-sight scope, the inactive remedy, and the D3 gate's inactive verdict.
+
 Decided (2026-10-01, ratified by Ahimsa). The global page (`~/.agents/STATE.md`) has a
 10,000-char cap (FAIL, ADR 0004) but no rule that ever shrinks it: sessions may edit only
 their own threads (ADR 0005), nothing expires, so the page only ever grows. The over-cap

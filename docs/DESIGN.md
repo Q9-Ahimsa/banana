@@ -7,11 +7,12 @@
 
 A harness-neutral continuity kit. It installs a file-based coordination protocol shared by every
 AI agent (Claude Code, Pi, Codex, Hermes, …) and human on a machine, so that work survives session
-death and no agent's private memory becomes load-bearing. Five commands: `init` (machine wiring),
+death and no agent's private memory becomes load-bearing. Seven commands: `init` (machine wiring),
 `project` (repo init), `brief` (per-intent context compiler), `doctor` (audits), `sync` (propagates
-upstream canon and wiring changes).
+upstream canon and wiring changes), `log` (stamps session-log entries), `state` (lints a STATE
+page; archives a global-page line) — plus a bare `version` subcommand.
 
-## The architecture being shipped (canon v1.3)
+## The architecture being shipped (canon v1.3 baseline; later revisions in the canon changelog)
 
 The protocol's v1 lives at the canon source paths listed in prd.json. v1.1 adds the
 **pollution-control architecture**:
@@ -78,7 +79,7 @@ v1.3 amends the **project-STATE maintenance discipline** (ADR 0001,
     each ensuring the dirty-marker line (`> ⚠ patched since last rebuild — log is authority`) as
     the final line of the header block; the close-time rebuild's judgment-free trigger extends to
     promotion OR standing marker, and the rebuild removes the marker. Recovery is lazy: a standing
-    marker obliges nothing at open. The global page is unchanged (rebuilt whole, never patched).
+    marker obliges nothing at open. The global page is unchanged (rebuilt whole, never patched — true at v1.3; replaced by per-thread edits in v1.6, ADR 0005).
     Enforcement — doctor and `state lint` WARN on a standing marker — ships with the state-lint
     work, not this amendment. Counter-failure: per-touch rebuild cost driving silent
     rebuild-skipping; loud staleness (the marker) replaces silent staleness.
@@ -596,11 +597,16 @@ comparison (the global page has none). `home` is always injected through
 | WARN | `thread-unverifiable` | the bullet has a pointer, but it does not resolve to a readable file named `STATE.md` (a memory file, a missing path, a relative path, ...) |
 | WARN | `thread-target-undated` | the pointer resolves to a readable STATE.md with no `as of YYYY-MM-DD` date (incl. the bootstrap placeholder) |
 | WARN | `retired-header` | the page's HEADER (not the body — #11 Part 1b) still carries the pre-amendment "rebuilt whole, never patched" rule — this global-mode message points to ADR 0005 (per-thread edits, #15) |
-| WARN | `line-over-limit` | a non-placeholder top-level bullet's OWN physical line (continuation lines, if any, are a separate `bullet-wrapped` finding, not folded into this length) exceeds its section's char limit (`SECTION_LINE_LIMITS`, #20/#20b, ADR 0006): `## Active threads` 400 · `## Backlog (owned)` 300 · `## Watch` 350 · `## Recently closed (context for next session)` 250 |
+| WARN | `line-over-limit` | a non-placeholder top-level bullet's OWN physical line (continuation lines, if any, are a separate `bullet-wrapped` finding, not folded into this length) exceeds its section's char limit (`SECTION_LINE_LIMITS`, #20/#20b, ADR 0006): `## Active threads` 400 · `## Backlog (owned)` 300 · `## Watch` 350 · `## Recently closed (context for next session)` 250; an Active-threads line carrying the waiting-form marker (`isWaitingThread`) caps at `WAITING_LINE_LIMIT` (160) instead |
 | WARN | `bullet-wrapped` | a non-placeholder top-level bullet in any of the four sections has one or more continuation lines at all (#20b, ADR 0006, decision D1) — remedy: join it back onto one line |
 | WARN | `closed-undated` | a non-placeholder `## Recently closed` bullet has no valid `(closed YYYY-MM-DD)` stamp (#20) — covers both "no stamp" and "every stamp present is date-shaped but impossible" |
 | WARN | `closed-expired` | a non-placeholder `## Recently closed` bullet's `(closed …)` stamp is more than `CLOSED_EXPIRY_DAYS` (7) before the #20 reference date (equal to 7 passes) — only evaluated when the bullet has a valid stamp and the page has a reference date |
-| WARN | `thread-inactive` | a non-placeholder `## Active threads` bullet's `(as of …)` stamp is more than `THREAD_INACTIVE_DAYS` (30) before the #20 reference date (equal to 30 passes) — only evaluated when the bullet has a valid stamp and the page has a reference date, AND the same bullet does not already FAIL `thread-stale` (#20b lane 1 item 4 — the two remedies contradict, refresh the stamp vs. archive the thread, so a stale bullet skips this WARN until its stamp is refreshed) |
+| WARN | `thread-inactive` | a non-placeholder `## Active threads` bullet's `(as of …)` stamp is more than `THREAD_INACTIVE_DAYS` (14) before the #20 reference date (equal to 14 passes) — only evaluated when the bullet has a valid stamp and the page has a reference date, AND the same bullet does not already FAIL `thread-stale` (#20b lane 1 item 4 — the two remedies contradict, refresh the stamp vs. archive the thread, so a stale bullet skips this WARN until its stamp is refreshed) |
+| WARN | `backlog-undated` | a non-placeholder `## Backlog (owned)` bullet has no valid `(queued YYYY-MM-DD)` stamp (canon v1.8, ADR 0007) — the stamp is read wherever it sits (a stamp before the owner's ` — ` also FAILs `backlog-unowned`) |
+| WARN | `backlog-dormant` | a non-placeholder `## Backlog (owned)` bullet's `(queued …)` stamp is more than `BACKLOG_DORMANT_DAYS` (21) before the reference date (equal to 21 passes) — only evaluated with a valid stamp and a reference date; the remedy is `--reason dormant`, and renewing is the owner's word only |
+| WARN | `watch-undated` | a non-placeholder `## Watch` bullet has no valid `(validate-by: YYYY-MM-DD)` stamp — the colon is part of the keyword, so `(validate-by 2026-…)` is undated |
+| WARN | `watch-due` | a non-placeholder `## Watch` bullet's `(validate-by: …)` date is before the reference date (the same day passes) — only evaluated with a valid stamp and a reference date; never moved on sight: the owner, or a session working on what the line names, writes a new date in place of the old one |
+| WARN | `near-cap` | the page is longer than `STATE_NEAR_CAP_CHARS` (9,000) and not over the 10,000 cap — global mode only; above the cap only `over-cap` fires |
 
 Global mode never flags `dirty-marker`: ADR 0005's per-thread edits (#15)
 introduced no marker convention for a mid-arc patched global page, so there
@@ -613,13 +619,15 @@ different migration (ADR 0005, not ADR 0001).
 **#20/#20b reference date, line limits, closed expiry, thread inactivity**
 (ADR 0006). The global page's only FAIL-tier cap is the whole-page
 `over-cap`; nothing ever shrinks the page on its own —
-`line-over-limit`, `bullet-wrapped`, `closed-undated`, `closed-expired`, and
-`thread-inactive` are the five WARNs that surface the residue a model
+`line-over-limit`, `bullet-wrapped`, `closed-undated`, `closed-expired`,
+`thread-inactive`, `backlog-undated`, `backlog-dormant`, `watch-undated`,
+`watch-due` and `near-cap` are the ten WARNs that surface the residue a model
 should prune (the per-section char limits `line-over-limit` measures are
-real numeric caps, just WARN-tier, not FAIL-tier, ones). Four of the five
-need judgment to fix (what to cut, what a Backlog line should say, whether
-an idle thread is really done); `bullet-wrapped`'s own fix is mechanical
-(join the line) but it stays the same WARN tier as the other four for
+real numeric caps, just WARN-tier, not FAIL-tier, ones). Most need judgment
+to fix (what to cut, whether a due watch still holds); the date-driven moves
+(`closed-expired`, `thread-inactive`, `backlog-dormant`) need none and may be
+done on sight (canon v1.8, ADR 0007). `bullet-wrapped`'s own fix is mechanical
+(join the line) but it stays the same WARN tier as the others for
 consistency — see ADR 0006. The page-wide `over-cap` FAIL stays the
 mechanical backstop regardless.
 
@@ -656,11 +664,12 @@ text belongs to a bullet.
 
 The **reference date** every date comparison here uses is the newest real
 calendar date among the page's own non-placeholder Active-threads
-`(as of …)` and Recently-closed `(closed …)` stamps — Watch and Backlog
-never carry this stamp convention, so they are never counted either
-(#20d H52) — never the clock (this module never reads it) and never just the
+`(as of …)` and Recently-closed `(closed …)` stamps — Backlog `(queued …)`
+and Watch `(validate-by: …)` stamps are measured against it but never
+counted toward it (#20d H52, v1.8) — never the clock (this module never
+reads it) and never just the
 first stamp on the page, since per-thread edits land bullets out of date
-order; with no valid stamp anywhere, both date checks are skipped. A
+order; with no valid stamp anywhere, every date check is skipped. A
 `(closed YYYY-MM-DD)` stamp is parsed with the exact same hardened
 shape/case/real-date rules as the Active-threads `(as of YYYY-MM-DD)` stamp
 (just a different keyword), and, like it, is never read out of an inline
@@ -675,9 +684,11 @@ the same OLDEST-wins rule ADR 0004's review hardening (its finding F6)
 already established for the Active-threads freshness stamp. `closed-expired`
 fires when a closed stamp is more than `CLOSED_EXPIRY_DAYS` (7) days before
 the reference date; `thread-inactive` fires when an `(as of)` stamp is more
-than `THREAD_INACTIVE_DAYS` (30) days before it — both WARN the moment the
-gap exceeds the threshold (8 and 31 days respectively), never at the
-threshold itself.
+than `THREAD_INACTIVE_DAYS` (14) days before it — both WARN the moment the
+gap exceeds the threshold (8 and 15 days respectively), never at the
+threshold itself. `backlog-dormant` fires at 22 days or more
+(`BACKLOG_DORMANT_DAYS` (21)), and `watch-due` one day past its
+`(validate-by: …)` date.
 
 The Recently-closed placeholder's wording changed with #20 (the old
 pointer-only phrasing is replaced by one naming the `(closed YYYY-MM-DD)`
@@ -724,7 +735,7 @@ would silently drop `stale-vs-logbook`/its date comparisons).
 
 ## `state archive` — contract
 
-`banana state archive --global --match <text> --reason <expired|inactive|trimmed|closed|removed>
+`banana state archive --global --match <text> --reason <expired|inactive|dormant|trimmed|closed|removed>
 --tag <agent> [--dry-run]` moves (or, for `trimmed`, copies) exactly one
 non-placeholder top-level bullet off the global page
 (`<home>/.agents/STATE.md`) into an append-only archive
@@ -741,9 +752,10 @@ or `{ verb: 'archive', global, match, reason, tag, dryRun }` — reusing
 `topLevelBullets`, the D1 continuation-line helper, `isPlaceholderBullet`,
 `REQUIRED_GLOBAL_SECTIONS`) rather than re-parsing the page.
 
-The five reasons, defined once (canon `CONTINUITY.md`'s "archive move"
+The six reasons, defined once (canon `CONTINUITY.md`'s "archive move"
 bullet is the normative copy): `expired` (a closed line past its expiry),
-`inactive` (an idle thread becoming a one-line Backlog item), `trimmed`
+`inactive` (an idle thread leaving the page), `dormant` (a Backlog item past
+its dormancy), `trimmed`
 (copy only — the live line is shortened in place by hand), `closed` (a
 finished Active thread: archive its line, add a Recently-closed line), and
 `removed` (anything else the owner drops).
@@ -752,7 +764,7 @@ finished Active thread: archive its line, add a Recently-closed line), and
 instead) — its absence, like any other usage problem (a missing
 `--match`/`--reason`/`--tag`, an unknown flag, a `--match`/`--tag` value
 that is empty or whitespace-only (#20c E8), or a `--reason` outside the
-five-value vocabulary), exits `2`. `--tag` is checked by the exact same
+six-value vocabulary), exits `2`. `--tag` is checked by the exact same
 validator `banana log --tag` already uses (#20c E8, one definition of a
 valid tag, not two). Exit codes: `0` ok, `2` usage or
 state — unlike `state lint`, there is no FAIL/`1` tier here: archive moves
@@ -787,20 +799,22 @@ scan, so the two tools can never disagree about what counts as a comment.
 **A reason only applies to the one section it is defined for (#20c item 2,
 closing C37's remaining gap).** `--reason expired` only ever targets a
 `Recently closed` bullet; `--reason inactive` and `--reason closed` only
-ever target an `Active threads` bullet — `trimmed`/`removed` carry no such
+ever target an `Active threads` bullet; `--reason dormant` only ever targets
+a `Backlog (owned)` bullet — `trimmed`/`removed` carry no such
 restriction and work on a bullet in any of the four sections. A match
 outside the right section refuses, exit `2`, naming the section the reason
 requires and suggesting `--reason removed` instead; this check runs before
-the clock-aware gate below, so a Watch or Backlog line that happens to
-contain stamp-shaped text can't slip past that gate's "no stamp found"
-refusal by accident.
+the clock-aware gate below, so a line outside the reason's own section that
+happens to contain stamp-shaped text can't slip past that gate's "no stamp
+found" refusal by accident.
 
 **The clock-aware safety gate (#20b decision D3, refined #20c E10, re-scoped
 #20d H17).** `state lint` stays clock-free (ADR 0004); `state archive` is
 the one place in this feature allowed to read `now`, and it uses that to
 double-check a reason before acting, reusing `lib/state.mjs`'s own stamp
 parser rather than a second one. This means the gate's own verdict can
-disagree with lint's `closed-expired`/`thread-inactive` WARNs: lint compares
+disagree with lint's `closed-expired`/`thread-inactive`/`backlog-dormant`
+WARNs: lint compares
 a stamp against the page's reference date, the gate compares the same stamp
 against today, and those two dates differ whenever the page's newest stamp
 isn't dated today — a line can clear one check before the other. When a
@@ -808,23 +822,26 @@ matched line carries more than one valid stamp of the relevant keyword, the
 gate compares against the SAME stamp lint's own WARN already picked (the
 oldest valid one, #20c E10) — not a second, independently-invented
 selection rule, so the gate never refuses a line lint has already called
-expired/inactive using a different stamp than lint used.
+expired/inactive/dormant using a different stamp than lint used.
 `--reason expired` refuses (exit `2`) unless the matched line's own
 `(closed …)` stamp is more than 7 days before today; `--reason inactive`
-refuses unless its `(as of …)` stamp is more than 30 days before today.
-Either reason refuses on a missing stamp, suggesting `--reason removed`
+refuses unless its `(as of …)` stamp is more than 14 days before today, and
+also refuses a thread whose project page is newer than that stamp (the
+`thread-stale` test) — refresh the stamp instead; `--reason dormant` refuses
+unless its `(queued …)` stamp is more than 21 days before today.
+Each gated reason refuses on a missing stamp, suggesting `--reason removed`
 instead. The gate is LINE-SCOPED (#20d H17, replacing the earlier #20c
 page-wide scan): it refuses on a future-dated stamp only when that stamp
 sits on the MATCHED line's own — naming it, so that stamp can be fixed
-first — because the gate's whole verdict is decided by the matched line's
-own stamp against the real clock, and a future-dated mistake on some OTHER
+first — because the gate's whole verdict is decided by the matched line
+alone (and, for `inactive`, its own pointer's project page), and a
+future-dated mistake on some OTHER
 line can never make that decision wrong. A future-dated stamp elsewhere
 never blocks the move: the command still proceeds and prints one note
 naming that other line and its stamp (scanning the SAME two non-placeholder
 Active-threads/Recently-closed sections and keywords the reference date
-itself reads, #20d H52 — Watch and Backlog never carry this stamp
-convention, so neither the gate nor the note ever reads them), so its owner
-can be told.
+itself reads, #20d H52 — Backlog and Watch stamps are never read for the
+note), so its owner can be told.
 
 **Record.** The archive file is created with this header if it doesn't
 exist yet (#20c E6 — names the one exception to "append-only", a pasted
@@ -901,8 +918,8 @@ reason.
 
 **`trimmed` copies only** — the page is never modified for this reason,
 only read and recorded; the CLI prints a reminder to shorten the line in
-place instead. Every other reason (`expired`, `inactive`, `closed`,
-`removed`) removes the matched bullet (exactly one physical line — see
+place instead. Every other reason (`expired`, `inactive`, `dormant`,
+`closed`, `removed`) removes the matched bullet (exactly one physical line — see
 Matching above) from the page. If removing it leaves its section with no
 top-level bullet left, that section's placeholder line is inserted in its
 place — read from `templates/global-STATE.md` AT RUNTIME (never cached,
@@ -926,8 +943,12 @@ than splitting and rejoining the whole file, so this holds even on a page
 with mixed endings.
 
 **Output.** On success: `archived (<reason>): <section> · "<first 60
-chars>" → <archive path>`; `inactive` additionally prints a reminder to add
-an owned `Backlog (owned)` line for the thread. `--dry-run` prints the same
+chars>" → <archive path>`; `inactive` additionally prints `reminder: this
+thread is off the page now — name it to the owner in your reply; its next
+step stays at its pointer, and only the owner re-queues it as a Backlog
+item`, and `dormant` prints `reminder: this item is off the page now — name
+it to the owner in your reply; reviving it means a fresh line with today's
+(queued …) stamp, on the owner's word`. `--dry-run` prints the same
 record and action/reminder lines but prefixes every one of them with
 `dry run — `, so the output can never be mistaken for the real success
 wording, and writes nothing.

@@ -37,7 +37,7 @@ const VERSION_MARKER_RE = /<!-- banana:canon rev (\d+\.\d+) -->/;
 
 // Per-file revisions — a file's marker bumps when its protocol text changes.
 const EXPECTED_REVS = {
-  'CONTINUITY.md': '1.7',
+  'CONTINUITY.md': '1.8',
   'STANDARD.md': '1.3',
   'SESSION-LOG.md': '1.4',
 };
@@ -204,9 +204,130 @@ test('CONTINUITY.md carries the v1.7 limits/expiry/archive amendment (ADR 0006)'
     text.includes('it simply vanished'),
     'CONTINUITY.md missing the v1.7 Counter-failure sentence'
   );
+  // No title-version assertion here: the exact current title is pinned once,
+  // by the newest amendment's own test (below) and by the generic
+  // 'every canon file carries its expected version marker' test.
+});
+
+test('CONTINUITY.md carries the v1.8 global-page outflow amendment (ADR 0007)', () => {
+  const text = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
+  const flat = flatten(text);
+  assert.ok(text.includes('— v1.8'), 'CONTINUITY.md title not bumped to v1.8');
   assert.ok(
-    text.includes('— v1.7'),
-    'CONTINUITY.md title not bumped to v1.7'
+    flat.includes('v1.8 amends the **global-grain outflow** rules (ADR 0007 in the kit repo)'),
+    'CONTINUITY.md missing the v1.8 changelog intro with the ADR 0007 pointer'
+  );
+  assert.ok(
+    flat.includes('Threads and Backlog leave by date; Watch gets a due date'),
+    'CONTINUITY.md missing changelog item 18'
+  );
+  assert.ok(
+    flat.includes('Exception to item 16\'s "edit only your own threads", widened from item 17'),
+    'CONTINUITY.md item 18 missing the widened-exception sentence'
+  );
+  assert.ok(
+    flat.includes(
+      "Counter-failure: the page refilled to its cap within a week of v1.7's cleanup, because only one section had an outflow."
+    ),
+    'CONTINUITY.md item 18 missing its Counter-failure sentence'
+  );
+});
+
+test('CONTINUITY.md defines the waiting form, its exact marker and its end (v1.8, ADR 0007)', () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  assert.ok(
+    flat.includes(
+      'The marker is the exact lower-case text ` — waiting on ` directly after the `(as of …)` stamp'
+    ),
+    'CONTINUITY.md missing the waiting-form marker definition'
+  );
+  assert.ok(
+    flat.includes('When the wait ends, the session that picks the thread up rewrites it in the full form'),
+    'CONTINUITY.md missing the waiting-form end-of-wait rule'
+  );
+  assert.ok(
+    flat.includes('A thread in the waiting form caps at 160 (see "Waiting form" below).'),
+    'CONTINUITY.md Limits bullet missing the waiting-form cap pointer'
+  );
+});
+
+test('CONTINUITY.md states the near-cap warning and its escalation (v1.8, ADR 0007)', () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  assert.ok(
+    flat.includes(
+      'WARNs `near-cap` past 9,000 chars: archive the flagged lines first, then write your own waiting threads in the waiting form. If it fires in two different weeks in a row, the session that sees it proposes lowering the thread limit to 10 days and the owner rules; per-section budgets are a later option, also the owner\'s. No session changes a limit on its own.'
+    ),
+    'CONTINUITY.md missing the Near-cap bullet text'
+  );
+});
+
+test('CONTINUITY.md states thread inactivity at 14 days, whole-thread exit and the stale carve-out (v1.8, ADR 0007)', () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  assert.ok(
+    flat.includes('more than 14 days before that same reference date — 15 or more — leaves the page'),
+    'CONTINUITY.md missing the 14-day thread-inactivity direction'
+  );
+  assert.ok(
+    flat.includes(
+      "Only the owner re-queues it as a Backlog item; a session that works the thread again re-adds its Active line at that session's close"
+    ),
+    'CONTINUITY.md missing the owner-only re-queue rule'
+  );
+  assert.ok(
+    flat.includes('A bullet that already FAILs `thread-stale` skips `thread-inactive` until its stamp is refreshed'),
+    'CONTINUITY.md missing the thread-stale carve-out'
+  );
+});
+
+test('CONTINUITY.md states the Backlog queued stamp and the Watch date (v1.8, ADR 0007)', () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  const PINS = [
+    "more than 21 days before the page's reference date — 22 or more",
+    'in place of the old one — with two stamps the oldest counts, so an added stamp renews nothing',
+    'the owner, or a session working on what the line names, checks it and writes a new date in place of the old one',
+    'A due Watch line is never moved on sight',
+  ];
+  for (const pin of PINS) {
+    assert.ok(flat.includes(pin), `CONTINUITY.md missing queued/watch rule: "${pin}"`);
+  }
+});
+
+test('CONTINUITY.md widens the on-sight exception to date-flagged lines, writer pays (v1.8, ADR 0007)', () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  const PINS = [
+    'above: any session may archive, on sight, a line that `banana state lint --global` WARNs `closed-expired`, `thread-inactive` or `backlog-dormant`',
+    'and a session about to add a line to the page first archives every such line',
+    'This is a filing step, not initiative under rule 5',
+    'another session moved it first — a normal outcome, not an error',
+    'After the archive exits 0, name each moved line to the owner in your reply',
+    'a due Watch line is re-dated only as "Watch date" above allows',
+  ];
+  for (const pin of PINS) {
+    assert.ok(flat.includes(pin), `CONTINUITY.md missing on-sight rule: "${pin}"`);
+  }
+});
+
+test('CONTINUITY.md Freshness stamp allows a re-stamp from the session log, never forward without a source (v1.8, ADR 0007)', () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  assert.ok(
+    flat.includes(
+      "At session close, right after the fresh read, a session that worked a thread may re-stamp its `(as of)` to the heading date of its own newest session-log entry for that work, in that project's `.agents/session.log`; a stamp never moves forward without such a source."
+    ),
+    'CONTINUITY.md Freshness stamp bullet missing the session-log re-stamp source'
+  );
+});
+
+test('CONTINUITY.md Session close and CLOSE step carry the writer-pays duty (v1.8, ADR 0007)', () => {
+  const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  assert.ok(
+    flat.includes(
+      'Before adding a line, first archive every line lint flags to leave (see "The archive move" below). When your thread\'s next step becomes someone else\'s, write it in the waiting form.'
+    ),
+    'CONTINUITY.md Session close bullet missing the archive-first and waiting-form duty'
+  );
+  assert.ok(
+    flat.includes('per the Global-grain per-thread-edits rule above, after first archiving the lines lint flags to leave)'),
+    'CONTINUITY.md CLOSE step missing the archive-first clause'
   );
 });
 
@@ -249,14 +370,19 @@ test('canon Global-grain embedded template agrees with templates/global-STATE.md
 // reference-date definition itself — those stay in the Global-grain body,
 // pinned by the next test. The old backwards-expiry wording ("expire after 7
 // days", "idle 30+ days") is gone from the header entirely.
-test('canon Global-grain embedded template agrees with templates/global-STATE.md on all four #20b/#20c header lines', () => {
+//
+// v1.8 (ADR 0007): the block is now five lines (+144 chars over v1.7). Line 2
+// names the 8+/15+/22+ thresholds and the watch date; line 5 says who moves
+// the flagged lines. The v1.7 "31+ days ... move to Backlog" wording is gone.
+test('canon Global-grain embedded template agrees with templates/global-STATE.md on all five v1.8 header lines', () => {
   const continuity = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
   const template = readFileSync(join(templatesDir, 'global-STATE.md'), 'utf8');
   const HEADER_LINES = [
-    '> One line per bullet: thread 400 · backlog 300 · watch 350 · closed 250 chars.',
-    '> Closed lines carry `(closed YYYY-MM-DD)`. By the page\'s newest stamp, closed lines expire',
-    '> at 8+ days and threads idle 31+ days move to Backlog. Never delete a line — except',
-    '> a pasted secret, deleted outright. `banana state archive` moves the rest to STATE-archive.md.',
+    '> One line per bullet: thread 400 (waiting form 160) · backlog 300 · watch 350 · closed 250 chars.',
+    '> Against the newest (as of)/(closed) stamp: closed lines expire at 8+ days, threads idle 15+ days',
+    '> and backlog lines (queued …) 22+ days leave; a watch past its (validate-by: …) date is checked.',
+    '> Never delete a line — except a pasted secret, deleted outright. Before adding a line, any session',
+    '> archives the lines lint flags to leave (`banana state archive`), keeping them in STATE-archive.md.',
   ];
   for (const line of HEADER_LINES) {
     assert.ok(line.length <= 100, `header line exceeds 100 chars (${line.length}): "${line}"`);
@@ -270,6 +396,17 @@ test('canon Global-grain embedded template agrees with templates/global-STATE.md
     !continuity.includes('expire after 7 days') && !continuity.includes('idle 30+ days'),
     'CONTINUITY.md header still carries the #20b backwards expiry/inactivity wording'
   );
+  assert.ok(
+    !continuity.includes('31+ days') && !continuity.includes('move to Backlog'),
+    'CONTINUITY.md header still carries the v1.7 31+ days / move to Backlog wording'
+  );
+});
+
+test('the v1.8 header lines do not match RETIRED_HEADER_RE (canon and template)', () => {
+  const continuity = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
+  const template = readFileSync(join(templatesDir, 'global-STATE.md'), 'utf8');
+  assert.ok(!RETIRED_HEADER_RE.test(continuity), 'CONTINUITY.md matches RETIRED_HEADER_RE');
+  assert.ok(!RETIRED_HEADER_RE.test(template), 'templates/global-STATE.md matches RETIRED_HEADER_RE');
 });
 
 // #20b review (D3): the precise day thresholds and their corrected
@@ -284,8 +421,12 @@ test('CONTINUITY.md Global-grain body states the corrected closed-expiry and thr
     'CONTINUITY.md Global-grain body missing the corrected closed-expiry direction'
   );
   assert.ok(
-    flat.includes('more than 30 days before that same reference date — 31 or more'),
+    flat.includes('more than 14 days before that same reference date — 15 or more'),
     'CONTINUITY.md Global-grain body missing the corrected thread-inactivity direction'
+  );
+  assert.ok(
+    !flat.includes('more than 30 days before that same reference date — 31 or more'),
+    'CONTINUITY.md Global-grain body still carries the v1.7 30-day inactivity direction'
   );
 });
 
@@ -336,11 +477,20 @@ test('CONTINUITY.md Global-grain body states the Secrets rule (#20c H64)', () =>
   );
 });
 
-test('CONTINUITY.md Global-grain body defines all five archive reasons (#20c H64, C37)', () => {
+test('CONTINUITY.md Global-grain body defines all six archive reasons (#20c H64, C37; v1.8 ADR 0007)', () => {
   const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
+  assert.ok(
+    flat.includes('<expired|inactive|dormant|trimmed|closed|removed>'),
+    'CONTINUITY.md archive-move bullet missing the six-reason enumerator'
+  );
+  assert.ok(
+    flat.includes('`dormant` only targets a Backlog (owned) line;'),
+    'CONTINUITY.md archive-move bullet missing the dormant section restriction'
+  );
   const REASON_DEFINITIONS = [
     '`expired` (a closed line past its expiry)',
-    '`inactive` (an idle thread becoming a one-line Backlog item)',
+    '`inactive` (an idle thread leaving the page)',
+    '`dormant` (a Backlog item past its dormancy)',
     '`trimmed` (the archive keeps a copy only — the live line is shortened in place by hand)',
     '`closed` (a finished Active thread: archive its line, add a Recently-closed line)',
     '`removed` (anything else the owner drops)',
@@ -363,9 +513,15 @@ test("CONTINUITY.md Global-grain body states the archive command's clock-aware g
   );
   assert.ok(
     flat.includes(
-      'for `--reason inactive` it refuses unless the `(as of …)` stamp is more than 30 days before today'
+      'for `--reason inactive` it refuses unless the `(as of …)` stamp is more than 14 days before today, and it also refuses a thread whose project page is newer than that stamp — refresh the stamp instead; for `--reason dormant` it refuses unless the `(queued …)` stamp is more than 21 days before today.'
     ),
-    'CONTINUITY.md Global-grain body missing the inactive clock-gate rule'
+    'CONTINUITY.md Global-grain body missing the inactive/dormant clock-gate rule'
+  );
+  assert.ok(
+    flat.includes(
+      "its `expired`/`inactive`/`dormant` gate can disagree with lint's own `closed-expired`/`thread-inactive`/`backlog-dormant` WARNs"
+    ),
+    'CONTINUITY.md Global-grain body missing the three-reason gate/lint disagreement sentence'
   );
   assert.ok(
     flat.includes(
@@ -538,9 +694,9 @@ test('CONTINUITY.md Global-grain body AND changelog item 17 revert the ownership
   const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
   assert.ok(
     flat.includes(
-      'above: any session may archive an `expired` closed line on sight — no judgment is needed to recognize one'
+      'above: any session may archive, on sight, a line that `banana state lint --global` WARNs `closed-expired`, `thread-inactive` or `backlog-dormant`'
     ),
-    'CONTINUITY.md Global-grain body missing the reverted single-exception wording'
+    'CONTINUITY.md Global-grain body missing the v1.8 on-sight exception wording'
   );
   assert.ok(
     flat.includes(
@@ -563,7 +719,9 @@ test('CONTINUITY.md Global-grain body prints a non-blocking NOTE for a future-da
     'CONTINUITY.md Global-grain body missing the "future stamp elsewhere never blocks" rule'
   );
   assert.ok(
-    flat.includes('never blocks the move: the gate\'s own verdict is decided entirely by the matched line\'s own stamp against the real clock'),
+    flat.includes(
+      "never blocks the move: the gate's own verdict is decided by the matched line alone — its own stamp against the real clock and, for `--reason inactive`, its own pointer's project page"
+    ),
     'CONTINUITY.md Global-grain body missing the "future stamp elsewhere never blocks" rule'
   );
   assert.ok(
@@ -645,7 +803,7 @@ test('CONTINUITY.md scopes the reference date to Active-threads/Recently-closed 
   const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
   assert.ok(
     flat.includes(
-      "the newest valid Active-threads `(as of …)` or Recently-closed `(closed …)` stamp on the page (Watch and Backlog never carry this stamp convention"
+      "the newest valid Active-threads `(as of …)` or Recently-closed `(closed …)` stamp on the page (Backlog `(queued …)` and Watch `(validate-by: …)` stamps are measured against it but never feed it, so they are never counted)"
     ),
     'CONTINUITY.md Global-grain body missing the section-scoped reference-date definition'
   );
@@ -769,5 +927,52 @@ test("CONTINUITY.md by-hand record heading matches what state archive actually w
     recordHeadingLine,
     expectedHeading,
     "the archive's real record heading disagrees with CONTINUITY.md's by-hand heading template"
+  );
+});
+
+// v1.8 (ADR 0007): the decision headings are pinned so a rename or a dropped
+// decision fails here; ADR 0006 carries one Amended-by paragraph pointing at it.
+test('docs/adr/0007 carries the eight decision headings', () => {
+  const adr = readFileSync(join(docsDir, 'adr', '0007-global-page-outflow.md'), 'utf8').replace(/\r\n/g, '\n');
+  const HEADINGS = [
+    '# Global page gets an outflow for threads and backlog, and a due date for watch',
+    '## 1. Threads leave at 15+ days, whole',
+    '## 2. The waiting form',
+    '## 3. Backlog items carry (queued) and go dormant',
+    '## 4. Watch lines carry (validate-by:) and warn when due',
+    '## 5. Flagged lines move on sight, writer pays',
+    '## 6. near-cap at 9,000, and its escalation',
+    '## 7. The inactive gate refuses a stale thread',
+    '## 8. A mid-arc re-stamp source',
+  ];
+  for (const h of HEADINGS) {
+    assert.ok(adr.split('\n').includes(h), `docs/adr/0007 missing heading: "${h}"`);
+  }
+});
+
+test('docs/adr/0007 records the no-roll-up call, the near-cap wording and its known limits', () => {
+  const flat = flatten(readFileSync(join(docsDir, 'adr', '0007-global-page-outflow.md'), 'utf8'));
+  assert.ok(
+    flat.includes('write your own waiting threads'),
+    'docs/adr/0007 decision 6 missing "write your own waiting threads"'
+  );
+  assert.ok(
+    flat.includes('the mover names moved lines in its reply'),
+    'docs/adr/0007 decision 5 missing the no-roll-up call'
+  );
+  assert.ok(
+    flat.includes('The waiting form is a convention: lint cannot tell a waiting thread from a live one'),
+    'docs/adr/0007 missing the Known limits section'
+  );
+});
+
+test('docs/adr/0006 carries the one Amended-by paragraph pointing at ADR 0007', () => {
+  const adr = readFileSync(join(docsDir, 'adr', '0006-global-page-limits-and-archive.md'), 'utf8').replace(/\r\n/g, '\n');
+  const AMENDED =
+    'Amended by ADR 0007 (canon v1.8): the 30-day inactivity limit (now 14), the on-sight scope, the inactive remedy, and the D3 gate\'s inactive verdict.';
+  assert.ok(adr.includes(`\n\n${AMENDED}\n\n`), 'docs/adr/0006 missing the Amended-by paragraph');
+  assert.ok(
+    adr.indexOf(AMENDED) < adr.indexOf('Decided (2026-10-01'),
+    'docs/adr/0006 Amended-by paragraph must sit between the title and "Decided"'
   );
 });
