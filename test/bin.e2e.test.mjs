@@ -26,13 +26,12 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { COMMANDS } from '../lib/commands.mjs';
 import { CANON_FILES } from '../lib/init.mjs';
 
 const binPath = fileURLToPath(new URL('../bin/banana.mjs', import.meta.url));
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const KIT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-
-const COMMANDS = ['init', 'project', 'brief', 'doctor', 'sync', 'log', 'state'];
 
 /**
  * Run the bin as a subprocess, never throwing on a non-zero exit.
@@ -86,7 +85,7 @@ test('bin: every subcommand accepts --help and -h with a usage string, not an op
   }
 });
 
-test('bin: top-level --help and -h exit 0 and list all seven commands', () => {
+test('bin: top-level --help and -h exit 0 and list every COMMANDS entry', () => {
   for (const flag of ['--help', '-h']) {
     const { status, stdout } = run([flag]);
     assert.equal(status, 0, `${flag} exits 0`);

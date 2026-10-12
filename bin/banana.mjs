@@ -4,12 +4,12 @@ import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { COMMANDS } from '../lib/commands.mjs';
 
 const pkg = JSON.parse(
   readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8')
 );
 
-const COMMANDS = ['init', 'project', 'brief', 'doctor', 'sync', 'log', 'state'];
 const [cmd] = process.argv.slice(2);
 
 // --- `log` usage text ---------------------------------------------------
@@ -516,7 +516,7 @@ if (cmd === 'state') {
 }
 
 // Unreachable: the COMMANDS guard above already rejects anything not in the
-// seven-command vocabulary, and every member of COMMANDS has a dispatch arm
+// COMMANDS vocabulary (lib/commands.mjs), and every member of COMMANDS has a dispatch arm
 // above that exits (or, for `doctor` alone, sets process.exitCode and falls
 // through here by design — see its arm above). This is an internal-invariant
 // guard — if it ever fires for any OTHER command, a COMMANDS entry was added
