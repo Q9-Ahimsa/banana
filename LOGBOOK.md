@@ -118,3 +118,8 @@ WHAT: the owner's global page now follows canon v1.8: threads waiting on the own
 DONE: owner ruled each group of lines; 10 threads shortened (long text archived as trimmed), 1 thread moved to Backlog, 17 Backlog + 6 Watch lines dated, 6 Backlog lines past 21 days archived as dormant; 18 archive records; page 9,981 -> 7,506 chars; `state lint --global` PASS, so the session-start hook injects one PASS line instead of 25 WARN lines
 ref: .agents/session.log owner-page.1
 NEXT: claude — file two issues (README command table out of date; real handles in older state/archive fixtures), then #19, then #18
+
+## [2026-10-12] claude kit.17 | CAPTURE — two issues filed: README command table (#22), owner handle in fixtures (#23)
+WHAT: #22 README drift (`state` missing from the table, a six-command test guard, v2 fence example, archive prose); #23 the owner's handle as sample data in older tests and help examples, and a deny-list that skips test/, bin/, lib/
+ref: .agents/session.log triage.1; GitHub #22, #23
+NEXT: claude — #19, then #18; #22 and #23 after (owner may reorder)

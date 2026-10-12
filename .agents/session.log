@@ -655,3 +655,9 @@ VALIDATED: live page byte-equal to the expected rebuild from a pre-edit snapshot
 ref: the owner's home session log, page-migration.2 (private); migration plan kept outside the repo
 STATUS: complete
 NEXT: claude — file two issues (README command table; real handles in older state/archive fixtures), then #19, then #18
+
+## [2026-10-12] claude triage.1 | ops — file the README-table and fixture-handle issues (owner-page.1 NEXT)
+APPROACH: read-only fact pass against --help and a fixture grep; issue text checked for private names before filing
+DONE: filed #22 (README command table: state missing, six-command guard, v2 fence, archive prose) and #23 (owner handle in fixtures + help examples; deny-list skips test/, bin/, lib/)
+STATUS: complete
+NEXT: claude — #19, then #18; #22 and #23 after (owner may reorder)
