@@ -80,10 +80,15 @@ Exit codes: 0 ok, 1 usage, 2 state`;
 const LOG_SUPERSEDE_USAGE = `Usage: banana log supersede <feature>.<n> --tag <agent> --reason <text> --status <s>
                 [--next-owner <o>] [--next <text>] [--title <text>] [--phase <p>]
                 [--feature <slug>] [--body <line>]... [--dry-run] [--quiet]
+                [--target-agent <tag>] [--all]
 
 Correct or retire a specific {feature}.{n} entry; the new entry SUPERSEDES it.
 Not tag-restricted to the target's author — closing another agent's ghost is
 canon-sanctioned.
+
+Duplicate ids: when <feature>.<n> names more than one entry, pick the one to
+copy title/phase from with --target-agent, or pass --all on its own.
+SUPERSEDES is id-keyed: every entry under the id is retired either way.
 
 Ghost-close example:
   banana log supersede cli.4 --tag testagent --reason "ghost, >48h" --status abandoned --next-owner testagent --next "re-scope and reopen"

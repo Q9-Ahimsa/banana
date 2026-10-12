@@ -180,6 +180,22 @@ test('parseLogArgs: --body - must be the only --body occurrence', () => {
   assert.equal(a.bodyStdin, true);
 });
 
+test('parseLogArgs: supersede maps --all', () => {
+  const base = ['supersede', 'dup.1', '--tag', 't', '--reason', 'x', '--status', 'complete'];
+  assert.equal(parseLogArgs([...base, '--all']).all, true);
+  assert.equal(parseLogArgs(base).all, false);
+});
+
+test('parseLogArgs: --all cannot be combined with --target-agent', () => {
+  assert.throws(
+    () =>
+      parseLogArgs([
+        'supersede', 'dup.1', '--tag', 't', '--reason', 'x', '--status', 'complete', '--all', '--target-agent', 'alice',
+      ]),
+    /--all retires every entry under the id - it cannot be combined with --target-agent/
+  );
+});
+
 // =====================================================================
 // stub
 // =====================================================================
@@ -790,6 +806,137 @@ test('supersede: ambiguous id requires --target-agent to disambiguate', async ()
   ]);
   assert.equal(resolved.code, 0);
   assert.match(readLog(dir), /SUPERSEDES: dup\.1 \(x\)/);
+});
+
+/** Two entries by one author sharing the id dup.1 (#18). */
+function projectWithSameAgentDup() {
+  return makeProject(
+    SEED +
+      '\n## [2026-08-01] testagent dup.1 | build — first loop\nSTATUS: complete\nNEXT: testagent — pick up story 2\n\n' +
+      '## [2026-08-02] testagent dup.1 | review — second loop\nSTATUS: complete\nNEXT: testagent — pick up story 2 again\n'
+  );
+}
+
+const DUP_TAIL = ['--reason', 'x', '--status', 'complete', '--next-owner', 't', '--next', 'y'];
+
+test('supersede (#18): a same-agent duplicate id is ambiguous without a flag - the error names --all on its own, not --target-agent', async () => {
+  const dir = projectWithSameAgentDup();
+  const before = readLog(dir);
+  const res = await run(dir, ['supersede', 'dup.1', '--tag', 'testagent', ...DUP_TAIL]);
+  assert.equal(res.code, 2);
+  const err = res.err.join('\n');
+  assert.match(
+    err,
+    /dup\.1 is ambiguous \(2 entries by one author: ## \[2026-08-01\] testagent dup\.1 \| build — first loop \| ## \[2026-08-02\] testagent dup\.1 \| review — second loop\) - pass --all on its own to retire all 2 entries under the id/
+  );
+  assert.match(err, /--all on its own/);
+  assert.doesNotMatch(err, /--target-agent/);
+  assert.doesNotMatch(err, /--target-date/);
+  assert.equal(readLog(dir), before);
+});
+
+test('supersede (#18): --all writes exactly one entry whose one SUPERSEDES line retires every same-agent dup.1', async () => {
+  const dir = projectWithSameAgentDup();
+  const before = readLog(dir);
+  const dry = await run(dir, ['supersede', 'dup.1', '--tag', 'testagent', ...DUP_TAIL, '--all', '--dry-run']);
+  assert.equal(dry.code, 0);
+  assert.match(dry.err.join('\n'), /note: --all — this entry retires all 2 dup\.1 entries/);
+  assert.equal(readLog(dir), before);
+  const res = await run(dir, ['supersede', 'dup.1', '--tag', 'testagent', ...DUP_TAIL, '--all']);
+  assert.equal(res.code, 0);
+  assert.deepEqual(res.out, ['dup.2']);
+  const text = readLog(dir);
+  const parsed = parseSessionLog(text);
+  assert.equal(parsed.filter((e) => e.feature === 'dup' && e.n === 2).length, 1);
+  assert.equal(parsed.filter((e) => e.feature === 'dup' && e.n === 1).length, 2);
+  assert.equal((text.match(/^SUPERSEDES: dup\.1 \(x\)$/gm) ?? []).length, 1);
+  assert.ok(supersededIds(parsed).has('dup.1'));
+  assert.match(text, /dup\.2 \| review — second loop/);
+  assert.match(
+    res.err.join('\n'),
+    /note: --all — this entry retires all 2 dup\.1 entries: ## \[2026-08-01\] testagent dup\.1 \| build — first loop \| ## \[2026-08-02\] testagent dup\.1 \| review — second loop/
+  );
+});
+
+test('supersede (#18): the author check runs on the narrowed pool - --target-agent is not re-offered', async () => {
+  const dir = makeProject(
+    SEED +
+      '\n## [2026-08-01] alice dup.1 | build — alice first\nSTATUS: complete\nNEXT: alice — x\n\n' +
+      '## [2026-08-02] alice dup.1 | build — alice second\nSTATUS: complete\nNEXT: alice — x\n\n' +
+      '## [2026-08-03] bob dup.1 | build — bob third\nSTATUS: complete\nNEXT: bob — x\n'
+  );
+  const res = await run(dir, ['supersede', 'dup.1', '--tag', 'testagent', '--target-agent', 'alice', ...DUP_TAIL]);
+  assert.equal(res.code, 2);
+  const err = res.err.join('\n');
+  assert.match(err, /2 entries by one author/);
+  assert.match(err, /--all on its own/);
+  assert.doesNotMatch(err, /pass --target-agent/);
+  assert.match(err, /\(2 entries by one author: ## \[2026-08-01\] alice dup\.1 \| build — alice first \| ## \[2026-08-02\] alice dup\.1 \| build — alice second\) - pass --all on its own to retire all 3 entries under the id/);
+  assert.doesNotMatch(err, /bob third/);
+});
+
+test('supersede (#18): --all prefers the active log over an archive', async () => {
+  const dir = makeProject(
+    SEED + '\n## [2026-08-02] testagent dup.1 | build — active copy\nSTATUS: complete\nNEXT: t — x\n'
+  );
+  makeArchive(dir, '2026-Q1.log', '## [2026-02-01] testagent dup.1 | build — archived copy\nSTATUS: complete\nNEXT: t — x\n');
+  const res = await run(dir, ['supersede', 'dup.1', '--tag', 'testagent', ...DUP_TAIL, '--all']);
+  assert.equal(res.code, 0);
+  assert.deepEqual(res.out, ['dup.2']);
+  assert.match(readLog(dir), /dup\.2 \| build — active copy/);
+  const err = res.err.join('\n');
+  assert.match(err, /retires all 2 dup\.1 entries/);
+  assert.doesNotMatch(err, /resolved from archive/);
+});
+
+test('supersede (#18): --all with every candidate archived copies the newest archive\'s match', async () => {
+  const dir = makeProject(SEED + '\n## [2026-08-02] testagent other.1 | build — unrelated\nSTATUS: complete\nNEXT: t — x\n');
+  makeArchive(dir, '2026-Q1.log', '## [2026-02-01] testagent dup.1 | build — q1 copy\nSTATUS: complete\nNEXT: t — x\n');
+  makeArchive(
+    dir,
+    '2026-Q2.log',
+    '## [2026-05-01] testagent dup.1 | build — q2 early copy\nSTATUS: complete\nNEXT: t — x\n\n' +
+      '## [2026-05-02] testagent dup.1 | build — q2 copy\nSTATUS: complete\nNEXT: t — x\n'
+  );
+  const res = await run(dir, ['supersede', 'dup.1', '--tag', 'testagent', ...DUP_TAIL, '--all']);
+  assert.equal(res.code, 0);
+  assert.deepEqual(res.out, ['dup.2']);
+  assert.match(readLog(dir), /dup\.2 \| build — q2 copy/);
+  const err = res.err.join('\n');
+  assert.match(err, /resolved from archive .*2026-Q2\.log/);
+  assert.match(err, /retires all 3 dup\.1 entries/);
+});
+
+test('supersede (#18): --all on a unique id is a plain supersede with no retirement note', async () => {
+  const dir = projectWithClosedCli1();
+  const res = await run(dir, [
+    'supersede', 'cli.1', '--tag', 'testagent', '--reason', 'x', '--status', 'complete', '--next-owner', 't', '--next', 'y', '--all',
+  ]);
+  assert.equal(res.code, 0);
+  assert.match(readLog(dir), /SUPERSEDES: cli\.1 \(x\)/);
+  assert.doesNotMatch(res.err.join('\n'), /retires all/);
+});
+
+test('supersede (#18): --target-agent WARNs that the id-keyed line retires every entry under the id', async () => {
+  const dir = makeProject(
+    SEED +
+      '\n## [2026-08-01] alice dup.1 | build — a version\nSTATUS: complete\nNEXT: alice — x\n\n' +
+      '## [2026-08-02] bob dup.1 | build — b version\nSTATUS: complete\nNEXT: bob — x\n'
+  );
+  const ambiguous = await run(dir, ['supersede', 'dup.1', '--tag', 'testagent', ...DUP_TAIL]);
+  assert.equal(ambiguous.code, 2);
+  assert.match(
+    ambiguous.err.join('\n'),
+    /dup\.1 is ambiguous \(2 entries\) - pass --target-agent <tag> to pick the one to copy, or --all on its own; SUPERSEDES is id-keyed, so either way every entry under the id is retired: ## \[2026-08-01\] alice dup\.1 \| build — a version \| ## \[2026-08-02\] bob dup\.1 \| build — b version/
+  );
+  const res = await run(dir, ['supersede', 'dup.1', '--tag', 'testagent', '--target-agent', 'alice', ...DUP_TAIL]);
+  assert.equal(res.code, 0);
+  assert.match(
+    res.err.join('\n'),
+    /WARN: SUPERSEDES is id-keyed — this entry retires all 2 dup\.1 entries, not only the one picked: ## \[2026-08-01\] alice dup\.1 \| build — a version \| ## \[2026-08-02\] bob dup\.1 \| build — b version/
+  );
+  assert.match(readLog(dir), /dup\.2 \| build — a version/);
+  assert.ok(supersededIds(parseSessionLog(readLog(dir))).has('dup.1'));
 });
 
 test('supersede: an archive-only target resolves with a stderr note naming the archive', async () => {

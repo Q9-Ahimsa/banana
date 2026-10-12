@@ -133,8 +133,11 @@ reuses the session-log parsing seam rather than a second parser. The point is co
 with a long closed history no longer pays for every past entry's full body on every brief read, only
 its most recent resolution plus whatever is still open. **Duplicate ids (F6):** retirement is
 id-keyed — a `SUPERSEDES:` line retires EVERY entry sharing that id, not just the one instance a
-writer meant. A hand-mangled log with two entries at the same `{feature}.{n}` therefore has both
-retired together; there is no cheap fix for this (see GitHub #18).
+writer meant. A log with two entries at the same `{feature}.{n}` (a hand-mangled heading, a
+collided `n`, or two build loops restarting one slug at `.1`) therefore has both retired
+together. `banana log supersede` says so instead of hiding it (#18; see the `log` write contract's
+duplicate-id bullet). Retiring exactly one of two same-id entries would need a qualified
+`SUPERSEDES:` grammar, which is a canon change and is deliberately not made.
 
 **Handoffs — live, not historical (#8 follow-up 3; F1/F5 fix a self-contradiction and a
 resurfacing bug).** Per canon entry-ritual item 5, `NEXT:` lines are drawn from the surfaces the
@@ -147,7 +150,8 @@ them. So `## Handoffs` uses TWO eligibility rules, not one:
   (cli.15's NEXT dropped out because cli.16/cli.17 were open with none).
 - **Every OTHER feature stream:** canon's resume rule ("read the latest STATUS/NEXT") still applies.
   The LATEST entry is taken by LOG POSITION, not by id (F6: retirement is id-keyed, and two entries
-  can share an id after a hand-mangled heading; see GitHub #18) — over ALL entries first, THEN a
+  can share an id after a hand-mangled heading, a collided `n`, or a build loop restarting a
+  slug at `.1`; see GitHub #18) — over ALL entries first, THEN a
   retired winner is skipped (F5: filtering retirement BEFORE picking "latest" let an older NEXT
   resurface when the stream's true latest entry was itself retired; a same-stream continuation is
   unaffected, since it's the last entry by position and therefore never the one retired). Retirement
@@ -400,6 +404,16 @@ that write the log by hand build against these same rules:
   max(n)+1 at call time; two concurrent writers can race and land the same
   `n` for a feature. The tool does not retry or lock — a duplicate `n` is
   a recoverable, human-visible anomaly, not a crash.
+- **Duplicate-id supersede (#18).** `supersede <feature>.<n>` collects every entry under the id
+  across the active log and the archives. When more than one remains after `--target-agent`, it
+  refuses (exit 2). The error names `--target-agent <tag>` when the remaining entries' authors
+  differ, and always `--all` on its own. `--target-agent` only picks the entry whose title/phase the
+  new entry copies: the written `SUPERSEDES: {feature}.{n} ({reason})` line is id-keyed and retires
+  every entry under the id, and the tool prints a `WARN:` saying so. `--all` retires the id outright
+  and copies from the newest candidate (the last active-log match, else the newest archive's last
+  match); it cannot be combined with `--target-agent` (exit 1). Either way, exactly one entry with
+  one `SUPERSEDES:` line is written. A date selector was considered and dropped (owner ruling): it
+  could not narrow what is retired.
 - **Grep-unit adjacency + auto-continuation (ADR 0003).** append/close
   decide whether their target entry is still safe to append under by
   checking the file's last `/^## \[/` line (the same grep canon's own

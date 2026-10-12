@@ -244,6 +244,18 @@ test('bin: `banana log stub --help` prints stub usage and exits 0', () => {
   assert.equal(stderr, '');
 });
 
+test('bin: `banana log supersede --help` documents --target-agent and --all', () => {
+  const { status, stdout, stderr } = run(['log', 'supersede', '--help']);
+  assert.equal(status, 0);
+  assert.ok(stdout.startsWith('Usage: banana log supersede'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('--target-agent <tag>'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('[--target-agent <tag>] [--all]'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('copy title/phase from with --target-agent, or pass --all on its own.'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('SUPERSEDES is id-keyed: every entry under the id is retired either way.'), `stdout: ${stdout}`);
+  assert.ok(!stdout.includes('--target-date'), `stdout: ${stdout}`);
+  assert.equal(stderr, '');
+});
+
 test('bin: `banana log <unknown verb>` exits 1 naming the vocabulary', () => {
   const { status, stderr } = run(['log', 'frobnicate']);
   assert.equal(status, 1);
