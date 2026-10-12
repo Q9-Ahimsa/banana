@@ -679,7 +679,7 @@ real CommonMark rule (#20c E4): a run of N backticks opens a span that only
 a LATER run of exactly N backticks closes, and a run with no matching close
 is literal backtick text, not a span, so an unpaired backtick no longer
 hides every stamp after it on the line. A bullet carrying more than
-one valid stamp of either kind compares against the OLDEST — conservative,
+one valid stamp of any kind compares against the OLDEST — conservative,
 the same OLDEST-wins rule ADR 0004's review hardening (its finding F6)
 already established for the Active-threads freshness stamp. `closed-expired`
 fires when a closed stamp is more than `CLOSED_EXPIRY_DAYS` (7) days before

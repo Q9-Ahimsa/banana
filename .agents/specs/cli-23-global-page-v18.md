@@ -332,3 +332,12 @@ The owner-page migration (private, after release); pushing and `banana sync` (fo
 - Installed pages keep the v1.7 header until hand-edited.
 - near-cap streaks are tracked by sessions, not by the kit.
 - A mid-arc session that skipped the re-stamp can see its thread moved on sight after 15 days; it re-adds the thread at close, which costs one extra archive record.
+
+## Amendments after lane review (2026-10-12)
+
+The lane D reviewer found canon and ADR 0007 sentences that were spec-verbatim but weaker or less precise than the rulings. These replace the spec text above; the canon and ADR 0007 carry the new wording, and the canon pins follow it.
+- Lint finding note: "(advice, not defects — …)" → "(WARNs, not FAILs — …)", since writer-pays makes acting on them a duty.
+- On-sight exception: re-queuing a Backlog item takes the owner's word (it no longer reads as the owning session's call).
+- Re-stamp source: "without such a source" → "without a real source: the project STATE's as-of, or that session-log heading date".
+- Clock-free note: a mistyped future stamp can WARN a page "expired, inactive, dormant or due".
+- ADR 0007: ADR 0004 set the 10,000 cap; Watch lines never leave "by rule"; the placeholder Known limit names the `(queued …)` stamp.

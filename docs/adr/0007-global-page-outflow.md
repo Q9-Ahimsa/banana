@@ -2,7 +2,7 @@
 
 Decided (2026-10-10). Decisions 1, 3, 4 and 5 follow owner rulings; decisions 2, 6, 7 and 8, the no-roll-up call and the header text are technical calls, pending the owner's ratification of the v1.8 text.
 
-ADR 0006 gave the global page (`~/.agents/STATE.md`) a 10,000-char cap, per-section line limits and an archive, but only one section got an outflow by rule: Recently-closed lines expire. Active threads and Backlog lines never leave unless someone resolves them, and Watch lines never leave at all. This ADR gives threads and Backlog a date-driven exit, gives Watch a due date, and moves the duty to file flagged lines onto whoever is about to add a line. It amends ADR 0006 in four places (see Consequences).
+ADR 0006 gave the global page (`~/.agents/STATE.md`), already capped at 10,000 chars by ADR 0004, per-section line limits and an archive, but only one section got an outflow by rule: Recently-closed lines expire. Active threads and Backlog lines never leave unless someone resolves them, and Watch lines never leave by rule. This ADR gives threads and Backlog a date-driven exit, gives Watch a due date, and moves the duty to file flagged lines onto whoever is about to add a line. It amends ADR 0006 in four places (see Consequences).
 
 ## Context
 
@@ -35,7 +35,7 @@ Sensitivity (INFERRED; one input moved at a time from the ~7,530 central case):
 
 ## 1. Threads leave at 15+ days, whole
 
-An Active-threads bullet, in either form, whose `(as of)` stamp is more than 14 days before the page's reference date (15 or more) leaves the page: `banana state archive --reason inactive` copies it to `STATE-archive.md` and removes it, and nothing replaces it. Its next step already lives at its pointer. v1.7 turned an idle thread into a one-line Backlog item; that costs about +1,800 chars at steady state and needs judgment to write, which rules out moving it on sight. Only the owner re-queues a moved thread as a Backlog item; a session that works the thread again re-adds its Active line at its close, stamped from a real source.
+An Active-threads bullet, in either form, whose `(as of)` stamp is more than 14 days before the page's reference date (15 or more) leaves the page: `banana state archive --reason inactive` copies it to `STATE-archive.md` and removes it, and nothing replaces it. Its next step already lives at its pointer. v1.7 turned an idle thread into a one-line Backlog item; that costs about +1,800 chars at steady state and needs judgment to write, which rules out moving it on sight. Only the owner re-queues a moved thread as a Backlog item; a session that works the thread again re-adds its Active line at that session's close, stamped from a real source.
 
 The limit drops from 30 to 14 days (`THREAD_INACTIVE_DAYS`). A bullet that already FAILs `thread-stale` still skips `thread-inactive` until its stamp is refreshed (decision 7 makes the gate agree).
 
@@ -57,7 +57,7 @@ Every Watch bullet carries `(validate-by: YYYY-MM-DD)`, the date it is next chec
 
 ## 5. Flagged lines move on sight, writer pays
 
-Any session may archive, on sight, a line that `banana state lint --global` WARNs `closed-expired`, `thread-inactive` or `backlog-dormant`, and a session about to add a line first archives every such line. The canon frames this as a filing step under rule 5, not initiative: the dates have already decided, the archive re-checks them against the real clock, and the move authors nothing. Rule 5's text is unchanged; one framing sentence is added, as v1.7 framed expired lines.
+Any session may archive, on sight, a line that `banana state lint --global` WARNs `closed-expired`, `thread-inactive` or `backlog-dormant`, and a session about to add a line first archives every such line. The canon frames this as a filing step, not initiative under rule 5: the dates have already decided, the archive re-checks them against the real clock, and the move authors nothing. Rule 5's text is unchanged; one framing sentence is added, as v1.7 framed expired lines.
 
 If the archive reports no match and a fresh read shows the line gone, another session moved it first, which is a normal outcome. After the archive exits 0, the mover names each moved line to the owner in its reply. There is no roll-up line on the page: the mover names moved lines in its reply, and the archive is searched with `grep`. Nothing else about another session's line is on sight.
 
@@ -65,7 +65,7 @@ The header grows from four to five lines (+144 chars) so that harnesses which re
 
 ## 6. near-cap at 9,000, and its escalation
 
-`banana state lint --global` WARNs `near-cap` when the page is past 9,000 chars and not over the cap (`STATE_NEAR_CAP_CHARS`); above 10,000 only `over-cap` fires, and project pages never get it. The message tells the writer to archive every flagged line, then write your own waiting threads in the waiting form. If it fires in two different weeks in a row, the session that sees it proposes lowering the thread limit to 10 days and the owner rules; per-section budgets are a later option, also the owner's. No session changes a limit on its own. Streaks are tracked by sessions, not by the kit.
+`banana state lint --global` WARNs `near-cap` when the page is past 9,000 chars and not over the cap (`STATE_NEAR_CAP_CHARS`); above 10,000 only `over-cap` fires, and project pages never get it. The message tells the writer to archive every flagged line, then "write your own waiting threads in the waiting form". If it fires in two different weeks in a row, the session that sees it proposes lowering the thread limit to 10 days and the owner rules; per-section budgets are a later option, also the owner's. No session changes a limit on its own. Streaks are tracked by sessions, not by the kit.
 
 ## 7. The inactive gate refuses a stale thread
 
@@ -73,7 +73,7 @@ The header grows from four to five lines (+144 chars) so that harnesses which re
 
 ## 8. A mid-arc re-stamp source
 
-At session close, right after the fresh read, a session that worked a thread may re-stamp its `(as of)` to the heading date of its own newest session-log entry for that work, in that project's `.agents/session.log`. A stamp never moves forward without such a source. Project pages are rebuilt only at session close, so without a source a thread in the middle of a long arc reads idle at 15 days and can be moved on sight.
+At session close, right after the fresh read, a session that worked a thread may re-stamp its `(as of)` to the heading date of its own newest session-log entry for that work, in that project's `.agents/session.log`. A stamp never moves forward without a real source: the project STATE's as-of, or that session-log heading date. Project pages are rebuilt only at session close, so without a source a thread in the middle of a long arc reads idle at 15 days and can be moved on sight.
 
 ## Considered options
 
@@ -100,7 +100,7 @@ Rejected, each with its reason.
 - Amends ADR 0006's 30-day inactivity limit (now 14), its on-sight scope (now the three date-flagged reasons, not only expired lines), its two-step inactive remedy (archive, then add a one-line Backlog item: now archive only, nothing replaces the thread) and its D3 verdict sentence (the inactive verdict now also reads the thread's own pointer). ADR 0006 carries a one-line Amended-by pointer here; its text stays as written and its pins stay green.
 - ADR 0006's "Watch and Backlog never carry this stamp convention" no longer holds literally: both sections carry stamps now. Those stamps still never feed the reference date or the future-stamp note.
 - `ARCHIVE_REASONS` gains `dormant`; the clock gates become a table (`expired` 7, `inactive` 14 with the stale refusal, `dormant` 21).
-- Existing pages keep the v1.7 header until it is edited by hand, and every existing Backlog and Watch line WARNs `backlog-undated` or `watch-undated` until it gets its stamp. The migration of a live page is separate from this change.
+- Every existing Backlog and Watch line WARNs `backlog-undated` or `watch-undated` until it gets its stamp. The migration of a live page is separate from this change.
 
 ## Known limits
 
@@ -112,7 +112,7 @@ Rejected, each with its reason.
 - Unsourced re-stamps and unchecked re-dates are undetectable.
 - The stale gate reads the pointer target at archive time; a page edited between lint and archive can change the verdict (lint has the same gap).
 - Watch has no owner field; "a session working on what the line names" is a convention.
-- The Backlog placeholder shows no stamp, so a fresh page's first Backlog line WARNs `backlog-undated` until its writer follows header line 3.
+- The Backlog placeholder shows no stamp, so a fresh page's first Backlog line WARNs `backlog-undated` until its writer adds a `(queued …)` stamp.
 - Installed pages keep the v1.7 header until hand-edited.
 - near-cap streaks are tracked by sessions, not by the kit.
 - A mid-arc session that skipped the re-stamp can see its thread moved on sight after 15 days; it re-adds the thread at close, which costs one extra archive record.

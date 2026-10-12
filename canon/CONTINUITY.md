@@ -130,7 +130,8 @@ report yet keep their single placeholder line rather than being omitted):
   close, right after the fresh read, a session that worked a thread may
   re-stamp its `(as of)` to the heading date of its own newest session-log
   entry for that work, in that project's `.agents/session.log`; a stamp
-  never moves forward without such a source.
+  never moves forward without a real source: the project STATE's as-of, or
+  that session-log heading date.
 - **Limits and the one-line rule** (v1.7, ADR 0006) — the rule: every
   top-level bullet is written as one physical line, nothing else following
   it. A bullet has already broken that rule the moment it carries even one
@@ -181,8 +182,8 @@ report yet keep their single placeholder line rather than being omitted):
   source. A bullet that already FAILs `thread-stale` skips `thread-inactive`
   until its stamp is refreshed: the two remedies contradict (refresh the
   stamp vs. archive the thread). `banana state lint --global` WARNs
-  `closed-expired`, `thread-inactive` and `backlog-dormant` (advice, not
-  defects — the page-wide cap stays the FAIL backstop).
+  `closed-expired`, `thread-inactive` and `backlog-dormant` (WARNs, not
+  FAILs — the page-wide cap stays the FAIL backstop).
 - **Queued stamp** (v1.8) — every Backlog (owned) bullet carries `(queued
   YYYY-MM-DD)`, the day it was added, after the owner's ` — `: `{owner} —
   name (queued YYYY-MM-DD): action → pointer`. Editing never changes it;
@@ -233,12 +234,12 @@ report yet keep their single placeholder line rather than being omitted):
   moved it first — a normal outcome, not an error. After the archive exits
   0, name each moved line to the owner in your reply. Nothing else about
   another session's line is on sight: trimming, closing, rewriting into the
-  waiting form, re-queuing a Backlog item or re-stamping a thread stays with
-  its owning session or the owner, and a due Watch line is re-dated only as
-  "Watch date" above allows.
+  waiting form or re-stamping a thread stays with its owning session or the
+  owner; re-queuing a Backlog item takes the owner's word; and a due Watch
+  line is re-dated only as "Watch date" above allows.
 - **The archive command is the clock-aware gate** — `banana state lint`
   stays clock-free (ADR 0004): a mistyped future stamp can make it WARN a
-  whole page expired or inactive, and that is fine, because lint never
+  whole page expired, inactive, dormant or due, and that is fine, because lint never
   changes anything. `banana state archive` is the side that acts, and it
   does read the clock — which means its `expired`/`inactive`/`dormant` gate
   can disagree with lint's own

@@ -286,6 +286,9 @@ test('CONTINUITY.md states the Backlog queued stamp and the Watch date (v1.8, AD
     'in place of the old one — with two stamps the oldest counts, so an added stamp renews nothing',
     'the owner, or a session working on what the line names, checks it and writes a new date in place of the old one',
     'A due Watch line is never moved on sight',
+    "Editing never changes it; only a re-queue on the owner's word writes a new date",
+    'agent items too, unless the owner renews it',
+    "dropping it (`--reason removed`) is the owner's call",
   ];
   for (const pin of PINS) {
     assert.ok(flat.includes(pin), `CONTINUITY.md missing queued/watch rule: "${pin}"`);
@@ -301,17 +304,19 @@ test('CONTINUITY.md widens the on-sight exception to date-flagged lines, writer 
     'another session moved it first — a normal outcome, not an error',
     'After the archive exits 0, name each moved line to the owner in your reply',
     'a due Watch line is re-dated only as "Watch date" above allows',
+    "re-queuing a Backlog item takes the owner's word",
+    '(WARNs, not FAILs — the page-wide cap stays the FAIL backstop)',
   ];
   for (const pin of PINS) {
     assert.ok(flat.includes(pin), `CONTINUITY.md missing on-sight rule: "${pin}"`);
   }
 });
 
-test('CONTINUITY.md Freshness stamp allows a re-stamp from the session log, never forward without a source (v1.8, ADR 0007)', () => {
+test('CONTINUITY.md Freshness stamp allows a re-stamp from the session log, never forward without a real source (v1.8, ADR 0007)', () => {
   const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
   assert.ok(
     flat.includes(
-      "At session close, right after the fresh read, a session that worked a thread may re-stamp its `(as of)` to the heading date of its own newest session-log entry for that work, in that project's `.agents/session.log`; a stamp never moves forward without such a source."
+      "At session close, right after the fresh read, a session that worked a thread may re-stamp its `(as of)` to the heading date of its own newest session-log entry for that work, in that project's `.agents/session.log`; a stamp never moves forward without a real source: the project STATE's as-of, or that session-log heading date."
     ),
     'CONTINUITY.md Freshness stamp bullet missing the session-log re-stamp source'
   );
@@ -690,7 +695,11 @@ test('docs/DESIGN.md brief/log-close collapse is decided by the GLOBAL verdict a
 // someone else's move" — is reverted: back to the one approved exception,
 // archiving an `expired` closed line on sight, with no carve-out for
 // touching another thread's stamp.
-test('CONTINUITY.md Global-grain body AND changelog item 17 revert the ownership exception to "expired closed line on sight" only (#20d H17)', () => {
+//
+// v1.8 (ADR 0007): the body exception is widened to every line lint WARNs
+// closed-expired, thread-inactive or backlog-dormant (first assertion); item
+// 17's own wording and the reverted future-stamp negative stay pinned.
+test('CONTINUITY.md Global-grain body carries the v1.8 on-sight exception; changelog item 17 keeps its reverted "expired closed line on sight" wording (#20d H17, v1.8 ADR 0007)', () => {
   const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
   assert.ok(
     flat.includes(
@@ -799,6 +808,8 @@ test('CONTINUITY.md and docs/DESIGN.md state that the lint and archive clocks ca
 // Active-threads/Recently-closed stamps — Watch/Backlog never carry the
 // convention — but the canon, its changelog, and the ADR all said "any
 // stamp on the page" with no section scope.
+// v1.8 (ADR 0007): Backlog `(queued …)` and Watch `(validate-by: …)` stamps
+// exist now, but still never feed the reference date or the note.
 test('CONTINUITY.md scopes the reference date to Active-threads/Recently-closed stamps, not "any stamp on the page" (#20d H52)', () => {
   const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
   assert.ok(
