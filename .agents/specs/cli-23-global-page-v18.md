@@ -1,6 +1,6 @@
-# Spec — #TBD global page v1.8: threads and backlog leave by date, watch gets a due date (canon v1.8, release 0.5.0)
+# Spec — #21 global page v1.8: threads and backlog leave by date, watch gets a due date (canon v1.8, release 0.5.0)
 
-Session entry: `.agents/session.log` cli.23. Issue: opened at the owner's go (with ratification); the title keeps #TBD until then. Replaces the design stub at this path. Public repo: synthetic fixtures and text only (alpha, gamma, widget, gizmo, testagent); no real names, handles or local paths. The private design record (outside the repo) holds the full fork list, model and migration plan.
+Session entry: `.agents/session.log` cli.23. Issue: #21 (opened 2026-10-12 with the owner's ratification). Replaces the design stub at this path. Public repo: synthetic fixtures and text only (alpha, gamma, widget, gizmo, testagent); no real names, handles or local paths. The private design record (outside the repo) holds the full fork list, model and migration plan.
 
 Conventions in this file:
 - **Line numbers are at `e5b71cc` (main HEAD, 0.4.0).** Lanes branch from the A0 commit, which shifts some numbers. Find code by symbol name and tests by title; numbers are hints only.
