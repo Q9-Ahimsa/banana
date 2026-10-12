@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 const KIT_ROOT_FOR_TEMPLATES = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 import {
+  BACKLOG_DORMANT_DAYS,
   bulletStampShapes,
   checkActiveThreads,
   checkAsOfMalformed,
@@ -55,10 +56,12 @@ import {
   runStateLint,
   SECTION_LINE_LIMITS,
   STATE_CAP_CHARS,
+  STATE_NEAR_CAP_CHARS,
   THREAD_INACTIVE_DAYS,
   topLevelBullets,
   topLevelBulletContinuationCounts,
   validateAgentTag,
+  WAITING_LINE_LIMIT,
 } from '../lib/state.mjs';
 import { isRealCalendarDate, stateAsOf, stateAsOfMalformed } from '../lib/doctor.mjs';
 import { runInit } from '../lib/init.mjs';
@@ -2324,17 +2327,17 @@ test('checkClosedExpired: two stamps on one bullet compare against the OLDEST (c
 // tests with no `t` context, matching exactly what these fixtures exercise.
 const NOHOME = '/nonexistent-home';
 
-test('checkThreadInactive: the exact boundary — 30 days before the reference date passes, 31 warns', () => {
-  const thirtyDays = '## Active threads\n- **alpha** (as of 2026-01-01) — building the thing → memory a\n';
-  assert.deepEqual(checkThreadInactive(thirtyDays, '2026-01-31', NOHOME), []);
+test('checkThreadInactive: the exact boundary — 14 days before the reference date passes, 15 warns', () => {
+  const fourteenDays = '## Active threads\n- **alpha** (as of 2026-01-01) — building the thing → memory a\n';
+  assert.deepEqual(checkThreadInactive(fourteenDays, '2026-01-15', NOHOME), []);
 
-  const thirtyOneDays = '## Active threads\n- **alpha** (as of 2026-01-01) — building the thing → memory a\n';
-  const findings = checkThreadInactive(thirtyOneDays, '2026-02-01', NOHOME);
+  const fifteenDays = '## Active threads\n- **alpha** (as of 2026-01-01) — building the thing → memory a\n';
+  const findings = checkThreadInactive(fifteenDays, '2026-01-16', NOHOME);
   assert.equal(findings.length, 1);
   assert.equal(findings[0].tier, 'WARN');
   assert.equal(findings[0].type, 'thread-inactive');
   assert.ok(findings[0].message.includes('2026-01-01'));
-  assert.ok(findings[0].message.includes('2026-02-01'));
+  assert.ok(findings[0].message.includes('2026-01-16'));
 });
 
 test('checkThreadInactive: the message names the remedy (archive --reason inactive, then a Backlog line)', () => {
@@ -2615,7 +2618,7 @@ test('lintGlobalState: a closed bullet 8+ days before the page\'s newest stamp W
   assert.ok(findings.some((f) => f.type === 'closed-expired'), `expected closed-expired: ${JSON.stringify(findings)}`);
 });
 
-test('lintGlobalState: an Active thread stamped 31+ days before the page\'s newest stamp WARNs thread-inactive', (t) => {
+test('lintGlobalState: an Active thread stamped 15+ days before the page\'s newest stamp WARNs thread-inactive', (t) => {
   const home = sandbox(t);
   makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
   const text = CLEAN_GLOBAL.replace('(closed 2026-09-01)', '(closed 2026-10-10)');
@@ -2646,7 +2649,7 @@ test('runStateLint --global: a line-over-limit WARN exits 0, and the finding pri
   assert.ok(res.lines.at(-1)?.startsWith('state lint: WARN'));
 });
 
-test('SECTION_LINE_LIMITS / CLOSED_EXPIRY_DAYS / THREAD_INACTIVE_DAYS match the spec\'s exact shared constants', () => {
+test('SECTION_LINE_LIMITS / CLOSED_EXPIRY_DAYS / THREAD_INACTIVE_DAYS / BACKLOG_DORMANT_DAYS / WAITING_LINE_LIMIT / STATE_NEAR_CAP_CHARS match the spec\'s exact shared constants', () => {
   assert.deepEqual(SECTION_LINE_LIMITS, {
     'Active threads': 400,
     'Backlog (owned)': 300,
@@ -2654,7 +2657,11 @@ test('SECTION_LINE_LIMITS / CLOSED_EXPIRY_DAYS / THREAD_INACTIVE_DAYS match the 
     'Recently closed (context for next session)': 250,
   });
   assert.equal(CLOSED_EXPIRY_DAYS, 7);
-  assert.equal(THREAD_INACTIVE_DAYS, 30);
+  assert.equal(THREAD_INACTIVE_DAYS, 14);
+  assert.equal(BACKLOG_DORMANT_DAYS, 21);
+  assert.equal(WAITING_LINE_LIMIT, 160);
+  assert.equal(STATE_NEAR_CAP_CHARS, 9000);
+  assert.ok(!('waiting' in SECTION_LINE_LIMITS) && Object.keys(SECTION_LINE_LIMITS).length === 4);
 });
 
 // =====================================================================

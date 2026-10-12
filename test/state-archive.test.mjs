@@ -242,7 +242,7 @@ test('parseStateArgs archive: missing --reason throws', () => {
 test('parseStateArgs archive: unknown --reason value names the vocabulary', () => {
   assert.throws(
     () => parseStateArgs(['archive', '--global', '--match', 'x', '--reason', 'bogus']),
-    /unknown reason 'bogus' \(expected expired\|inactive\|trimmed\|closed\|removed\)/,
+    /unknown reason 'bogus' \(expected expired\|inactive\|dormant\|trimmed\|closed\|removed\)/,
   );
 });
 
@@ -651,7 +651,7 @@ test('runStateArchive: D3 — `inactive` without the line\'s own "(as of ...)" s
   assert.equal(readFileSync(pagePath, 'utf8'), page, 'page untouched');
 });
 
-test('runStateArchive: D3 — `inactive` not yet past the 30-day limit refuses, naming the age and the limit', async (t) => {
+test('runStateArchive: D3 — `inactive` not yet past the 14-day limit refuses, naming the age and the limit', async (t) => {
   const page = buildPage({
     active: ['- **widget** (as of 2026-09-20) — building it → `~/projects/widget/STATE.md`'],
   });
@@ -660,7 +660,7 @@ test('runStateArchive: D3 — `inactive` not yet past the 30-day limit refuses, 
   const result = await archive(home, { match: 'building it', reason: 'inactive' });
   assert.equal(result.code, 2);
   assert.ok(
-    result.err.some((l) => l.includes('is only 11 day(s) before today (2026-10-01) — not yet inactive (needs more than 30)')),
+    result.err.some((l) => l.includes('is only 11 day(s) before today (2026-10-01) — not yet inactive (needs more than 14)')),
     `err: ${result.err.join('\n')}`,
   );
   assert.equal(readFileSync(pagePath, 'utf8'), page, 'page untouched');
@@ -2182,10 +2182,10 @@ test('runStateArchive: D3 — `expired` at EXACTLY the 7-day limit still refuses
   }
 });
 
-test('runStateArchive: D3 — `inactive` at EXACTLY the 30-day limit still refuses; one day more proceeds (#20c H25)', async (t) => {
+test('runStateArchive: D3 — `inactive` at EXACTLY the 14-day limit still refuses; one day more proceeds (#20c H25)', async (t) => {
   {
     const page = buildPage({
-      active: ['- **widget** (as of 2026-09-01) — building it → `~/projects/widget/STATE.md`'],
+      active: ['- **widget** (as of 2026-09-17) — building it → `~/projects/widget/STATE.md`'],
     });
     const { home, pagePath } = makeHome(t, page);
     const result = await archive(home, { match: 'building it', reason: 'inactive' });
@@ -2195,7 +2195,7 @@ test('runStateArchive: D3 — `inactive` at EXACTLY the 30-day limit still refus
   }
   {
     const page = buildPage({
-      active: ['- **widget** (as of 2026-08-31) — building it → `~/projects/widget/STATE.md`'],
+      active: ['- **widget** (as of 2026-09-16) — building it → `~/projects/widget/STATE.md`'],
     });
     const { home, pagePath, archivePath } = makeHome(t, page);
     const result = await archive(home, { match: 'building it', reason: 'inactive' });
