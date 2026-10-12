@@ -647,3 +647,11 @@ VALIDATED: 13 worktree folders removed (8 #20 + cli-23-l/-a/-d/-i/-r); post-chec
 FILES: LOGBOOK.md kit.15 (RELEASE); STATE.md rebuilt through kit.15.
 STATUS: complete
 NEXT: ahimsa — approve the owner page's v1.8 migration line by line (the private migration plan, outside the repo); claude then applies it, then #19, then #18, and files the README-table and fixture-handle issues
+
+## [2026-10-12] claude owner-page.1 | ops — owner page migrated to v1.8 (picks up cli.23's ahimsa NEXT)
+APPROACH: owner ruled each group of lines; one worker applied an exact edit list; main re-verified
+DONE: on the owner machine: 10 threads to the waiting form (long text archived as trimmed); 1 thread moved to Backlog (archived as removed, re-added queued today); 17 Backlog lines dated (6 already past 21 days left as dormant); 6 Watch lines dated; 1 Backlog line trimmed to fit 300
+VALIDATED: live page byte-equal to the expected rebuild from a pre-edit snapshot; 18 new archive records, append-only; CRLF kept; state lint --global PASS; 9,981 -> 7,506 chars
+ref: the owner's home session log, page-migration.2 (private); migration plan kept outside the repo
+STATUS: complete
+NEXT: claude — file two issues (README command table; real handles in older state/archive fixtures), then #19, then #18

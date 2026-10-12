@@ -1,5 +1,5 @@
 # STATE — banana
-> Projection of LOGBOOK.md as of 2026-10-12 (through kit.15). Logbook wins
+> Projection of LOGBOOK.md as of 2026-10-12 (through kit.16). Logbook wins
 > on conflict. One page, hard cap. Rebuilt at session close; mid-arc
 > section patches are legal and must carry the dirty-marker line.
 
@@ -7,8 +7,8 @@
 - 0.5.0 released and live (pushed, served by npx, installed and synced on the owner machine): #21 global
   page v1.8 — threads leave at 15+ idle days, backlog lines go dormant 22+ days after `(queued …)`,
   watch lines carry `(validate-by: …)` and WARN when due, waiting form, near-cap WARN, writer pays;
-  canon CONTINUITY v1.8 (ratified) + ADR 0007. Frontier: the owner page's v1.8 migration (owner approves
-  line by line), then #19, then #18.
+  canon CONTINUITY v1.8 (ratified) + ADR 0007. The owner page is migrated to v1.8 (global lint PASS,
+  7,506 chars) — kit.16. Frontier: two issues to file, then #19, then #18.
 
 ## Truths
 - banana = protocol + mechanical CLI; markdown canonical, no datastore (spec #3) — kit.1
@@ -43,7 +43,6 @@
 - The CLI deploys on push (npx serves origin/main); canon reaches installed sites only via `sync` — kit.6, kit.9
 
 ## Next
-- ahimsa — approve the owner page's v1.8 migration line by line (stamps, header); claude — then apply it — kit.15
 - claude — #19 (sync line endings, doctor remedy text), then #18 (supersede duplicate ids) — kit.12
 - claude — file two issues: README command table out of date; real handles left in older
   state/archive test fixtures — kit.15

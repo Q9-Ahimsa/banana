@@ -112,3 +112,9 @@ DONE: origin e5b71cc..a14259e; `banana sync` here: "kit updated: v0.4.0 -> v0.5.
 ref: .agents/session.log cli.23; GitHub #21; spec .agents/specs/cli-23-global-page-v18.md
 NEXT: ahimsa — approve the owner page's v1.8 migration line by line (stamps on Backlog/Watch lines, the new header); claude — then apply it
 NEXT: claude — #19 (sync line endings, doctor remedy text), then #18 (supersede duplicate ids); file two issues: README command table out of date, real handles left in older state/archive test fixtures
+
+## [2026-10-12] claude kit.16 | MILESTONE — owner page migrated to v1.8; global lint PASS
+WHAT: the owner's global page now follows canon v1.8: threads waiting on the owner use the waiting form, every Backlog line carries `(queued …)`, every Watch line carries `(validate-by: …)`
+DONE: owner ruled each group of lines; 10 threads shortened (long text archived as trimmed), 1 thread moved to Backlog, 17 Backlog + 6 Watch lines dated, 6 Backlog lines past 21 days archived as dormant; 18 archive records; page 9,981 -> 7,506 chars; `state lint --global` PASS, so the session-start hook injects one PASS line instead of 25 WARN lines
+ref: .agents/session.log owner-page.1
+NEXT: claude — file two issues (README command table out of date; real handles in older state/archive fixtures), then #19, then #18
