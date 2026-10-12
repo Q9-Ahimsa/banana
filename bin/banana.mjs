@@ -120,7 +120,9 @@ verb-specific usage and exit codes.
 Exit codes: 0 ok, 2 usage error OR a refused/failed state — \`archive\` also
 exits 2 for a bullet that spans more than one physical line, a reason the
 matched bullet's own section doesn't support, a line not yet past its
-expiry/inactivity limit, a future-dated stamp on the matched line itself,
+expiry/inactivity/dormancy limit,
+a thread whose project page is newer than its stamp,
+a future-dated stamp on the matched line itself,
 invalid UTF-8, or a page missing/changed mid-write — not just a bad flag;
 \`lint\` also exits 1 on any FAIL — see each verb's own --help for its exact
 tiers.`;
@@ -155,28 +157,31 @@ copies only — the page itself is left unmodified, as a reminder to shorten
 the line in place; every other reason removes the bullet from the page.
 
 \`--reason expired\` only applies to a Recently-closed line; \`inactive\` and
-\`closed\` only apply to an Active-threads line — \`trimmed\`/\`removed\` work
+\`closed\` only apply to an Active-threads line;
+\`dormant\` only applies to a Backlog (owned) line — \`trimmed\`/\`removed\` work
 on a bullet in any of the four sections. \`--reason closed\` is a two-step
 move: once the Active-threads line is archived, add a one-line
 Recently-closed entry for it by hand — the command prints a reminder.
 
-\`--reason expired\`/\`inactive\` also read the clock: they refuse (exit 2)
+\`--reason expired\`/\`inactive\`/\`dormant\` also read the clock: they refuse (exit 2)
 unless the MATCHED line's own stamp is already past its limit (\`(closed
-YYYY-MM-DD)\`, 7 days; \`(as of YYYY-MM-DD)\`, 30 days), naming that stamp if
-it is instead dated after today, or suggesting \`--reason removed\` when the
-line carries no stamp at all.
+YYYY-MM-DD)\`, 7 days;
+\`(as of YYYY-MM-DD)\`, 14 days; \`(queued YYYY-MM-DD)\`, 21 days), naming that
+stamp if it is instead dated after today, or suggesting \`--reason removed\`
+when the line carries no stamp at all.
+\`--reason inactive\` also refuses a thread whose project page is newer than its stamp — refresh the stamp instead.
 A future-dated stamp on a DIFFERENT Active-threads or Recently-closed line
 — the same two non-placeholder sections and keywords the reference date
-itself reads; Watch and Backlog never carry this stamp convention — never
-blocks the move: the command proceeds and prints a one-line note naming
-that other line instead.
+itself reads; Backlog \`(queued …)\` and Watch \`(validate-by: …)\` stamps are
+never read for this note — never blocks the move: the command proceeds and
+prints a one-line note naming that other line instead.
 
 A pasted secret (a credential, token, or key) is deleted outright, never
 archived — not even a copy.
 
   --global        required — project pages keep their history in LOGBOOK.md instead
   --match <text>  case-sensitive substring identifying exactly one bullet
-  --reason <r>    one of: expired | inactive | trimmed | closed | removed
+  --reason <r>    one of: expired | inactive | dormant | trimmed | closed | removed
   --tag <agent>   the agent recording the move
   --dry-run       print the record and the action, write nothing
 
@@ -185,18 +190,19 @@ backtick in it — a plain word or hyphenated slug clears every shell's
 quoting rules at once, no per-shell quoting style needed:
 
 PowerShell:
-  banana state archive --global --match stale-thread-name --reason inactive --tag testagent
+  banana state archive --global --match idle-thread-name --reason inactive --tag testagent
 
 cmd.exe:
-  banana state archive --global --match stale-thread-name --reason inactive --tag testagent
+  banana state archive --global --match idle-thread-name --reason inactive --tag testagent
 
 POSIX:
-  banana state archive --global --match stale-thread-name --reason inactive --tag testagent
+  banana state archive --global --match idle-thread-name --reason inactive --tag testagent
 
 Exit codes: 0 ok, 2 usage or a refused/failed state — a wrapped bullet, a
 reason the matched line's own section doesn't support, a line not yet past
-its expiry/inactivity limit, a future-dated stamp on the matched line
-itself, invalid UTF-8, or a page missing or changed mid-write`;
+its expiry/inactivity/dormancy limit,
+a thread whose project page is newer than its stamp, a future-dated stamp on
+the matched line itself, invalid UTF-8, or a page missing or changed mid-write`;
 
 /** Owner inference rung shared by init and project: git config user.name. */
 function gitUserName() {

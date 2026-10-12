@@ -552,7 +552,7 @@ test('runStateArchive: --dry-run prints the record and the action line, writes n
   );
 });
 
-test('runStateArchive: `inactive` also prints a Backlog-line reminder', async (t) => {
+test('runStateArchive: `inactive` prints the off-the-page reminder, byte-exact', async (t) => {
   const page = buildPage({
     active: ['- **gizmo** (as of 2026-08-01) — stalled → `~/projects/gizmo/STATE.md`'],
   });
@@ -560,7 +560,14 @@ test('runStateArchive: `inactive` also prints a Backlog-line reminder', async (t
 
   const result = await archive(home, { match: 'gizmo', reason: 'inactive' });
   assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
-  assert.ok(result.out.some((l) => l.includes('Backlog (owned)') && l.includes('reminder')));
+  assert.ok(
+    result.out.some(
+      (l) =>
+        l ===
+        "reminder: this thread is off the page now — name it to the owner in your reply; its next step stays at its pointer, and only the owner re-queues it as a Backlog item",
+    ),
+    `out: ${JSON.stringify(result.out)}`,
+  );
 });
 
 test('runStateArchive: a missing global page exits 2', async (t) => {
@@ -1887,7 +1894,9 @@ test('runStateArchive: --dry-run prefixes the REMINDER line too (#20c H32)', asy
     assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
     assert.ok(
       result.out.some(
-        (l) => l === 'dry run — reminder: add a one-line Backlog (owned) item for this thread — `owner — name: waiting on … → pointer`',
+        (l) =>
+          l ===
+          "dry run — reminder: this thread is off the page now — name it to the owner in your reply; its next step stays at its pointer, and only the owner re-queues it as a Backlog item",
       ),
       `out: ${JSON.stringify(result.out)}`,
     );
@@ -2132,7 +2141,8 @@ test('runStateArchive: no reminder line prints for `removed`, `expired`, or `tri
     const { home } = makeHome(t, page);
     const result = await archive(home, { match: 'ship the next slice', reason: 'trimmed' });
     assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
-    assert.ok(!result.out.some((l) => l.includes('Backlog (owned) item')), `out: ${result.out.join('\n')}`);
+    assert.ok(!result.out.some((l) => l.includes('only the owner re-queues it')), `out: ${result.out.join('\n')}`);
+    assert.ok(!result.out.some((l) => l.includes('reviving it means a fresh line')), `out: ${result.out.join('\n')}`);
     assert.ok(!result.out.some((l) => l.includes('Recently-closed entry')), `out: ${result.out.join('\n')}`);
   }
 });
@@ -2154,7 +2164,8 @@ test('runStateArchive: `closed` never prints the trimmed/inactive reminder text 
   const result = await archive(home, { match: 'widget', reason: 'closed' });
   assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
   assert.ok(!result.out.some((l) => l.includes('was not modified')), `out: ${result.out.join('\n')}`);
-  assert.ok(!result.out.some((l) => l.includes('Backlog (owned) item')), `out: ${result.out.join('\n')}`);
+  assert.ok(!result.out.some((l) => l.includes('only the owner re-queues it')), `out: ${result.out.join('\n')}`);
+  assert.ok(!result.out.some((l) => l.includes('reviving it means a fresh line')), `out: ${result.out.join('\n')}`);
 });
 
 // =====================================================================
@@ -2690,4 +2701,297 @@ test('runStateArchive: D1 counts an indented fenced block under a bullet as cont
   );
   assert.equal(readFileSync(pagePath, 'utf8'), page, 'page untouched');
   assert.ok(!existsSync(archivePath), 'nothing appended');
+});
+
+// =====================================================================
+// canon v1.8 (cli.23) — the `dormant` reason: a Backlog (owned) line whose
+// `(queued …)` stamp is more than 21 days before today. LOCAL_NOW is
+// 2026-10-01, so 2026-09-10 is exactly 21 days (refuses) and 2026-09-09 is
+// 22 (proceeds). Expected values are literals.
+// =====================================================================
+
+const DORMANT_REMINDER =
+  "reminder: this item is off the page now — name it to the owner in your reply; reviving it means a fresh line with today's (queued …) stamp, on the owner's word";
+const INACTIVE_REMINDER =
+  'reminder: this thread is off the page now — name it to the owner in your reply; its next step stays at its pointer, and only the owner re-queues it as a Backlog item';
+
+/**
+ * Local copy of test/state.test.mjs's `makeTargetState` (module-private
+ * there): writes a project STATE.md whose projection header carries
+ * `asOfDate`, or the undated bootstrap text when null.
+ * @param {string} path
+ * @param {string | null} asOfDate
+ */
+function makeTargetState(path, asOfDate) {
+  mkdirSync(dirname(path), { recursive: true });
+  const text =
+    asOfDate === null
+      ? '# STATE — target\n> Projection of LOGBOOK.md as of (date) (through none). Logbook wins\n'
+      : `# STATE — target\n> Projection of LOGBOOK.md as of ${asOfDate} (through target.1). Logbook wins\n`;
+  writeFileSync(path, text, 'utf8');
+}
+
+test('runStateArchive: dormant — `(queued 2026-09-10)` is exactly 21 days and refuses, page byte-identical, no archive file', async (t) => {
+  const page = buildPage({ backlog: ['- testagent — sweep the gizmo backlog (queued 2026-09-10)'] });
+  const { home, pagePath, archivePath } = makeHome(t, page);
+
+  const result = await archive(home, { match: 'sweep the gizmo', reason: 'dormant' });
+  assert.equal(result.code, 2);
+  assert.ok(
+    result.err.some((l) => l.includes('(queued 2026-09-10) is only 21 day(s) before today (2026-10-01) — not yet dormant (needs more than 21)')),
+    `err: ${result.err.join('\n')}`,
+  );
+  assert.equal(readFileSync(pagePath, 'utf8'), page, 'page untouched');
+  assert.ok(!existsSync(archivePath), 'nothing appended');
+});
+
+test('runStateArchive: dormant — `(queued 2026-09-09)` is 22 days and removes exactly that line, byte-exact', async (t) => {
+  const keep = '- testagent — keep the alpha item (queued 2026-09-30)';
+  const gone = '- testagent — sweep the gizmo backlog (queued 2026-09-09)';
+  const { home, pagePath, archivePath } = makeHome(t, buildPage({ backlog: [gone, keep] }));
+
+  const result = await archive(home, { match: 'sweep the gizmo', reason: 'dormant' });
+  assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
+  assert.equal(readFileSync(pagePath, 'utf8'), buildPage({ backlog: [keep] }));
+  const archiveText = readFileSync(archivePath, 'utf8');
+  assert.ok(archiveText.includes('## [2026-10-01] testagent — dormant · Backlog (owned)\n'), `archive: ${archiveText}`);
+  assert.ok(archiveText.includes(`\n${gone}\n`), `archive: ${archiveText}`);
+  assert.ok(
+    result.out.includes(`archived (dormant): Backlog (owned) · "${gone}" → ${archivePath}`),
+    `out: ${JSON.stringify(result.out)}`,
+  );
+});
+
+test('runStateArchive: dormant — an unstamped Backlog line refuses, suggests --reason removed', async (t) => {
+  const page = buildPage({ backlog: ['- testagent — sweep the gizmo backlog'] });
+  const { home, pagePath } = makeHome(t, page);
+
+  const result = await archive(home, { match: 'sweep the gizmo', reason: 'dormant' });
+  assert.equal(result.code, 2);
+  assert.ok(
+    result.err.some((l) => l.includes('--reason dormant requires the line\'s own "(queued YYYY-MM-DD)" stamp; none found — use --reason removed instead')),
+    `err: ${result.err.join('\n')}`,
+  );
+  assert.equal(readFileSync(pagePath, 'utf8'), page, 'page untouched');
+});
+
+test('runStateArchive: dormant — a future `(queued …)` stamp on the matched line refuses, never a negative day count', async (t) => {
+  const page = buildPage({ backlog: ['- testagent — sweep the gizmo backlog (queued 2026-11-01)'] });
+  const { home, pagePath } = makeHome(t, page);
+
+  const result = await archive(home, { match: 'sweep the gizmo', reason: 'dormant' });
+  assert.equal(result.code, 2);
+  assert.ok(
+    result.err.some((l) => l.includes('"(queued 2026-11-01)" stamp is dated after today (2026-10-01) — fix that stamp first')),
+    `err: ${result.err.join('\n')}`,
+  );
+  assert.ok(!result.err.some((l) => /-\d+ day/.test(l)));
+  assert.equal(readFileSync(pagePath, 'utf8'), page, 'page untouched');
+});
+
+test('runStateArchive: dormant — a line with TWO queued stamps uses the OLDEST', async (t) => {
+  const page = buildPage({ backlog: ['- testagent — sweep the gizmo backlog (queued 2026-09-01) (queued 2026-09-29)'] });
+  const { home, pagePath } = makeHome(t, page);
+
+  const result = await archive(home, { match: 'sweep the gizmo', reason: 'dormant' });
+  assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
+  assert.ok(!readFileSync(pagePath, 'utf8').includes('sweep the gizmo'));
+});
+
+test('runStateArchive: dormant — only applies to a Backlog (owned) line; Active, Watch and Recently-closed lines get the section refusal', async (t) => {
+  const cases = [
+    {
+      match: 'building it',
+      section: 'Active threads',
+      opts: { active: ['- **widget** (as of 2026-08-01) — building it → `~/projects/widget/STATE.md`'] },
+    },
+    { match: 'watch the gizmo', section: 'Watch', opts: { watch: ['- watch the gizmo (queued 2026-08-01) (validate-by: 2026-08-02)'] } },
+    {
+      match: 'shipped the thing',
+      section: 'Recently closed (context for next session)',
+      opts: { closed: ['- **widget** — shipped the thing (queued 2026-08-01) (closed 2026-08-01)'] },
+    },
+  ];
+  for (const c of cases) {
+    const page = buildPage(c.opts);
+    const { home, pagePath, archivePath } = makeHome(t, page);
+    const result = await archive(home, { match: c.match, reason: 'dormant' });
+    assert.equal(result.code, 2, `${c.section}: out ${result.out.join('\n')}`);
+    assert.ok(
+      result.err.some((l) =>
+        l.includes(`--reason dormant only applies to a bullet in "Backlog (owned)" — this bullet is in "${c.section}"; use --reason removed instead`),
+      ),
+      `${c.section} err: ${result.err.join('\n')}`,
+    );
+    assert.equal(readFileSync(pagePath, 'utf8'), page, `${c.section}: page untouched`);
+    assert.ok(!existsSync(archivePath), `${c.section}: nothing appended`);
+  }
+});
+
+test('runStateArchive: dormant — moving the last Backlog line writes the placeholder back', async (t) => {
+  const page = buildPage({ backlog: ['- testagent — sweep the gizmo backlog (queued 2026-09-01)'] });
+  const { home, pagePath } = makeHome(t, page);
+
+  const result = await archive(home, { match: 'sweep the gizmo', reason: 'dormant' });
+  assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
+  assert.equal(
+    readFileSync(pagePath, 'utf8'),
+    buildPage({ backlog: [templatePlaceholder('Backlog (owned)').replaceAll('__OWNER__', 'testagent')] }),
+  );
+});
+
+test('runStateArchive: dormant — --dry-run writes nothing and prints the record plus the dormant reminder, every line prefixed', async (t) => {
+  const page = buildPage({ backlog: ['- testagent — sweep the gizmo backlog (queued 2026-09-01)'] });
+  const { home, pagePath, archivePath } = makeHome(t, page);
+
+  const result = await archive(home, { match: 'sweep the gizmo', reason: 'dormant', dryRun: true });
+  assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
+  assert.equal(readFileSync(pagePath, 'utf8'), page, 'page untouched');
+  assert.ok(!existsSync(archivePath), 'nothing appended');
+  assert.ok(result.out.every((l) => l.startsWith('dry run — ')), `out: ${JSON.stringify(result.out)}`);
+  assert.ok(result.out.includes('dry run — ## [2026-10-01] testagent — dormant · Backlog (owned)'), `out: ${JSON.stringify(result.out)}`);
+  assert.ok(result.out.includes('dry run — - testagent — sweep the gizmo backlog (queued 2026-09-01)'), `out: ${JSON.stringify(result.out)}`);
+  assert.ok(result.out.includes(`dry run — ${DORMANT_REMINDER}`), `out: ${JSON.stringify(result.out)}`);
+});
+
+test('runStateArchive: dormant — a future `(as of …)` on ANOTHER line earns the existing note, not a refusal', async (t) => {
+  const page = buildPage({
+    active: ['- **mistyped** (as of 2026-11-01) — a fat-fingered future stamp → `~/projects/mistyped/STATE.md`'],
+    backlog: ['- testagent — sweep the gizmo backlog (queued 2026-09-01)'],
+  });
+  const { home } = makeHome(t, page);
+
+  const result = await archive(home, { match: 'sweep the gizmo', reason: 'dormant' });
+  assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
+  assert.ok(
+    result.out.some((l) => l.startsWith('note: Active threads line "') && l.includes('carries a future stamp 2026-11-01 — tell its owner')),
+    `out: ${JSON.stringify(result.out)}`,
+  );
+});
+
+test('runStateArchive: dormant — a future queued stamp on another Backlog line earns no note (Backlog stamps are never read for it)', async (t) => {
+  const page = buildPage({
+    backlog: [
+      '- testagent — far future item (queued 2099-01-01)',
+      '- testagent — sweep the gizmo backlog (queued 2026-09-01)',
+    ],
+  });
+  const { home } = makeHome(t, page);
+
+  const result = await archive(home, { match: 'sweep the gizmo', reason: 'dormant' });
+  assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
+  assert.ok(!result.out.some((l) => l.startsWith('note:')), `out: ${JSON.stringify(result.out)}`);
+});
+
+// =====================================================================
+// canon v1.8 (cli.23) — the stale-aware `inactive` gate: a thread whose
+// project page is newer than its `(as of …)` stamp is refreshed, not
+// archived (lint's `thread-stale` wins over `thread-inactive`).
+// =====================================================================
+
+const STALE_THREAD = '- **widget** (as of 2026-09-01) — building it → `~/projects/widget/STATE.md`';
+
+test('runStateArchive: stale — `inactive` on a thread whose project page is newer than its stamp refuses, nothing written', async (t) => {
+  const page = buildPage({ active: [STALE_THREAD] });
+  const { home, pagePath, archivePath } = makeHome(t, page);
+  makeTargetState(join(home, 'projects', 'widget', 'STATE.md'), '2026-09-05');
+
+  const result = await archive(home, { match: 'building it', reason: 'inactive' });
+  assert.equal(result.code, 2);
+  assert.ok(
+    result.err.some((l) =>
+      l.includes("this thread's project page is newer than its (as of 2026-09-01) stamp (thread-stale) — refresh the stamp instead of archiving it"),
+    ),
+    `err: ${result.err.join('\n')}`,
+  );
+  assert.equal(readFileSync(pagePath, 'utf8'), page, 'page untouched');
+  assert.ok(!existsSync(archivePath), 'nothing appended');
+});
+
+test('runStateArchive: stale — `inactive` proceeds when the project page is missing, undated, or dated the same day as the stamp', async (t) => {
+  for (const asOf of ['missing', null, '2026-09-01']) {
+    const page = buildPage({ active: [STALE_THREAD] });
+    const { home, pagePath, archivePath } = makeHome(t, page);
+    if (asOf !== 'missing') makeTargetState(join(home, 'projects', 'widget', 'STATE.md'), asOf);
+
+    const result = await archive(home, { match: 'building it', reason: 'inactive' });
+    assert.equal(result.code, 0, `target ${asOf}: err ${result.err.join('\n')}`);
+    assert.ok(!readFileSync(pagePath, 'utf8').includes('building it'), `target ${asOf}`);
+    assert.ok(readFileSync(archivePath, 'utf8').includes('building it'), `target ${asOf}`);
+  }
+});
+
+test('runStateArchive: stale — the age check runs before the stale check (a 14-day-old stamp with a newer project page says "not yet inactive")', async (t) => {
+  const page = buildPage({
+    active: ['- **widget** (as of 2026-09-17) — building it → `~/projects/widget/STATE.md`'],
+  });
+  const { home } = makeHome(t, page);
+  makeTargetState(join(home, 'projects', 'widget', 'STATE.md'), '2026-09-25');
+
+  const result = await archive(home, { match: 'building it', reason: 'inactive' });
+  assert.equal(result.code, 2);
+  assert.ok(result.err.some((l) => l.includes('not yet inactive (needs more than 14)')), `err: ${result.err.join('\n')}`);
+  assert.ok(!result.err.some((l) => l.includes('thread-stale')), `err: ${result.err.join('\n')}`);
+});
+
+test('runStateArchive: stale — only `inactive` is stale-aware; `closed` and `removed` still move a thread whose project page is newer', async (t) => {
+  for (const reason of /** @type {const} */ (['closed', 'removed'])) {
+    const page = buildPage({ active: [STALE_THREAD] });
+    const { home, pagePath } = makeHome(t, page);
+    makeTargetState(join(home, 'projects', 'widget', 'STATE.md'), '2026-09-05');
+
+    const result = await archive(home, { match: 'building it', reason });
+    assert.equal(result.code, 0, `${reason}: err ${result.err.join('\n')}`);
+    assert.ok(!readFileSync(pagePath, 'utf8').includes('building it'), reason);
+  }
+});
+
+// =====================================================================
+// canon v1.8 (cli.23) — reminder exclusivity: each reminder prints for its
+// own reason only; both texts are pinned byte-exact.
+// =====================================================================
+
+test('runStateArchive: dormant prints ONLY the dormant reminder, byte-exact', async (t) => {
+  const page = buildPage({ backlog: ['- testagent — sweep the gizmo backlog (queued 2026-09-01)'] });
+  const { home } = makeHome(t, page);
+
+  const result = await archive(home, { match: 'sweep the gizmo', reason: 'dormant' });
+  assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
+  assert.deepEqual(
+    result.out.filter((l) => l.startsWith('reminder:')),
+    [DORMANT_REMINDER],
+  );
+});
+
+test('runStateArchive: inactive prints ONLY the inactive reminder, never the dormant one', async (t) => {
+  const page = buildPage({ active: ['- **gizmo** (as of 2026-08-01) — stalled → `~/projects/gizmo/STATE.md`'] });
+  const { home } = makeHome(t, page);
+
+  const result = await archive(home, { match: 'gizmo', reason: 'inactive' });
+  assert.equal(result.code, 0, `err: ${result.err.join('\n')}`);
+  assert.deepEqual(
+    result.out.filter((l) => l.startsWith('reminder:')),
+    [INACTIVE_REMINDER],
+  );
+});
+
+test('runStateArchive: `removed`, `expired`, `trimmed` and `closed` print neither the inactive nor the dormant reminder', async (t) => {
+  /** @type {{ reason: import('../lib/state.mjs').StateArchiveFlags['reason'], opts: Parameters<typeof buildPage>[0], match: string }[]} */
+  const cases = ([
+    { reason: 'removed', opts: { backlog: ['- testagent — ship the next slice'] }, match: 'ship the next slice' },
+    { reason: 'expired', opts: { closed: ['- **widget** — shipped the thing (closed 2026-09-01)'] }, match: 'shipped the thing' },
+    { reason: 'trimmed', opts: { backlog: ['- testagent — ship the next slice'] }, match: 'ship the next slice' },
+    {
+      reason: 'closed',
+      opts: { active: ['- **widget** (as of 2026-08-01) — finishing up → `~/projects/widget/STATE.md`'] },
+      match: 'finishing up',
+    },
+  ]);
+  for (const c of cases) {
+    const { home } = makeHome(t, buildPage(c.opts));
+    const result = await archive(home, { match: c.match, reason: c.reason });
+    assert.equal(result.code, 0, `${c.reason}: err ${result.err.join('\n')}`);
+    assert.ok(!result.out.includes(INACTIVE_REMINDER), `${c.reason}: out ${JSON.stringify(result.out)}`);
+    assert.ok(!result.out.includes(DORMANT_REMINDER), `${c.reason}: out ${JSON.stringify(result.out)}`);
+  }
 });

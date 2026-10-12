@@ -152,7 +152,37 @@ test('bin: `banana state archive --help` scopes the future-stamp-elsewhere NOTE 
     stdout.includes('A future-dated stamp on a DIFFERENT Active-threads or Recently-closed line'),
     `stdout: ${stdout}`,
   );
-  assert.ok(stdout.includes('Watch and Backlog never carry this stamp convention'), `stdout: ${stdout}`);
+  assert.ok(
+    stdout.includes('Backlog `(queued …)` and Watch `(validate-by: …)` stamps are'),
+    `stdout: ${stdout}`,
+  );
+  assert.ok(!stdout.includes('never carry this stamp convention'), `stdout: ${stdout}`);
+});
+
+// canon v1.8: the usage names the `dormant` reason, its Backlog-only section
+// rule, the 14/21-day thresholds, the stale-thread refusal, and the widened
+// exit-2 causes — each phrase on one physical line.
+test('bin: `banana state archive --help` documents `dormant`, the 14/21-day thresholds and the stale-thread refusal', () => {
+  const { status, stdout } = run(['state', 'archive', '--help']);
+  assert.equal(status, 0);
+  assert.ok(stdout.includes('one of: expired | inactive | dormant | trimmed | closed | removed'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('`dormant` only applies to a Backlog (owned) line'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('`--reason expired`/`inactive`/`dormant` also read the clock'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('`(as of YYYY-MM-DD)`, 14 days; `(queued YYYY-MM-DD)`, 21 days)'), `stdout: ${stdout}`);
+  assert.ok(
+    stdout.includes('`--reason inactive` also refuses a thread whose project page is newer than its stamp'),
+    `stdout: ${stdout}`,
+  );
+  assert.ok(stdout.includes('expiry/inactivity/dormancy limit'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('a thread whose project page is newer than its stamp,'), `stdout: ${stdout}`);
+  assert.ok(!stdout.includes('30 days'), `stdout: ${stdout}`);
+});
+
+test('bin: `banana state --help` exit-code paragraph names dormancy and the stale-thread refusal', () => {
+  const { status, stdout } = run(['state', '--help']);
+  assert.equal(status, 0);
+  assert.ok(stdout.includes('expiry/inactivity/dormancy limit'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('a thread whose project page is newer than its stamp,'), `stdout: ${stdout}`);
 });
 
 // #20c E12/H15/H69/H71: instead of per-shell quoting rules (which break on
@@ -164,9 +194,9 @@ test('bin: `banana state archive --help` tells the reader to pick a quote/$/%/ba
   const { status, stdout } = run(['state', 'archive', '--help']);
   assert.equal(status, 0);
   assert.ok(stdout.includes('no quotes, `$`, `%` or\nbacktick'), `stdout: ${stdout}`);
-  assert.ok(stdout.includes('PowerShell:\n  banana state archive --global --match stale-thread-name'), `stdout: ${stdout}`);
-  assert.ok(stdout.includes('cmd.exe:\n  banana state archive --global --match stale-thread-name'), `stdout: ${stdout}`);
-  assert.ok(stdout.includes('POSIX:\n  banana state archive --global --match stale-thread-name'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('PowerShell:\n  banana state archive --global --match idle-thread-name'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('cmd.exe:\n  banana state archive --global --match idle-thread-name'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('POSIX:\n  banana state archive --global --match idle-thread-name'), `stdout: ${stdout}`);
   assert.ok(stdout.includes('deleted outright, never'), `stdout: ${stdout}`);
 });
 
@@ -483,6 +513,56 @@ test('bin: `banana state archive --global` moves a matched bullet into STATE-arc
   const now = new Date();
   const expectedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   assert.ok(archiveText.includes(`## [${expectedDate}]`), `expected today's date ${expectedDate}: ${archiveText}`);
+});
+
+// canon v1.8: one sandboxed end-to-end `--reason dormant` move through the
+// real bin (HOME/USERPROFILE = a temp dir; the record date is computed with
+// the Date constructor's own getters, never the library's formatLocalDate).
+test('bin: `banana state archive --global --reason dormant` moves a long-queued Backlog line on a sandboxed home', (t) => {
+  const home = sandbox(t, 'banana-bin-state-archive-dormant-');
+  mkdirSync(join(home, '.agents'), { recursive: true });
+  const pagePath = join(home, '.agents', 'STATE.md');
+  writeFileSync(
+    pagePath,
+    [
+      '# GLOBAL STATE — cross-project projection',
+      '> One page, hard cap. Edit only your own threads; never rewrite the page.',
+      '> Chronology lives in project logbooks; this file only answers "what\'s live and',
+      '> what\'s queued across everything." Owner: testagent. Protocol:',
+      '> `~/.agents/canon/CONTINUITY.md`.',
+      '',
+      '## Active threads',
+      '- (one line per in-flight project: **name** (as of YYYY-MM-DD) — status → pointer to its STATE.md)',
+      '',
+      '## Backlog (owned)',
+      '- testagent — a synthetic dormant backlog item (queued 2020-01-01)',
+      '',
+      '## Watch',
+      '- (assumptions and deadlines needing attention, each with a validate-by date)',
+      '',
+      '## Recently closed (context for next session)',
+      '- (last few finished threads, one line each, with pointers)',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+
+  const { status, stdout, stderr } = run(
+    ['state', 'archive', '--global', '--match', 'a synthetic dormant backlog item', '--reason', 'dormant', '--tag', 'testagent'],
+    { env: { ...process.env, HOME: home, USERPROFILE: home } },
+  );
+  assert.equal(status, 0, `stderr: ${stderr}`);
+  assert.ok(stdout.includes('archived (dormant): Backlog (owned)'), `stdout: ${stdout}`);
+  assert.ok(stdout.includes('reminder: this item is off the page now'), `stdout: ${stdout}`);
+  assert.ok(!readFileSync(pagePath, 'utf8').includes('a synthetic dormant backlog item'));
+  const archiveText = readFileSync(join(home, '.agents', 'STATE-archive.md'), 'utf8');
+  assert.ok(archiveText.includes('a synthetic dormant backlog item (queued 2020-01-01)'));
+  const now = new Date();
+  const expectedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  assert.ok(
+    archiveText.includes(`## [${expectedDate}] testagent — dormant · Backlog (owned)`),
+    `expected today's date ${expectedDate}: ${archiveText}`,
+  );
 });
 
 // #14 dispatch-only slice: the section content itself is covered by
