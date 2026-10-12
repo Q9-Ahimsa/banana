@@ -61,7 +61,7 @@ Any session may archive, on sight, a line that `banana state lint --global` WARN
 
 If the archive reports no match and a fresh read shows the line gone, another session moved it first, which is a normal outcome. After the archive exits 0, the mover names each moved line to the owner in its reply. There is no roll-up line on the page: the mover names moved lines in its reply, and the archive is searched with `grep`. Nothing else about another session's line is on sight.
 
-The header grows from four to five lines (+144 chars) so that harnesses which read only the page learn the thresholds, the watch date and who moves flagged lines. Each line stays at or under 100 chars and is byte-identical in `templates/global-STATE.md` and the canon's embedded template.
+The header grows from four to five lines (+146 chars) so that harnesses which read only the page learn the thresholds, the watch date and who moves flagged lines. Each line stays at or under 100 chars and is byte-identical in `templates/global-STATE.md` and the canon's embedded template.
 
 ## 6. near-cap at 9,000, and its escalation
 
@@ -111,6 +111,7 @@ Rejected, each with its reason.
 - A far-future `queued`/`validate-by:` date keeps a line forever; nothing limits how far ahead a date can be.
 - Unsourced re-stamps and unchecked re-dates are undetectable.
 - The stale gate reads the pointer target at archive time; a page edited between lint and archive can change the verdict (lint has the same gap).
+- Two sessions with different tags that archive the same line at the same moment can each append a record; the archive then holds one line twice, and nothing is lost.
 - Watch has no owner field; "a session working on what the line names" is a convention.
 - The Backlog placeholder shows no stamp, so a fresh page's first Backlog line WARNs `backlog-undated` until its writer adds a `(queued …)` stamp.
 - Installed pages keep the v1.7 header until hand-edited.

@@ -341,3 +341,17 @@ The lane D reviewer found canon and ADR 0007 sentences that were spec-verbatim b
 - Re-stamp source: "without such a source" → "without a real source: the project STATE's as-of, or that session-log heading date".
 - Clock-free note: a mistyped future stamp can WARN a page "expired, inactive, dormant or due".
 - ADR 0007: ADR 0004 set the 10,000 cap; Watch lines never leave "by rule"; the placeholder Known limit names the `(queued …)` stamp.
+
+## Amendments after the final review (2026-10-12)
+
+A blind case walk of the v1.8 canon (two reviewers) and a final merged-tree review found these; the canon, CLI and ADR 0007 carry the new wording.
+- Stale refusal: the CLI and canon now say only the thread's owning session refreshes the stamp; any other session leaves the line and names it to the owner. A FAIL on another session's line never blocks your own edit.
+- "The owner" who renews or re-queues is the page's `Owner:`, a human; an agent never renews its own item.
+- Close order: re-stamp your own threads first, then lint the fresh read, then archive the flagged lines, then add your line.
+- Reviving a moved item: a fresh line on the owner's word, today's `(queued …)` date; the archive record stays.
+- The canon shows the full archive invocation (`--global --match <text> --tag <agent> --reason …`).
+- Near-cap: the session names it to the owner with the char count and asks whether it fired the week before.
+- Watch: a session working on what the line names may update its text; if the check settles it, it re-dates the line and proposes the drop.
+- Header line 3: "a due watch (validate-by: …) is re-dated, not moved."
+- CLI: the no-match error and the changed-after-archiving message tell the caller to re-read the page (another session may have moved the line); ADR 0007 adds the duplicate-record known limit.
+- Test: the waiting marker's `: ` + ask tail; JSDoc: near-cap is "a WARN, not a FAIL".

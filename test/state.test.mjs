@@ -3759,6 +3759,12 @@ test('isWaitingThread: a `who` with no colon within 40 chars does not match', ()
   assert.equal(isWaitingThread(`- **widget** (as of 2026-10-01) — waiting on ${maxWho}: the ask`), true);
 });
 
+test('isWaitingThread: the colon must be followed by one space and then the ask', () => {
+  assert.equal(isWaitingThread('- **widget** (as of 2026-10-01) — waiting on owner:review the notes → memory a'), false);
+  assert.equal(isWaitingThread('- **widget** (as of 2026-10-01) — waiting on owner:  review the notes → memory a'), false);
+  assert.equal(isWaitingThread('- **widget** (as of 2026-10-01) — waiting on owner:'), false);
+});
+
 // --- checkLineOverLimit: the waiting cap -------------------------------------
 
 test('checkLineOverLimit: a waiting-form Active line of exactly 160 chars passes', () => {

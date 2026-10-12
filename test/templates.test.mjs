@@ -208,7 +208,7 @@ test('global-STATE.md header teaches the v1.8 limits, thresholds, watch date, se
   const HEADER_LINES = [
     '> One line per bullet: thread 400 (waiting form 160) · backlog 300 · watch 350 · closed 250 chars.',
     '> Against the newest (as of)/(closed) stamp: closed lines expire at 8+ days, threads idle 15+ days',
-    '> and backlog lines (queued …) 22+ days leave; a watch past its (validate-by: …) date is checked.',
+    '> and backlog lines (queued …) 22+ days leave; a due watch (validate-by: …) is re-dated, not moved.',
     '> Never delete a line — except a pasted secret, deleted outright. Before adding a line, any session',
     '> archives the lines lint flags to leave (`banana state archive`), keeping them in STATE-archive.md.',
   ];

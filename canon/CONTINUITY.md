@@ -94,7 +94,7 @@ report yet keep their single placeholder line rather than being omitted):
 > `~/.agents/canon/CONTINUITY.md`.
 > One line per bullet: thread 400 (waiting form 160) · backlog 300 · watch 350 · closed 250 chars.
 > Against the newest (as of)/(closed) stamp: closed lines expire at 8+ days, threads idle 15+ days
-> and backlog lines (queued …) 22+ days leave; a watch past its (validate-by: …) date is checked.
+> and backlog lines (queued …) 22+ days leave; a due watch (validate-by: …) is re-dated, not moved.
 > Never delete a line — except a pasted secret, deleted outright. Before adding a line, any session
 > archives the lines lint flags to leave (`banana state archive`), keeping them in STATE-archive.md.
 
@@ -115,14 +115,15 @@ report yet keep their single placeholder line rather than being omitted):
 - **Session close:** if cross-project state changed (thread opened/closed,
   backlog item added), edit only the threads and items your session owns or
   changed — a targeted edit right after a fresh read, re-stamping each touched
-  thread's `(as of)` from its source. Before adding a line, first archive
-  every line lint flags to leave (see "The archive move" below). When your
-  thread's next step becomes someone else's, write it in the waiting form.
-  Never rewrite the whole page: several
-  sessions write it concurrently, and a whole-page write from a stale read
-  deletes their updates. Freshness is enforced by `banana state lint --global`,
-  not by rebuilding. Chronology does not live here; it lives in project
-  logbooks.
+  thread's `(as of)` from its source. Make those re-stamps first, then run
+  `banana state lint --global` on that fresh read — never reuse the lint from
+  session start. Before adding a line, first archive every line lint flags to
+  leave (see "The archive move" below). When your thread's next step becomes
+  someone else's, write it in the waiting form. Never rewrite the whole page:
+  several sessions write it concurrently, and a whole-page write from a stale
+  read deletes their updates. Freshness is enforced by `banana state lint
+  --global`, not by rebuilding. Chronology does not live here; it lives in
+  project logbooks.
 - **Freshness stamp** — every Active-threads bullet carries `(as of
   YYYY-MM-DD)`, the newest source it was rebuilt from (normally its project
   STATE's as-of); a project STATE dated later than the stamp means the
@@ -165,7 +166,10 @@ report yet keep their single placeholder line rather than being omitted):
   threads in the waiting form. If it fires in two different weeks in a row,
   the session that sees it proposes lowering the thread limit to 10 days and
   the owner rules; per-section budgets are a later option, also the
-  owner's. No session changes a limit on its own.
+  owner's. No session changes a limit on its own. No session can see an
+  earlier week's lint, so a session that sees `near-cap` names it to the
+  owner in its reply, with the char count, and asks whether it fired the
+  week before.
 - **Closed stamp and expiry** — a Recently-closed bullet carries `(closed
   YYYY-MM-DD)`, parsed with the same hardened rules as the freshness stamp
   above. It expires when its stamp is more than 7 days before the page's own
@@ -189,9 +193,14 @@ report yet keep their single placeholder line rather than being omitted):
   name (queued YYYY-MM-DD): action → pointer`. Editing never changes it;
   only a re-queue on the owner's word writes a new date, in place of the old
   one — with two stamps the oldest counts, so an added stamp renews nothing.
+  Here "the owner" who renews or re-queues is the page's `Owner:`, a human;
+  an agent tag that owns an item never renews it, even its own.
   An item goes dormant when its stamp is more than 21 days before the page's
   reference date — 22 or more — agent items too, unless the owner renews it;
-  it leaves with `--reason dormant` and nothing replaces it. A stamp before
+  it leaves with `--reason dormant` and nothing replaces it. Reviving a
+  moved item takes the owner's word and is a fresh line: its archived text
+  with today's date in place of the old `(queued …)` stamp; the archive
+  record stays as written. A stamp before
   the owner's ` — ` FAILs `backlog-unowned` and still counts. `banana state
   lint --global` WARNs `backlog-undated` and `backlog-dormant`.
 - **Watch date** (v1.8) — every Watch bullet carries `(validate-by:
@@ -201,11 +210,14 @@ report yet keep their single placeholder line rather than being omitted):
   --global` WARNs `watch-due`: the owner, or a session working on what the
   line names, checks it and writes a new date in place of the old one;
   dropping it (`--reason removed`) is the owner's call. A due Watch line is
-  never moved on sight. No valid stamp WARNs `watch-undated`.
+  never moved on sight. A session working on what it names may update its
+  text with what the check found; if the check settles it, that session
+  still re-dates it and proposes the drop to the owner. Any other session
+  leaves the line as it is. No valid stamp WARNs `watch-undated`.
 - **The archive move** — removal from the page is never a deletion: any
   line leaving it — or the long form of a line being trimmed in place — is
   first copied verbatim into the append-only `~/.agents/STATE-archive.md`,
-  via `banana state archive --reason
+  via `banana state archive --global --match <text> --tag <agent> --reason
   <expired|inactive|dormant|trimmed|closed|removed>`, before it is removed; the
   archive is never loaded at session start, searched with `grep` only. The
   six reasons: `expired` (a closed line past its expiry), `inactive` (an
@@ -231,40 +243,42 @@ report yet keep their single placeholder line rather than being omitted):
   every such line. This is a filing step, not initiative under rule 5: the
   dates have already decided, and nothing is re-planned. If the archive
   reports no match and a fresh read shows the line gone, another session
-  moved it first — a normal outcome, not an error. After the archive exits
+  moved it first — a normal outcome, not an error. If it refuses a thread
+  as stale and the thread is not yours, leave the line: re-stamping it is
+  its owning session's step, so name it to the owner and go on; a FAIL on
+  another session's line never blocks your own edit. After the archive exits
   0, name each moved line to the owner in your reply. Nothing else about
   another session's line is on sight: trimming, closing, rewriting into the
   waiting form or re-stamping a thread stays with its owning session or the
   owner; re-queuing a Backlog item takes the owner's word; and a due Watch
   line is re-dated only as "Watch date" above allows.
-- **The archive command is the clock-aware gate** — `banana state lint`
-  stays clock-free (ADR 0004): a mistyped future stamp can make it WARN a
-  whole page expired, inactive, dormant or due, and that is fine, because lint never
-  changes anything. `banana state archive` is the side that acts, and it
-  does read the clock — which means its `expired`/`inactive`/`dormant` gate
-  can disagree with lint's own
-  `closed-expired`/`thread-inactive`/`backlog-dormant` WARNs: lint
-  compares a stamp against the page's reference date, the gate compares the
-  same stamp against today, and those two dates differ whenever the page's
-  newest stamp isn't dated today, so a line can pass one check before the
-  other catches up. For `--reason expired` it refuses unless the line's own
-  `(closed …)` stamp is more than 7 days before today; for `--reason
-  inactive` it refuses unless the `(as of …)` stamp is more than 14 days
-  before today, and it also refuses a thread whose project page is newer
-  than that stamp — refresh the stamp instead; for `--reason dormant` it
-  refuses unless the `(queued …)` stamp is more than 21 days before today.
-  A missing stamp refuses and suggests `--reason removed`.
-  The gate is LINE-SCOPED: it refuses on a future-dated stamp only when
-  that stamp sits on the MATCHED line itself, naming it so it can be fixed
-  first; a future-dated stamp on any OTHER Active-threads `(as of …)` or
-  Recently-closed `(closed …)` line — the same two non-placeholder sections
-  and keywords the reference date itself reads above, so Watch and Backlog
-  are never scanned for it either — never blocks the move: the gate's own
-  verdict is decided by the matched line alone — its own stamp against the
-  real clock and, for `--reason inactive`, its own pointer's project page —
-  so a stray mistake elsewhere cannot make that decision wrong.
-  The command still proceeds in that case, printing one note naming the
-  other line and its stamp so its owner can be told.
+- **The archive command is the clock-aware gate** — `banana state lint` stays
+  clock-free (ADR 0004): a mistyped future stamp can make it WARN a whole page
+  expired, inactive, dormant or due, and that is fine, because lint never
+  changes anything. `banana state archive` is the side that acts, and it does
+  read the clock — which means its `expired`/`inactive`/`dormant` gate can
+  disagree with lint's own
+  `closed-expired`/`thread-inactive`/`backlog-dormant` WARNs: lint compares a
+  stamp against the page's reference date, the gate compares the same stamp
+  against today, and those two dates differ whenever the page's newest stamp
+  isn't dated today, so a line can pass one check before the other catches up.
+  For `--reason expired` it refuses unless the line's own `(closed …)` stamp
+  is more than 7 days before today; for `--reason inactive` it refuses unless
+  the `(as of …)` stamp is more than 14 days before today, and it also refuses
+  a thread whose project page is newer than that stamp — refresh the stamp
+  instead; for `--reason dormant` it refuses unless the `(queued …)` stamp is
+  more than 21 days before today. A missing stamp refuses and suggests
+  `--reason removed`. The gate is LINE-SCOPED: it refuses on a future-dated
+  stamp only when that stamp sits on the MATCHED line itself, naming it so it
+  can be fixed first; a future-dated stamp on any OTHER Active-threads `(as of
+  …)` or Recently-closed `(closed …)` line — the same two non-placeholder
+  sections and keywords the reference date itself reads above, so Watch and
+  Backlog are never scanned for it either — never blocks the move: the gate's
+  own verdict is decided by the matched line alone — its own stamp against the
+  real clock and, for `--reason inactive`, its own pointer's project page — so
+  a stray mistake elsewhere cannot make that decision wrong. The command still
+  proceeds in that case, printing one note naming the other line and its stamp
+  so its owner can be told.
 - **Secrets** — a credential, token, or key pasted onto the page is deleted
   outright, never archived. If one already reached the archive, delete it
   there too; it is the only edit the archive file ever takes.
