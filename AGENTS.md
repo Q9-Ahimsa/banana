@@ -11,7 +11,7 @@
 - Public records: this repo's session.log, LOGBOOK, STATE and specs are public — name other
   projects generically ("another project") and never write local paths, usernames or private
   notes.
-- Sample data: fixtures, help examples and code comments use placeholder names (`alice`, `bob`), never a real person's name or handle. `test/deny-list.test.mjs` enforces this over bin/, lib/, adapters/ and test/ (canon/ and templates/ have their own scans); its scanned dirs are checked against the tsconfig include list.
+- Sample data: fixtures, help examples and code comments use placeholder names (`alice`, `bob`), never a real person's name or handle. `test/deny-list.test.mjs` scans bin/, lib/, adapters/ and test/ for the deny-list patterns (test/canon.test.mjs FORBIDDEN_PATTERNS: the owner handle and machine-specific residue); any other name is on the writer (canon/ and templates/ have their own scans); its scanned dirs are checked against the tsconfig include list.
 - tsconfig include list covers bin/, lib/, adapters/, test/ — new source dirs must be added there
   or `npm run check` silently skips them.
 

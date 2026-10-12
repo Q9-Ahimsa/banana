@@ -61,8 +61,9 @@ Canonical invocation, once installed: `banana <command>`, no network. Cold
 bootstrap, before the shim exists on this machine: `npx --yes
 github:Q9-Ahimsa/banana <command>` — slower (fetches the kit fresh every
 call), but works with nothing installed. Either way, `sync` and `doctor`
-are the only commands that ever reach the network on purpose: `sync` to run
-its own kit-update step, `doctor` for one best-effort remote-version check.
+are the only commands that reach the network themselves (`init --deliver`
+hands a directive to the Hermes agent, which makes its own calls): `sync` to
+run its own kit-update step, `doctor` for one best-effort remote-version check.
 Offline, `sync` warns and carries on, and `doctor` skips its check silently.
 
 | Command | What it does |
@@ -70,7 +71,7 @@ Offline, `sync` warns and carries on, and `doctor` skips its check silently.
 | `banana init` | detect installed harnesses, install the canon into `~/.agents/canon/`, wire the bootstrap block into each instruction file. Non-interactive: `--owner`, `--tag`, `--harnesses`, `--yes`. `--deliver` also runs the Hermes one-shot delivery command instead of only printing it |
 | `banana project` | initialize the current workspace (git repo or non-code topic dir) with `LOGBOOK.md`, `STATE.md`, `.agents/session.log`, and a wired `AGENTS.md` continuity block. Non-interactive: `--owner`, `--tag`, `--yes` |
 | `banana brief <feature> --tag <agent>` | compile a per-intent context brief — feature-scoped, deterministic, no LLM calls. No feature arg lists the active slugs |
-| `banana doctor` | audit wiring versions, canon staleness, and log liveness; each stale finding names its fix — `banana sync` for the canon and home instruction files, `banana project` for a project's `AGENTS.md`. Also a best-effort remote-version check (silent offline). `--verify` prints per-harness recital commands |
+| `banana doctor` | audit wiring versions, canon staleness, and log liveness; each stale-canon / stale-fence finding names its fix — `banana sync` for the canon and home instruction files, `banana project` for a project's `AGENTS.md`. Also a best-effort remote-version check (silent offline). `--verify` prints per-harness recital commands |
 | `banana sync` | run the kit's own update step (best-effort; warns and carries on offline), then refresh the kit-owned canon and re-apply any wiring fence older than current; a line-ending difference alone is never a change |
 | `banana log stub\|append\|close\|supersede` | stamp session-log entries — the envelope (heading, STATUS/NEXT composition, concurrency-guard continuation) is computed, never hand-typed. `banana log <verb> --help` for usage |
 | `banana state lint\|archive` | `lint [--global]`: check a `STATE.md` page against the canon's mechanical invariants — `./STATE.md`, or `~/.agents/STATE.md` with `--global`; verdicts FAIL / WARN / PASS, never reads the clock. `archive --global --match <text> --reason <reason> --tag <agent> [--dry-run]`: move one line off the global page into `~/.agents/STATE-archive.md` (see "Archiving a global STATE line" below). `banana state <verb> --help` for usage |

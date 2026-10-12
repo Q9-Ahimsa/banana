@@ -38,6 +38,12 @@ test('bin --help lists every command in lib/commands.mjs COMMANDS', () => {
   for (const cmd of COMMANDS) {
     assert.ok(out.includes(cmd), `--help output names ${cmd}`);
   }
+  const at = COMMANDS.map((c) => out.search(new RegExp('^  ' + c + ' ', 'm')));
+  assert.ok(
+    at.every((i) => i >= 0),
+    `--help lists each command on its own indented line: ${at}`
+  );
+  assert.deepEqual(at, [...at].sort((a, b) => a - b));
 });
 
 test('unknown command exits non-zero', () => {
