@@ -260,7 +260,7 @@ test('brief: global STATE.md body content never leaks into the brief — only it
       '## Active threads',
       '',
       '## Backlog (owned)',
-      '- ahimsa — sweep GLOBAL_ONLY_MARKER backlog item',
+      '- testagent — sweep GLOBAL_ONLY_MARKER backlog item (queued 2026-07-01)',
       '',
       '## Watch',
       '',
@@ -686,7 +686,7 @@ const STALE_GLOBAL = [
   '- **gamma** (as of 2026-07-01) — building the thing → `~/projects/gamma/STATE.md`',
   '',
   '## Backlog (owned)',
-  '- testagent — sweep the backlog',
+  '- testagent — sweep the backlog (queued 2026-07-01)',
   '',
   '## Watch',
   '- an assumption needing validation (validate-by: 2026-08-01)',
@@ -714,6 +714,43 @@ test('brief: a stale global Active-threads bullet FAILs thread-stale, printed af
   assert.match(brief, /project: PASS · global: FAIL \(1 fail, 0 warn\)/);
   assert.match(brief, /FAIL \[thread-stale\] ~\/\.agents\/STATE\.md: /);
   assert.match(brief, /Fix these before relying on the page/);
+});
+
+// A lint-clean global page padded past the 9000-char near-cap warning line
+// (and under the 10000 cap) with short, dated Watch bullets: exactly one WARN.
+const NEAR_CAP_GLOBAL = [
+  '# GLOBAL STATE — cross-project projection',
+  '> One page, hard cap. Edit only your own threads; never rewrite the page.',
+  '',
+  '## Active threads',
+  '- **gamma** (as of 2026-07-01) — building the thing → `~/projects/gamma/STATE.md`',
+  '',
+  '## Backlog (owned)',
+  '- testagent — sweep the backlog (queued 2026-07-01)',
+  '',
+  '## Watch',
+  ...Array.from({ length: 31 }, () => `- ${'w'.repeat(250)} (validate-by: 2026-08-01)`),
+  '',
+  '## Recently closed (context for next session)',
+  '- nothing yet (closed 2026-07-01)',
+  '',
+].join('\n');
+
+test('brief: a global page past 9000 chars counts near-cap in the one-line global summary', () => {
+  assert.ok(NEAR_CAP_GLOBAL.length > 9000 && NEAR_CAP_GLOBAL.length <= 10000, `sanity: ${NEAR_CAP_GLOBAL.length}`);
+  const home = mkdtempSync(join(tmpdir(), 'banana-brief-home-nearcap-'));
+  tempDirs.push(home);
+  mkdirSync(join(home, '.agents'), { recursive: true });
+  writeFileSync(join(home, '.agents', 'STATE.md'), NEAR_CAP_GLOBAL, 'utf8');
+  mkdirSync(join(home, 'projects', 'gamma'), { recursive: true });
+  writeFileSync(
+    join(home, 'projects', 'gamma', 'STATE.md'),
+    '# STATE — gamma\n> Projection of LOGBOOK.md as of 2026-07-01 (through none).\n',
+    'utf8',
+  );
+  const brief = compileBrief({ feature: 'auth', tag: 'claude' }, { cwd: makeProject(), now: NOW, home });
+  assert.match(brief, /project: PASS · global: WARN \(1 warn\)/);
+  assert.match(brief, /near-cap/);
 });
 
 test('runBrief: discovery mode also carries the `## State lint` section, before the slug listing', async () => {

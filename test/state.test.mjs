@@ -22,12 +22,15 @@ import {
   checkActiveThreads,
   checkAsOfMalformed,
   checkAsOfMissing,
+  checkBacklogDormant,
+  checkBacklogUndated,
   checkBulletWrapped,
   checkClosedExpired,
   checkClosedUndated,
   checkDirtyMarker,
   checkLineOverLimit,
   checkMissingSections,
+  checkNearCap,
   checkOverCap,
   checkRetiredHeader,
   checkRetiredHeaderGlobal,
@@ -35,6 +38,8 @@ import {
   checkStaleVsSessionLog,
   checkThreadInactive,
   checkUnownedBullets,
+  checkWatchDue,
+  checkWatchUndated,
   classifyOwnerBullet,
   CLOSED_EXPIRY_DAYS,
   collectStateLint,
@@ -45,6 +50,7 @@ import {
   globalReferenceDate,
   hasSection,
   isPlaceholderBullet,
+  isWaitingThread,
   lintGlobalState,
   lintProjectState,
   oldestValidStamp,
@@ -920,7 +926,7 @@ const CLEAN_GLOBAL = [
   '- **alpha** (as of 2026-09-01) — building the thing → `~/projects/alpha/STATE.md`',
   '',
   '## Backlog (owned)',
-  '- testagent — sweep the backlog',
+  '- testagent — sweep the backlog (queued 2026-09-01)',
   '',
   '## Watch',
   '- an assumption needing validation (validate-by: 2026-10-01)',
@@ -1223,7 +1229,10 @@ test('lintGlobalState: the pre-amendment header WARNs retired-header, page other
 });
 
 test('lintGlobalState: an unowned Backlog bullet surfaces through the composed findings, not just the standalone checkUnownedBullets call', (t) => {
-  const text = CLEAN_GLOBAL.replace('- testagent — sweep the backlog', '- unowned — nobody claimed this yet');
+  const text = CLEAN_GLOBAL.replace(
+    '- testagent — sweep the backlog (queued 2026-09-01)',
+    '- unowned — nobody claimed this yet (queued 2026-09-01)',
+  );
   const home = sandbox(t);
   makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
   const findings = lintGlobalState(text, { home });
@@ -2157,8 +2166,8 @@ test('lintGlobalState: a wrapped bullet WARNs bullet-wrapped through the compose
   const home = sandbox(t);
   makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
   const text = CLEAN_GLOBAL.replace(
-    '- testagent — sweep the backlog',
-    '- testagent — sweep the backlog\n  a continuation line',
+    '- testagent — sweep the backlog (queued 2026-09-01)',
+    '- testagent — sweep the backlog (queued 2026-09-01)\n  a continuation line',
   );
   const findings = lintGlobalState(text, { home });
   assert.ok(findings.some((f) => f.type === 'bullet-wrapped'), `expected bullet-wrapped: ${JSON.stringify(findings)}`);
@@ -2340,12 +2349,18 @@ test('checkThreadInactive: the exact boundary — 14 days before the reference d
   assert.ok(findings[0].message.includes('2026-01-16'));
 });
 
-test('checkThreadInactive: the message names the remedy (archive --reason inactive, then a Backlog line)', () => {
+test('checkThreadInactive: the message names the remedy (archive --reason inactive; the next step stays at its pointer, no Backlog line)', () => {
   const text = '## Active threads\n- **alpha** (as of 2026-01-01) — building the thing → memory a\n';
   const findings = checkThreadInactive(text, '2026-03-01', NOHOME);
   assert.equal(findings.length, 1);
   assert.ok(findings[0].message.includes('banana state archive --global --reason inactive --match'));
-  assert.ok(findings[0].message.includes('Backlog'));
+  assert.ok(findings[0].message.includes('its next step stays at its pointer'));
+  assert.ok(!findings[0].message.includes('then add a one-line Backlog item'));
+  assert.ok(
+    findings[0].message.endsWith(
+      ' — archive it (`banana state archive --global --reason inactive --match …`); its next step stays at its pointer',
+    ),
+  );
 });
 
 test('checkThreadInactive: a null reference date (no valid stamp anywhere) skips the check entirely', () => {
@@ -2746,7 +2761,7 @@ test('runStateLint --global: H42 — a home bootstrapped with a spaced owner lin
   const stateMdPath = join(home, '.agents', 'STATE.md');
   const withRealBullet = readFileSync(stateMdPath, 'utf8').replace(
     '- (queued cross-project items, each owned: `Jane Doe — action` or an agent tag)',
-    '- Jane Doe — review the draft proposal',
+    '- Jane Doe — review the draft proposal (queued 2026-09-01)',
   );
   assert.notEqual(withRealBullet, readFileSync(stateMdPath, 'utf8'), 'sanity: the replace actually hit');
   writeFileSync(stateMdPath, withRealBullet, 'utf8');
@@ -2788,7 +2803,7 @@ test('lintGlobalState: E3/H67 — a page whose only Active/Backlog/Closed conten
     '- <!-- add items -->',
     '',
     '## Watch',
-    '- x',
+    '- x (validate-by: 2026-09-01)',
     '',
     '## Recently closed (context for next session)',
     '- <!-- none yet -->',
@@ -3195,7 +3210,10 @@ test('checkBulletWrapped: G5/H59/F2 — a whitespace-only line after a bullet ne
 
 test('lintGlobalState: G5/H59/F2 — a whitespace-only line after a real Backlog bullet lints clean (no false bullet-wrapped) through the composed findings', (t) => {
   const home = sandbox(t);
-  const text = CLEAN_GLOBAL.replace('- testagent — sweep the backlog\n', '- testagent — sweep the backlog\n  \n');
+  const text = CLEAN_GLOBAL.replace(
+    '- testagent — sweep the backlog (queued 2026-09-01)\n',
+    '- testagent — sweep the backlog (queued 2026-09-01)\n  \n',
+  );
   const findings = lintGlobalState(text, { home });
   assert.ok(!findings.some((f) => f.type === 'bullet-wrapped'), JSON.stringify(findings));
 });
@@ -3227,8 +3245,8 @@ test('lintGlobalState: C28 — a CRLF global page with a Backlog bullet EXACTLY 
   const home = sandbox(t);
   makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
   const atLimit = CLEAN_GLOBAL.replace(
-    '- testagent — sweep the backlog',
-    bulletOfLength('- testagent — sweep the backlog ', limit),
+    '- testagent — sweep the backlog (queued 2026-09-01)',
+    bulletOfLength('- testagent — sweep the backlog (queued 2026-09-01) ', limit),
   );
   const crlf = atLimit.replace(/\n/g, '\r\n');
   assert.deepEqual(lintGlobalState(crlf, { home }), []);
@@ -3240,8 +3258,8 @@ test('lintGlobalState: C28 — the same CRLF page one char over the limit WARNs 
   const home = sandbox(t);
   makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
   const overLimit = CLEAN_GLOBAL.replace(
-    '- testagent — sweep the backlog',
-    bulletOfLength('- testagent — sweep the backlog ', limit + 1),
+    '- testagent — sweep the backlog (queued 2026-09-01)',
+    bulletOfLength('- testagent — sweep the backlog (queued 2026-09-01) ', limit + 1),
   );
   const crlf = overLimit.replace(/\n/g, '\r\n');
   const findings = lintGlobalState(crlf, { home });
@@ -3678,8 +3696,8 @@ test('collectStateLint + formatStateLintLines: E7 — a WARN-only global page co
   const name = 'Backlog (owned)';
   const limit = SECTION_LINE_LIMITS[name];
   const text = CLEAN_GLOBAL.replace(
-    '- testagent — sweep the backlog',
-    bulletOfLength('- testagent — sweep the backlog ', limit + 1),
+    '- testagent — sweep the backlog (queued 2026-09-01)',
+    bulletOfLength('- testagent — sweep the backlog (queued 2026-09-01) ', limit + 1),
   );
   const home = makeGlobalHome(t, text);
   makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
@@ -3689,4 +3707,471 @@ test('collectStateLint + formatStateLintLines: E7 — a WARN-only global page co
   const lines = formatStateLintLines(collected);
   assert.ok(lines.some((l) => l.startsWith('global state lint: WARN') && l.includes('line-over-limit')), lines.join('\n'));
   assert.ok(!lines.some((l) => l.startsWith('WARN [line-over-limit]')), 'the raw WARN line must not appear verbatim');
+});
+
+// =====================================================================
+// Global page v1.8 (lane L): the waiting form's 160 cap, the 14-day thread
+// limit's wiring, Backlog `(queued …)` dormancy, Watch `(validate-by: …)`
+// due dates, and the near-cap warning. Public-repo hygiene: every fixture is
+// synthetic. Expected values are literals, never computed by the code under
+// test.
+// =====================================================================
+
+const WAITING_PREFIX = '- **widget** (as of 2026-10-01) — waiting on owner: ';
+const ALPHA_THREAD = '- **alpha** (as of 2026-09-01) — building the thing → `~/projects/alpha/STATE.md`';
+
+/** A one-bullet `## Active threads` fragment. */
+function activeOnly(line) {
+  return `## Active threads\n${line}\n`;
+}
+
+// --- isWaitingThread ---------------------------------------------------------
+
+test('isWaitingThread: the spec example waiting line matches', () => {
+  assert.equal(
+    isWaitingThread('- **widget** (as of 2026-10-01) — waiting on owner: review the release notes → `~/projects/widget/STATE.md`'),
+    true,
+  );
+});
+
+test('isWaitingThread: the marker is case-sensitive, so `(As of …)` does not match', () => {
+  assert.equal(isWaitingThread('- **widget** (As of 2026-10-01) — waiting on owner: review the notes → memory a'), false);
+});
+
+test('isWaitingThread: a marker inside backticks is masked and does not match', () => {
+  assert.equal(isWaitingThread('- **widget** (as of 2026-10-01)` — waiting on owner: review the notes` → memory a'), false);
+  // The whole marker, stamp included, is quoted example text.
+  assert.equal(isWaitingThread('- **widget** `(as of 2026-10-01) — waiting on owner: review the notes` → memory a'), false);
+});
+
+test('isWaitingThread: the marker must sit directly after the stamp', () => {
+  assert.equal(isWaitingThread('- **widget** (as of 2026-10-01) — status; waiting on owner: review the notes'), false);
+  // The marker text itself is present, but something sits between the stamp and it.
+  assert.equal(isWaitingThread('- **widget** (as of 2026-10-01) — status — waiting on owner: review the notes'), false);
+  assert.equal(isWaitingThread('- **widget** — waiting on owner: review the notes'), false);
+});
+
+test('isWaitingThread: a `who` with no colon within 40 chars does not match', () => {
+  assert.equal(isWaitingThread('- **widget** (as of 2026-10-01) — waiting on build; then ship'), false);
+  const longWho = 'x'.repeat(41);
+  assert.equal(isWaitingThread(`- **widget** (as of 2026-10-01) — waiting on ${longWho}: the ask`), false);
+  const maxWho = 'x'.repeat(40);
+  assert.equal(isWaitingThread(`- **widget** (as of 2026-10-01) — waiting on ${maxWho}: the ask`), true);
+});
+
+// --- checkLineOverLimit: the waiting cap -------------------------------------
+
+test('checkLineOverLimit: a waiting-form Active line of exactly 160 chars passes', () => {
+  assert.deepEqual(checkLineOverLimit(activeOnly(bulletOfLength(WAITING_PREFIX, 160))), []);
+});
+
+test('checkLineOverLimit: a waiting-form Active line of 161 chars warns with the waiting message', () => {
+  const findings = checkLineOverLimit(activeOnly(bulletOfLength(WAITING_PREFIX, 161)));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'WARN');
+  assert.equal(findings[0].type, 'line-over-limit');
+  assert.equal(
+    findings[0].message,
+    '"## Active threads" bullet in the waiting form is 161 chars (limit 160): ' +
+      '"- **widget** (as of 2026-10-01) — waiting on owner: xxxxxxxx" — archive the full text ' +
+      '(`banana state archive --global --reason trimmed --match …`), then shorten it in place',
+  );
+});
+
+test('checkLineOverLimit: the same 161 chars without the marker passes (cap 400)', () => {
+  const line = bulletOfLength('- **widget** (as of 2026-10-01) — building the thing ', 161);
+  assert.deepEqual(checkLineOverLimit(activeOnly(line)), []);
+});
+
+test('checkLineOverLimit: the waiting cap does not apply outside Active threads', () => {
+  const line = bulletOfLength('- testagent — sweep (queued 2026-10-01) — waiting on owner: ', 161);
+  assert.deepEqual(checkLineOverLimit(`## Backlog (owned)\n${line}\n`), []);
+});
+
+test('checkLineOverLimit: a marker not directly after the stamp keeps the 400 cap', () => {
+  const line = bulletOfLength('- **widget** (as of 2026-10-01) — status; waiting on owner: ', 161);
+  assert.deepEqual(checkLineOverLimit(activeOnly(line)), []);
+});
+
+test('checkLineOverLimit: a marker inside backticks keeps the 400 cap', () => {
+  const line = bulletOfLength('- **widget** (as of 2026-10-01)` — waiting on owner: ', 160) + 'x`';
+  assert.equal(line.length, 162);
+  assert.deepEqual(checkLineOverLimit(activeOnly(line)), []);
+  const quotedWhole = bulletOfLength('- **widget** `(as of 2026-10-01) — waiting on owner: ', 161) + '`';
+  assert.equal(quotedWhole.length, 162);
+  assert.deepEqual(checkLineOverLimit(activeOnly(quotedWhole)), []);
+});
+
+test('checkLineOverLimit: a marker with no colon within 40 chars keeps the 400 cap', () => {
+  const line = bulletOfLength('- **widget** (as of 2026-10-01) — waiting on build; then ship ', 161);
+  assert.deepEqual(checkLineOverLimit(activeOnly(line)), []);
+});
+
+test('checkLineOverLimit: a marker after `(As of …)` keeps the 400 cap, and 401 chars warns with limit 400', () => {
+  const prefix = '- **widget** (As of 2026-10-01) — waiting on owner: ';
+  assert.deepEqual(checkLineOverLimit(activeOnly(bulletOfLength(prefix, 161))), []);
+  const findings = checkLineOverLimit(activeOnly(bulletOfLength(prefix, 401)));
+  assert.equal(findings.length, 1);
+  assert.ok(findings[0].message.startsWith('"## Active threads" bullet is 401 chars (limit 400): '), findings[0].message);
+});
+
+test('lintGlobalState: a waiting-form thread of 161 chars WARNs line-over-limit through the composed findings', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const line = bulletOfLength('- **alpha** (as of 2026-09-01) — waiting on owner: ', 150) + ' → `~/projects/alpha/STATE.md`';
+  assert.ok(line.length > 160, 'sanity: the fixture exceeds the waiting cap');
+  const text = CLEAN_GLOBAL.replace(ALPHA_THREAD, line);
+  assert.notEqual(text, CLEAN_GLOBAL, 'sanity: the replace must actually hit');
+  const findings = lintGlobalState(text, { home });
+  assert.ok(
+    findings.some((f) => f.type === 'line-over-limit' && f.message.includes('in the waiting form is')),
+    JSON.stringify(findings),
+  );
+});
+
+test('lintGlobalState: a waiting-form thread with no `→` still FAILs thread-no-pointer', (t) => {
+  const home = sandbox(t);
+  const text = CLEAN_GLOBAL.replace(ALPHA_THREAD, '- **alpha** (as of 2026-09-01) — waiting on owner: review the notes');
+  assert.notEqual(text, CLEAN_GLOBAL, 'sanity: the replace must actually hit');
+  const findings = lintGlobalState(text, { home });
+  assert.ok(findings.some((f) => f.tier === 'FAIL' && f.type === 'thread-no-pointer'), JSON.stringify(findings));
+});
+
+test('lintGlobalState: a waiting-form thread with an impossible stamp still FAILs thread-stamp-malformed', (t) => {
+  const home = sandbox(t);
+  const text = CLEAN_GLOBAL.replace(
+    ALPHA_THREAD,
+    '- **alpha** (as of 2026-02-30) — waiting on x: y → `~/projects/alpha/STATE.md`',
+  );
+  assert.notEqual(text, CLEAN_GLOBAL, 'sanity: the replace must actually hit');
+  const findings = lintGlobalState(text, { home });
+  assert.ok(findings.some((f) => f.tier === 'FAIL' && f.type === 'thread-stamp-malformed'), JSON.stringify(findings));
+});
+
+// --- checkBacklogUndated -----------------------------------------------------
+
+test('checkBacklogUndated: an unstamped Backlog bullet warns, with the exact message', () => {
+  const findings = checkBacklogUndated('## Backlog (owned)\n- testagent — sweep the backlog\n');
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'WARN');
+  assert.equal(findings[0].type, 'backlog-undated');
+  assert.equal(
+    findings[0].message,
+    'no valid "(queued YYYY-MM-DD)" stamp: "- testagent — sweep the backlog" — add one after the owner\'s " — "',
+  );
+});
+
+test('checkBacklogUndated: an impossible date, a backticked stamp, and prose that is not a stamp all warn', () => {
+  for (const line of [
+    '- testagent — sweep (queued 2026-02-30)',
+    '- testagent — sweep `(queued 2026-09-01)`',
+    '- testagent — sweep (idle since 2026-01-05)',
+  ]) {
+    const findings = checkBacklogUndated(`## Backlog (owned)\n${line}\n`);
+    assert.equal(findings.length, 1, line);
+    assert.equal(findings[0].type, 'backlog-undated', line);
+  }
+});
+
+test('checkBacklogUndated: the placeholder and a stamp after the owner dash pass', () => {
+  assert.deepEqual(
+    checkBacklogUndated(
+      '## Backlog (owned)\n- (queued cross-project items, each owned: `testagent — action` or an agent tag)\n',
+    ),
+    [],
+  );
+  assert.deepEqual(checkBacklogUndated('## Backlog (owned)\n- testagent — sweep (queued 2026-09-01)\n'), []);
+});
+
+test('checkBacklogUndated: a stamp BEFORE the owner dash is still read (the line FAILs backlog-unowned instead)', () => {
+  const text = '## Backlog (owned)\n- testagent (queued 2026-09-01) — sweep\n';
+  assert.equal(classifyOwnerBullet('- testagent (queued 2026-09-01) — sweep'), 'unowned');
+  assert.deepEqual(checkBacklogUndated(text), []);
+  const unowned = checkUnownedBullets(text, 'Backlog (owned)', 'backlog-unowned');
+  assert.equal(unowned.length, 1);
+  assert.equal(unowned[0].type, 'backlog-unowned');
+  // ...and the stamp still drives dormancy: 22 days before the reference date.
+  const dormant = checkBacklogDormant(text, '2026-09-23');
+  assert.equal(dormant.length, 1);
+  assert.equal(dormant[0].type, 'backlog-dormant');
+});
+
+test('checkBacklogUndated: only the Backlog section is read', () => {
+  assert.deepEqual(checkBacklogUndated('## Watch\n- unstamped watch line\n'), []);
+});
+
+// --- checkBacklogDormant -----------------------------------------------------
+
+test('checkBacklogDormant: 21 days before the reference date passes, 22 warns', () => {
+  const text = '## Backlog (owned)\n- testagent — sweep the backlog (queued 2026-09-01)\n';
+  assert.deepEqual(checkBacklogDormant(text, '2026-09-22'), []);
+  const findings = checkBacklogDormant(text, '2026-09-23');
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'WARN');
+  assert.equal(findings[0].type, 'backlog-dormant');
+  assert.equal(
+    findings[0].message,
+    'queued 2026-09-01 is 22 days before the reference date 2026-09-23 (dormant after 21): ' +
+      '"- testagent — sweep the backlog (queued 2026-09-01)" — archive it ' +
+      '(`banana state archive --global --reason dormant --match …`)',
+  );
+});
+
+test('checkBacklogDormant: a null reference date skips the check, as does an unstamped bullet', () => {
+  assert.deepEqual(checkBacklogDormant('## Backlog (owned)\n- testagent — sweep (queued 2020-01-01)\n', null), []);
+  assert.deepEqual(checkBacklogDormant('## Backlog (owned)\n- testagent — sweep, no stamp\n', '2026-09-23'), []);
+});
+
+test('checkBacklogDormant: the placeholder is skipped', () => {
+  assert.deepEqual(
+    checkBacklogDormant(
+      '## Backlog (owned)\n- (queued cross-project items, each owned: `testagent — action` or an agent tag)\n',
+      '2026-09-23',
+    ),
+    [],
+  );
+});
+
+test('checkBacklogDormant: two stamps on one bullet compare against the OLDEST', () => {
+  const text = '## Backlog (owned)\n- testagent — sweep (queued 2026-09-01) renewed (queued 2026-09-20)\n';
+  const findings = checkBacklogDormant(text, '2026-09-23');
+  assert.equal(findings.length, 1);
+  assert.ok(findings[0].message.startsWith('queued 2026-09-01 is 22 days before'), findings[0].message);
+});
+
+// --- checkWatchUndated / checkWatchDue ---------------------------------------
+
+test('checkWatchUndated: an unstamped Watch bullet warns, with the exact message', () => {
+  const findings = checkWatchUndated('## Watch\n- vendor quote validity\n');
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'WARN');
+  assert.equal(findings[0].type, 'watch-undated');
+  assert.equal(
+    findings[0].message,
+    'no valid "(validate-by: YYYY-MM-DD)" stamp: "- vendor quote validity" — add the date it will next be checked',
+  );
+});
+
+test('checkWatchUndated: the colon is part of the keyword, so a colon-less stamp is undated', () => {
+  const findings = checkWatchUndated('## Watch\n- vendor quote validity (validate-by 2026-10-01)\n');
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].type, 'watch-undated');
+});
+
+test('checkWatchUndated: an impossible date warns; a valid stamp and the placeholder pass', () => {
+  assert.equal(checkWatchUndated('## Watch\n- vendor quote (validate-by: 2026-02-30)\n').length, 1);
+  assert.deepEqual(checkWatchUndated('## Watch\n- vendor quote (validate-by: 2026-10-01)\n'), []);
+  assert.deepEqual(
+    checkWatchUndated('## Watch\n- (assumptions and deadlines needing attention, each with a validate-by date)\n'),
+    [],
+  );
+});
+
+test('checkWatchDue: the same day passes, the next day warns, a future date passes', () => {
+  const text = '## Watch\n- vendor quote validity (validate-by: 2026-10-01)\n';
+  assert.deepEqual(checkWatchDue(text, '2026-10-01'), []);
+  assert.deepEqual(checkWatchDue(text, '2026-09-30'), []);
+  const findings = checkWatchDue(text, '2026-10-02');
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'WARN');
+  assert.equal(findings[0].type, 'watch-due');
+  assert.equal(
+    findings[0].message,
+    'validate-by 2026-10-01 is 1 days before the reference date 2026-10-02: ' +
+      '"- vendor quote validity (validate-by: 2026-10-01)" — the owner, or a session working on what it names, ' +
+      'checks it and writes a new date in place of this one; dropping it ' +
+      '(`banana state archive --global --reason removed --match …`) is the owner\'s call',
+  );
+});
+
+test('checkWatchDue: a null reference date, an unstamped bullet and the placeholder are skipped', () => {
+  assert.deepEqual(checkWatchDue('## Watch\n- vendor quote (validate-by: 2020-01-01)\n', null), []);
+  assert.deepEqual(checkWatchDue('## Watch\n- vendor quote, no stamp\n', '2026-10-02'), []);
+  assert.deepEqual(
+    checkWatchDue('## Watch\n- (assumptions and deadlines needing attention, each with a validate-by date)\n', '2026-10-02'),
+    [],
+  );
+});
+
+// --- checkNearCap ------------------------------------------------------------
+
+test('checkNearCap: 9000 chars passes, 9001 warns with the exact message', () => {
+  assert.deepEqual(checkNearCap('x'.repeat(9000)), []);
+  const findings = checkNearCap('x'.repeat(9001));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].tier, 'WARN');
+  assert.equal(findings[0].type, 'near-cap');
+  assert.equal(
+    findings[0].message,
+    '9001 chars is past the 9000-char warning line (cap 10000) — archive every line lint flags expired, ' +
+      'inactive or dormant, then write your own waiting threads in the waiting form',
+  );
+});
+
+test('checkNearCap: exactly 10000 chars still warns, 10001 does not (over-cap owns that case)', () => {
+  assert.equal(checkNearCap('x'.repeat(10000)).length, 1);
+  assert.deepEqual(checkNearCap('x'.repeat(10001)), []);
+});
+
+/** CLEAN_GLOBAL padded (in its Watch line) to exactly `len` chars. */
+function paddedGlobal(len) {
+  const marker = '- an assumption needing validation (validate-by: 2026-10-01)';
+  const padded = CLEAN_GLOBAL.replace(marker, `${marker}${'x'.repeat(len - CLEAN_GLOBAL.length)}`);
+  assert.equal(padded.length, len);
+  return padded;
+}
+
+test('lintGlobalState: near-cap fires at 9001 and 10000 chars, never alongside over-cap', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  for (const len of [9001, 10000]) {
+    const types = lintGlobalState(paddedGlobal(len), { home }).map((f) => f.type);
+    assert.ok(types.includes('near-cap'), `${len}: ${types}`);
+    assert.ok(!types.includes('over-cap'), `${len}: ${types}`);
+  }
+  const noWarn = lintGlobalState(paddedGlobal(9000), { home }).map((f) => f.type);
+  assert.ok(!noWarn.includes('near-cap'), String(noWarn));
+  const over = lintGlobalState(paddedGlobal(10001), { home }).map((f) => f.type);
+  assert.ok(over.includes('over-cap'), String(over));
+  assert.ok(!over.includes('near-cap'), String(over));
+});
+
+test('lintProjectState: a project page past 9000 chars never warns near-cap (global grain only)', () => {
+  const marker = '## Watch';
+  assert.ok(CLEAN_STATE.includes(marker), 'sanity: the project fixture has a Watch section');
+  const padded = CLEAN_STATE.replace(marker, `${marker}\n- ${'x'.repeat(9100)}`);
+  assert.ok(padded.length > 9000 && padded.length <= 10000, `sanity: ${padded.length}`);
+  const findings = lintProjectState(padded, { logbookText: CLEAN_LOGBOOK, sessionEntries: [] });
+  assert.ok(!findings.some((f) => f.type === 'near-cap'), JSON.stringify(findings));
+});
+
+// --- lintGlobalState wiring for the four new bullet checks -------------------
+
+test('lintGlobalState: an unstamped Backlog line WARNs backlog-undated through the composed findings', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const text = CLEAN_GLOBAL.replace('- testagent — sweep the backlog (queued 2026-09-01)', '- testagent — sweep the backlog');
+  assert.notEqual(text, CLEAN_GLOBAL, 'sanity: the replace must actually hit');
+  const findings = lintGlobalState(text, { home });
+  assert.equal(findings.length, 1, JSON.stringify(findings));
+  assert.equal(findings[0].type, 'backlog-undated');
+});
+
+test('lintGlobalState: a Backlog line queued 22+ days before the reference date WARNs backlog-dormant', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-23');
+  const text = CLEAN_GLOBAL.replace('(as of 2026-09-01)', '(as of 2026-09-23)').replace(
+    '(closed 2026-09-01)',
+    '(closed 2026-09-23)',
+  );
+  const findings = lintGlobalState(text, { home });
+  assert.equal(findings.length, 1, JSON.stringify(findings));
+  assert.equal(findings[0].type, 'backlog-dormant');
+});
+
+test('lintGlobalState: an unstamped Watch line WARNs watch-undated through the composed findings', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const text = CLEAN_GLOBAL.replace(' (validate-by: 2026-10-01)', '');
+  assert.notEqual(text, CLEAN_GLOBAL, 'sanity: the replace must actually hit');
+  const findings = lintGlobalState(text, { home });
+  assert.equal(findings.length, 1, JSON.stringify(findings));
+  assert.equal(findings[0].type, 'watch-undated');
+});
+
+test('lintGlobalState: a Watch line past its date WARNs watch-due through the composed findings', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-10-02');
+  const text = CLEAN_GLOBAL.replace('(as of 2026-09-01)', '(as of 2026-10-02)')
+    .replace('(closed 2026-09-01)', '(closed 2026-10-02)')
+    .replace('(queued 2026-09-01)', '(queued 2026-10-01)');
+  const findings = lintGlobalState(text, { home });
+  assert.equal(findings.length, 1, JSON.stringify(findings));
+  assert.equal(findings[0].type, 'watch-due');
+});
+
+// --- raw-excerpt rule for the four new bullet WARNs --------------------------
+
+/** A four-section global page with `backlogLine`/`watchLine` and a 2026-09-01 reference date. */
+function rawExcerptPage(backlogLine, watchLine) {
+  return [
+    '# GLOBAL STATE — cross-project projection',
+    '> Owner: testagent. Protocol: `~/.agents/canon/CONTINUITY.md`.',
+    '',
+    '## Active threads',
+    '- **alpha** (as of 2026-09-01) — building the thing → memory a',
+    '',
+    '## Backlog (owned)',
+    backlogLine,
+    '',
+    '## Watch',
+    watchLine,
+    '',
+    '## Recently closed (context for next session)',
+    '- gamma finished (closed 2026-09-01) — see alpha\'s logbook',
+    '',
+  ].join('\n');
+}
+
+const OK_BACKLOG = '- testagent — sweep the backlog (queued 2026-09-01)';
+const OK_WATCH = '- an assumption needing validation (validate-by: 2026-10-01)';
+
+/** Assert the finding of `type` quotes a true substring of the RAW `rawLine`. */
+function assertRawExcerpt(page, type, rawLine, home) {
+  const findings = lintGlobalState(page, { home });
+  const found = findings.find((f) => f.type === type);
+  assert.ok(found, `expected ${type}: ${JSON.stringify(findings)}`);
+  const quoted = found.message.match(/: "([^"]*)" —/);
+  assert.ok(quoted, found.message);
+  assert.ok(rawLine.includes(quoted[1]), `excerpt "${quoted[1]}" must be a substring of the RAW page line`);
+  assert.ok(quoted[1].includes('<!-- note -->'), 'the excerpt must keep the comment (a prepared-line excerpt would not)');
+}
+
+test('checkBacklogUndated: the excerpt is a substring of the RAW page line, comment included, through the real lintGlobalState pipeline', (t) => {
+  const rawLine = '- testagent <!-- note --> sweep, no stamp here';
+  assertRawExcerpt(rawExcerptPage(rawLine, OK_WATCH), 'backlog-undated', rawLine, sandbox(t));
+});
+
+test('checkBacklogDormant: the excerpt is a substring of the RAW page line, comment included, through the real lintGlobalState pipeline', (t) => {
+  const rawLine = '- testagent <!-- note --> sweep (queued 2026-01-01)';
+  assertRawExcerpt(rawExcerptPage(rawLine, OK_WATCH), 'backlog-dormant', rawLine, sandbox(t));
+});
+
+test('checkWatchUndated: the excerpt is a substring of the RAW page line, comment included, through the real lintGlobalState pipeline', (t) => {
+  const rawLine = '- Commented <!-- note --> watch word, no date';
+  assertRawExcerpt(rawExcerptPage(OK_BACKLOG, rawLine), 'watch-undated', rawLine, sandbox(t));
+});
+
+test('checkWatchDue: the excerpt is a substring of the RAW page line, comment included, through the real lintGlobalState pipeline', (t) => {
+  const rawLine = '- Commented <!-- note --> watch word (validate-by: 2026-01-01)';
+  assertRawExcerpt(rawExcerptPage(OK_BACKLOG, rawLine), 'watch-due', rawLine, sandbox(t));
+});
+
+// --- C44 (extended): the new stamps never feed the reference date -------------
+
+test('globalReferenceDate: C44 — `(queued …)` and `(validate-by: …)` stamps never count toward the reference date', () => {
+  const text = [
+    '## Active threads',
+    '- **alpha** (as of 2026-09-30) — real thread → memory a',
+    '## Backlog (owned)',
+    '- testagent — reopen gamma (queued 2099-01-01)',
+    '## Watch',
+    '- vendor quote validity (validate-by: 2099-01-01)',
+    '## Recently closed (context for next session)',
+    '- gamma finished (closed 2026-09-29)',
+  ].join('\n');
+  assert.equal(globalReferenceDate(text), '2026-09-30');
+});
+
+test('lintGlobalState: C44 — far-future queued/validate-by stamps never make a thread read inactive, a backlog line dormant or a closed line expired', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-30');
+  const text = rawExcerptPage(
+    '- testagent — reopen gamma (queued 2099-01-01)',
+    '- vendor quote validity (validate-by: 2099-01-01)',
+  ).replace('(as of 2026-09-01)', '(as of 2026-09-30)').replace('(closed 2026-09-01)', '(closed 2026-09-29)');
+  const findings = lintGlobalState(text, { home });
+  for (const type of ['thread-inactive', 'closed-expired', 'backlog-dormant', 'watch-due']) {
+    assert.ok(!findings.some((f) => f.type === type), `${type}: ${JSON.stringify(findings)}`);
+  }
 });
