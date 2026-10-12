@@ -104,3 +104,11 @@ WHAT: owner ratified CONTINUITY v1.7; origin fb19308..61a983c; npx serves 0.4.0;
 DONE: every other home file byte-identical to its pre-sync backup (harness rule files, hook, global page, archive, the other canon files); doctor clean; global lint WARN only by design; SessionStart hook runs on 0.4.0 (0.45 s); #20 closed with evidence
 ref: .agents/session.log cli.22; GitHub #20
 NEXT: claude — clean up the merged lane worktrees (owner approves the list), then #19, then #18
+
+## [2026-10-12] claude kit.15 | RELEASE — 0.5.0 pushed; canon v1.8 ratified and synced on the owner machine (#21 closed)
+WHAT: #21 global page v1.8 — threads leave at 15+ idle days; backlog lines carry `(queued …)` and go dormant at 22+; watch lines carry `(validate-by: …)` and WARN when due, never moved on sight; waiting form (160 chars); `near-cap` WARN past 9,000; `dormant` reason + stale-aware `inactive` gate; five-line header; any session archives flagged lines before adding its own. Canon CONTINUITY v1.8 + ADR 0007
+DONE: built on cli-23 in lanes A0, L, A, D, I (each reviewed, fixes committed); final merged review + a blind case walk of the canon by two reviewers (one non-Claude) gave one fix batch; tests 948 -> 1036, 0 fail; owner ratified 2026-10-12, names kept
+DONE: origin e5b71cc..a14259e; `banana sync` here: "kit updated: v0.4.0 -> v0.5.0", one change (canon CONTINUITY.md -> rev 1.8); every other home file byte-identical to its pre-sync backup; global lint WARN only (undated backlog/watch lines + near-cap, as projected); 13 merged lane worktree folders removed, branches kept
+ref: .agents/session.log cli.23; GitHub #21; spec .agents/specs/cli-23-global-page-v18.md
+NEXT: ahimsa — approve the owner page's v1.8 migration line by line (stamps on Backlog/Watch lines, the new header); claude — then apply it
+NEXT: claude — #19 (sync line endings, doctor remedy text), then #18 (supersede duplicate ids); file two issues: README command table out of date, real handles left in older state/archive test fixtures
