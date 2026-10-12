@@ -169,7 +169,8 @@ YYYY-MM-DD)\`, 7 days;
 \`(as of YYYY-MM-DD)\`, 14 days; \`(queued YYYY-MM-DD)\`, 21 days), naming that
 stamp if it is instead dated after today, or suggesting \`--reason removed\`
 when the line carries no stamp at all.
-\`--reason inactive\` also refuses a thread whose project page is newer than its stamp — refresh the stamp instead.
+\`--reason inactive\` also refuses a thread whose project page is newer than its stamp
+— refresh the stamp instead.
 A future-dated stamp on a DIFFERENT Active-threads or Recently-closed line
 — the same two non-placeholder sections and keywords the reference date
 itself reads; Backlog \`(queued …)\` and Watch \`(validate-by: …)\` stamps are
