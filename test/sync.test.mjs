@@ -1148,6 +1148,7 @@ test('#19: re-fencing a CRLF harness file writes the new block in CRLF; bytes ou
   await runSync(parseSyncArgs([]), { home, io });
 
   assert.ok(lines.some((l) => l.includes(`v1 -> v${CURRENT_FENCE}`)));
+  assert.ok(lines.includes(`sync: ${CANON_FILES.length + 1} change(s)`), lines.join('\n'));
   const after = readFileSync(claudeMd, 'utf8');
   const beforeFence = findFence(host);
   const afterFence = findFence(after);

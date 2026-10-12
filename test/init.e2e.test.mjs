@@ -204,7 +204,11 @@ test('e2e: a stale canon file is refreshed to the bundled canon', async (t) => {
     sameText(join(canonDir, 'CONTINUITY.md'), join(KIT_ROOT, 'canon', 'CONTINUITY.md')),
     'stale canon file refreshed to the bundled text',
   );
-  assert.ok(lines.join('\n').includes('refreshed '), 'refresh reported');
+  assert.deepEqual(
+    lines.filter((line) => line.startsWith('refreshed ')),
+    [`refreshed ${join(canonDir, 'CONTINUITY.md')}`],
+    'the refreshed canon file is reported by name, and only it',
+  );
 });
 
 test('e2e: zero-flag non-TTY init succeeds with a git-config owner', async (t) => {

@@ -303,7 +303,9 @@ Reports: detected harnesses; fence-block versions found in wired files. Audits (
   — any wired fence block (home adapters plus the project's `AGENTS.md`) is older than its
   template's current version. `stale-canon` names `banana sync`; `stale-fence` names the command
   that re-fences that file (#19): `banana sync` for a home harness file, `banana project` for the
-  project's `AGENTS.md` (sync never touches project files).
+  project's `AGENTS.md` (sync never touches project files). When the project's `AGENTS.md` is
+  itself a home harness file (cwd inside `~/.codex` or `~/.pi/agent`), it is audited once, as the
+  home file.
 
 `--verify` prints (never executes) per-harness headless recital commands.
 

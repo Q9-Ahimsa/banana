@@ -891,3 +891,16 @@ test('stale fence (#19): each stale fence names the command that re-fences it â€
     `[stale-fence] ${projectAgents} fence is v1 but current is v${current} â€” run banana project to re-fence`,
   ]);
 });
+
+test('stale fence (#19): with cwd in a home harness dir, the shared AGENTS.md is audited once and names banana sync', (t) => {
+  const home = sandbox(t);
+  installCanon(home);
+  const codexDir = join(home, '.codex');
+  mkdirSync(codexDir, { recursive: true });
+  const shared = join(codexDir, 'AGENTS.md');
+  writeFileSync(shared, fencedBlock('# continuity wiring', 1) + '\n');
+
+  const findings = auditUpstream(home, codexDir).filter((finding) => finding.type === 'stale-fence');
+  assert.equal(findings.length, 1, findings.map((finding) => finding.message).join('\n'));
+  assert.ok(findings[0].message.includes('run banana sync to re-fence'), findings[0].message);
+});

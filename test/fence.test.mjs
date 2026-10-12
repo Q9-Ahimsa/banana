@@ -197,8 +197,8 @@ test('readPreservedIdentity falls back to io.out when io.err is absent', (t) => 
   assert.ok(lines[0].includes(target));
 });
 
-// Line endings (#19): a line-ending difference is never a change; a write keeps
-// the target's own style, and a new file is LF.
+// Line endings (#19): for sync and writeKitFile a line-ending difference is never
+// a change; a write keeps the target's own style, and a new file is LF.
 
 const asLf = (/** @type {string} */ s) => s.replace(/\r\n/g, '\n');
 const asCrlf = (/** @type {string} */ s) => asLf(s).replace(/\n/g, '\r\n');
@@ -211,6 +211,7 @@ test('eolOf: CRLF only when CRLF line breaks outnumber bare LF; ties and break-l
   assert.equal(eolOf('a\r\nb\r\nc\n'), '\r\n');
   assert.equal(eolOf(''), '\n');
   assert.equal(eolOf('one line'), '\n');
+  assert.equal(eolOf('a\rb\rc\n'), '\n');
 });
 
 test('withEol / toLf: CRLF<->LF without doubling, lone CR untouched (#19)', () => {
