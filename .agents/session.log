@@ -661,3 +661,28 @@ APPROACH: read-only fact pass against --help and a fixture grep; issue text chec
 DONE: filed #22 (README command table: state missing, six-command guard, v2 fence, archive prose) and #23 (owner handle in fixtures + help examples; deny-list skips test/, bin/, lib/)
 STATUS: complete
 NEXT: claude — #19, then #18; #22 and #23 after (owner may reorder)
+
+## [2026-10-12] claude triage.2 | discuss — next pick: one batch for #18, #19, #22, #23 (owner answer pending)
+APPROACH: checkpoint only; owner picks the next work
+START HERE after compaction #4 (manual). Nothing in flight; no code changed since triage.1.
+DONE: 2965f94 (kit.17 records, #22/#23 filed) pushed; origin/main == local main == 2965f94.
+DECISION (ahimsa): "go push. then, lmk what's next."
+DECISION (ahimsa): on personal details in this repo's older records (pre-10-03 lines with a local path, a username or other projects' names): "meh, that's fine then" - no history rewrite; the 10-03 clean-going-forward rule stands.
+VALIDATED: git ls-files: none of the owner's home continuity files (global page, its archive, home log, private plans, backups, agent memory) are tracked here; only this repo's own records are.
+PENDING (ahimsa): claude proposed one batch release for #18, #19, #22, #23 with #18 first (it lets the kit retire the 7 dead us-001..us-007 handoffs every brief lists); one commit + tests per issue, one review round, then release go, push, sync. Owner has not answered.
+NOTE: ultracode is OFF after this compaction (a Workflow needs a fresh opt-in; use the Agent tool). This is the first compaction prep inside this repo with the public-records prompt rule (home log compact-prep.9): grep this entry for local paths/usernames before the next commit.
+STATUS: in-progress
+DECISION (ahimsa): "alright. start the batch."
+VALIDATED: this entry is the first compaction checkpoint written here under the public-records prompt rule (home log compact-prep.9): no local path, no username.
+STATUS: complete
+NEXT: claude — build the batch as cli.24
+
+## [2026-10-12] claude cli.24 | build — batch release: #18 supersede duplicate ids, #19 sync line endings + doctor remedy, #22 README table, #23 owner handle in fixtures
+APPROACH: read-only design workflow (one mapper per issue) -> one resolved spec in .agents/specs/ -> lanes in hand-made worktrees from main, TDD -> adversarial review until dry -> owner release go -> push, sync, retire the us-001..us-007 handoffs with the new supersede
+STATUS: in-progress
+VALIDATED: baseline on main 2965f94: 1036 tests, 1034 pass, 2 skipped, 0 fail; npm run check clean. Home files the CLI can write: 8 hashed and backed up outside the repo.
+IN FLIGHT: read-only design workflow wf_7f8fd75a-7c4 (4 Opus mappers -> 4 adversarial critics -> 1 spec synth), launched from the scratchpad. Wake-lock armed.
+VALIDATED: design workflow wf_7f8fd75a-7c4 done (9 agents, 0 errors; critics: no blocker, 9 citation errors fixed in the spec); repo and home hashes unchanged.
+DECISION (ahimsa): #18 = "--all only (Recommended)"; us-008.1 = "Retire all 8 (Recommended)".
+ASSUMED (claude): #19 kit writes keep the target file's line-ending style, a new file LF; canon v1.7 history text stays (spec C16, C17; stated to the owner in the ask).
+FILES: .agents/specs/cli-24-batch.md (resolved spec: rulings O1/O2, lane 18 rewritten to --all only, lanes write no record files).
