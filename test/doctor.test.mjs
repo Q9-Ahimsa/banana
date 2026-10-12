@@ -18,6 +18,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -903,4 +904,40 @@ test('stale fence (#19): with cwd in a home harness dir, the shared AGENTS.md is
   const findings = auditUpstream(home, codexDir).filter((finding) => finding.type === 'stale-fence');
   assert.equal(findings.length, 1, findings.map((finding) => finding.message).join('\n'));
   assert.ok(findings[0].message.includes('run banana sync to re-fence'), findings[0].message);
+});
+
+test('stale fence (#19): a cwd naming the home harness dir another way (letter case, symlink) still audits the shared AGENTS.md once', (t) => {
+  const home = sandbox(t);
+  installCanon(home);
+  const codexDir = join(home, '.codex');
+  mkdirSync(codexDir, { recursive: true });
+  writeFileSync(join(codexDir, 'AGENTS.md'), fencedBlock('# continuity wiring', 1) + '\n');
+  const linkDir = join(home, 'codex-link');
+  symlinkSync(codexDir, linkDir, 'junction'); // a junction on Windows (no privilege), a dir symlink elsewhere
+
+  const spellings = [linkDir];
+  if (process.platform === 'win32') spellings.push(codexDir.toUpperCase(), codexDir[0].toLowerCase() + codexDir.slice(1));
+  for (const cwd of spellings) {
+    const findings = auditUpstream(home, cwd).filter((finding) => finding.type === 'stale-fence');
+    assert.equal(findings.length, 1, `cwd ${cwd}:\n${findings.map((finding) => finding.message).join('\n')}`);
+    assert.ok(findings[0].message.includes('run banana sync to re-fence'), findings[0].message);
+  }
+});
+
+test('report (#19): with cwd at a home harness dir, the Wiring fences section lists the shared AGENTS.md once', async (t) => {
+  const home = sandbox(t);
+  installCanon(home);
+  const codexDir = join(home, '.codex');
+  mkdirSync(codexDir, { recursive: true });
+  const shared = join(codexDir, 'AGENTS.md');
+  writeFileSync(shared, fencedBlock('# continuity wiring', 1) + '\n');
+
+  const captured = capturedIo();
+  await runDoctor({ verify: false }, { cwd: codexDir, home, io: captured.io, now: NOW, env: ENV });
+  const lines = captured.lines;
+  const start = lines.indexOf('Wiring fences:');
+  assert.ok(start >= 0, captured.text());
+  const end = lines.indexOf('', start);
+  const section = lines.slice(start, end);
+  assert.equal(section.filter((line) => line.includes(shared)).length, 1, section.join('\n'));
 });

@@ -19,6 +19,8 @@
   state is deliberately excluded.
 - **Supersede** — correcting the record by writing a *new* entry that names the entry
   it replaces and why. The record is never edited; a correction is content, added.
+  The named target is an id (`{feature}.{n}`): every entry under that id is retired
+  (`banana log supersede --all`, and the id-keyed WARN on `--target-agent`, #18).
 - **Shim** — the once-installed local copy of the kit that makes `banana` instant and
   offline-safe. It never updates itself; **sync** is the explicit updater, and drift
   between machines is surfaced (version in every brief, doctor's best-effort remote

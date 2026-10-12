@@ -1419,3 +1419,15 @@ test('log close --quiet: a FAIL project lint still prints the summary line and e
   assert.match(printed, /FAIL \[missing-section\] STATE\.md: missing required section "## Blocked"/);
   assert.match(printed, /Fix these before relying on the page/);
 });
+
+test('supersede (#18): a validation failure prints no archive note and no foreign-author note', async () => {
+  const dir = makeProject(SEED + '\n## [2026-08-02] other cli.2 | build — two\nSTATUS: complete\nNEXT: t — x\n');
+  makeArchive(dir, '2026-Q1.log', '## [2026-02-01] other cli.1 | build — archived one\nSTATUS: complete\nNEXT: t — x\n');
+  for (const target of ['cli.1', 'cli.2']) {
+    const before = readLog(dir);
+    const res = await run(dir, ['supersede', target, '--tag', 'testagent', '--reason', 'x', '--status', 'complete']);
+    assert.equal(res.code, 1, target);
+    assert.doesNotMatch(res.err.join('\n'), /note:/, target);
+    assert.equal(readLog(dir), before, target);
+  }
+});
