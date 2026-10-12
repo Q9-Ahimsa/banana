@@ -2653,14 +2653,14 @@ test('runStateLint --global: a line-over-limit WARN exits 0, and the finding pri
   const name = 'Backlog (owned)';
   const limit = SECTION_LINE_LIMITS[name];
   const text = CLEAN_GLOBAL.replace(
-    '- testagent — sweep the backlog',
-    bulletOfLength('- testagent — sweep the backlog ', limit + 1),
+    '- testagent — sweep the backlog (queued 2026-09-01)',
+    bulletOfLength('- testagent — sweep the backlog (queued 2026-09-01) ', limit + 1),
   );
   const home = makeGlobalHome(t, text);
   makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
   const res = await runGlobal(home);
   assert.equal(res.code, 0, `expected WARN-only exit 0, got: ${res.lines.join('\n')}`);
-  assert.ok(res.lines.some((l) => l.startsWith('WARN [line-over-limit]')));
+  assert.ok(res.lines.some((l) => l.startsWith('WARN [line-over-limit]') && l.includes('bullet is 301 chars (limit 300)')));
   assert.ok(res.lines.at(-1)?.startsWith('state lint: WARN'));
 });
 
@@ -3739,7 +3739,7 @@ test('isWaitingThread: the marker is case-sensitive, so `(As of …)` does not m
 });
 
 test('isWaitingThread: a marker inside backticks is masked and does not match', () => {
-  assert.equal(isWaitingThread('- **widget** (as of 2026-10-01)` — waiting on owner: review the notes` → memory a'), false);
+  assert.equal(isWaitingThread('- **widget** (as of 2026-10-01) — waiting on `owner: review the notes` → memory a'), false);
   // The whole marker, stamp included, is quoted example text.
   assert.equal(isWaitingThread('- **widget** `(as of 2026-10-01) — waiting on owner: review the notes` → memory a'), false);
 });
@@ -3784,8 +3784,11 @@ test('checkLineOverLimit: the same 161 chars without the marker passes (cap 400)
 });
 
 test('checkLineOverLimit: the waiting cap does not apply outside Active threads', () => {
-  const line = bulletOfLength('- testagent — sweep (queued 2026-10-01) — waiting on owner: ', 161);
-  assert.deepEqual(checkLineOverLimit(`## Backlog (owned)\n${line}\n`), []);
+  const line = bulletOfLength('- testagent — sweep (as of 2026-10-01) — waiting on owner: ', 161);
+  assert.equal(isWaitingThread(line), true, 'sanity: the marker is present, so only the section guard keeps the section cap');
+  for (const name of ['Backlog (owned)', 'Watch', 'Recently closed (context for next session)']) {
+    assert.deepEqual(checkLineOverLimit(`## ${name}\n${line}\n`), [], name);
+  }
 });
 
 test('checkLineOverLimit: a marker not directly after the stamp keeps the 400 cap', () => {
@@ -3794,7 +3797,7 @@ test('checkLineOverLimit: a marker not directly after the stamp keeps the 400 ca
 });
 
 test('checkLineOverLimit: a marker inside backticks keeps the 400 cap', () => {
-  const line = bulletOfLength('- **widget** (as of 2026-10-01)` — waiting on owner: ', 160) + 'x`';
+  const line = bulletOfLength('- **widget** (as of 2026-10-01) — waiting on `owner: ', 160) + 'x`';
   assert.equal(line.length, 162);
   assert.deepEqual(checkLineOverLimit(activeOnly(line)), []);
   const quotedWhole = bulletOfLength('- **widget** `(as of 2026-10-01) — waiting on owner: ', 161) + '`';
@@ -3993,6 +3996,13 @@ test('checkWatchDue: a null reference date, an unstamped bullet and the placehol
   );
 });
 
+test('checkWatchDue: two stamps on one bullet compare against the OLDEST (an added date re-dates nothing)', () => {
+  const text = '## Watch\n- vendor quote validity (validate-by: 2026-10-01) re-dated (validate-by: 2026-12-01)\n';
+  const findings = checkWatchDue(text, '2026-10-02');
+  assert.equal(findings.length, 1);
+  assert.ok(findings[0].message.startsWith('validate-by 2026-10-01 is 1 days before'), findings[0].message);
+});
+
 // --- checkNearCap ------------------------------------------------------------
 
 test('checkNearCap: 9000 chars passes, 9001 warns with the exact message', () => {
@@ -4034,6 +4044,19 @@ test('lintGlobalState: near-cap fires at 9001 and 10000 chars, never alongside o
   const over = lintGlobalState(paddedGlobal(10001), { home }).map((f) => f.type);
   assert.ok(over.includes('over-cap'), String(over));
   assert.ok(!over.includes('near-cap'), String(over));
+});
+
+test('lintGlobalState: near-cap counts the CRLF-normalized text, as over-cap does', (t) => {
+  const home = sandbox(t);
+  makeTargetState(join(home, 'projects', 'alpha', 'STATE.md'), '2026-09-01');
+  const at = paddedGlobal(9000).replace(/\n/g, '\r\n');
+  assert.ok(at.length > 9000, `sanity: the raw CRLF text is past the warning line: ${at.length}`);
+  const atTypes = lintGlobalState(at, { home }).map((f) => f.type);
+  assert.ok(!atTypes.includes('near-cap'), String(atTypes));
+  const over = lintGlobalState(paddedGlobal(9001).replace(/\n/g, '\r\n'), { home });
+  const nearCap = over.find((f) => f.type === 'near-cap');
+  assert.ok(nearCap, JSON.stringify(over));
+  assert.ok(nearCap.message.startsWith('9001 chars is past'), nearCap.message);
 });
 
 test('lintProjectState: a project page past 9000 chars never warns near-cap (global grain only)', () => {
