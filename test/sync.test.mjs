@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  chmodSync,
   cpSync,
+  existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -365,6 +367,70 @@ test('sync: an unreadable home target is skipped, later stale files are still re
   assert.deepEqual(
     auditUpstream(home, home).filter((finding) => finding.type === 'stale-fence'),
     [],
+  );
+});
+
+/** @returns {boolean} true when a write to the (read-only) path still succeeds, e.g. POSIX root */
+function writeStillWorks(path) {
+  try {
+    writeFileSync(path, readFileSync(path));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+test('sync: an unwritable home target is skipped, later stale files are still re-fenced', async (t) => {
+  const home = sandbox(t);
+  const claudePath = join(home, '.claude', 'CLAUDE.md');
+  const codexPath = join(home, '.codex', 'AGENTS.md');
+  mkdirSync(dirname(claudePath), { recursive: true });
+  mkdirSync(dirname(codexPath), { recursive: true });
+  writeFileSync(claudePath, `# My instructions\n\n${V1_BLOCK}\n`);
+  writeFileSync(codexPath, '<!-- banana:begin v1 -->\n- **Identity:** you are `alpha`; owner: `alice`.\n<!-- banana:end -->\n');
+  chmodSync(claudePath, 0o444);
+  t.after(() => existsSync(claudePath) && chmodSync(claudePath, 0o644));
+  if (writeStillWorks(claudePath)) return t.skip('read-only files are still writable here (root)');
+  const { io, errLines } = collectedIo();
+
+  const result = await runSync(parseSyncArgs([]), { home, io });
+  assert.equal(result.code, 0, 'an unwritable file is a skip, not a failure');
+  assert.ok(errLines.some((line) => line.startsWith(`skipped ${claudePath}: `)), errLines.join(', '));
+  assert.equal(
+    findFence(readFileSync(codexPath, 'utf8'))?.version,
+    wiringTemplateVersion('agents-md.md'),
+    'the later codex file is re-fenced',
+  );
+  const stale = auditUpstream(home, home).filter((finding) => finding.type === 'stale-fence');
+  assert.equal(stale.length, 1, JSON.stringify(stale));
+  assert.ok(JSON.stringify(stale[0]).includes('CLAUDE.md'), 'only the unwritable file stays stale');
+});
+
+test('sync: an unwritable canon file is skipped; the other canon files and the fences are still refreshed', async (t) => {
+  const home = sandbox(t);
+  const canonDir = join(home, '.agents', 'canon');
+  mkdirSync(canonDir, { recursive: true });
+  for (const name of CANON_FILES) cpSync(join(KIT_ROOT, 'canon', name), join(canonDir, name));
+  const lockedPath = join(canonDir, CANON_FILES[0]);
+  const otherPath = join(canonDir, CANON_FILES[1]);
+  writeFileSync(lockedPath, 'stale canon text');
+  writeFileSync(otherPath, 'other stale canon text');
+  const codexPath = join(home, '.codex', 'AGENTS.md');
+  mkdirSync(dirname(codexPath), { recursive: true });
+  writeFileSync(codexPath, '<!-- banana:begin v1 -->\n- **Identity:** you are `alpha`; owner: `alice`.\n<!-- banana:end -->\n');
+  chmodSync(lockedPath, 0o444);
+  t.after(() => existsSync(lockedPath) && chmodSync(lockedPath, 0o644));
+  if (writeStillWorks(lockedPath)) return t.skip('read-only files are still writable here (root)');
+  const { io, errLines } = collectedIo();
+
+  const result = await runSync(parseSyncArgs([]), { home, io });
+  assert.equal(result.code, 0, 'an unwritable canon file is a skip, not a failure');
+  assert.ok(errLines.some((line) => line.startsWith(`skipped ${lockedPath}: `)), errLines.join(', '));
+  assert.ok(sameText(otherPath, join(KIT_ROOT, 'canon', CANON_FILES[1])), 'the later canon file is refreshed');
+  assert.equal(
+    findFence(readFileSync(codexPath, 'utf8'))?.version,
+    wiringTemplateVersion('agents-md.md'),
+    'the fences are still refreshed',
   );
 });
 

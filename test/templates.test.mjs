@@ -304,3 +304,16 @@ test('docs/DESIGN.md intro says sync propagates home wiring changes (#26)', () =
     'the DESIGN intro names home wiring, not wiring in general',
   );
 });
+
+test('docs/DESIGN.md names the #26 init remedy where it describes doctor and sync', () => {
+  const design = readFileSync(fileURLToPath(new URL('../docs/DESIGN.md', import.meta.url)), 'utf8');
+  const text = flat(design);
+  for (const phrase of [
+    'A stale home block with no readable owner/tag line names `banana init --harnesses <id>` instead, with the reason: sync skips such a block (#26;',
+    "a stale block whose owner/tag it can't read is skipped with a message naming `banana init --harnesses <id>` (#26)",
+    "`sync` never falls back: it skips a stale home block whose identity it can't read and names `banana init --harnesses <id>` (#26).",
+    "and a file it can't read or write",
+  ]) {
+    assert.ok(text.includes(phrase), `docs/DESIGN.md missing: ${phrase}`);
+  }
+});

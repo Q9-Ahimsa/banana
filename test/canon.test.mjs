@@ -861,6 +861,14 @@ test('docs/adr/0006 scopes the reference date and the D3 future-stamp scan the s
   );
 });
 
+test('docs/adr/0006 records that #24 superseded its state-lint-only roster bullet', () => {
+  const flat = flatten(readFileSync(join(docsDir, 'adr', '0006-global-page-limits-and-archive.md'), 'utf8'));
+  assert.ok(
+    flat.includes('*Superseded 2026-10-14 by #24:* the roster now names `state archive`.'),
+    'docs/adr/0006 missing the #24 supersession note on the roster bullet'
+  );
+});
+
 // #20d H64 (fifth pin): the by-hand record heading `## [YYYY-MM-DD] {agent}
 // — {reason} · {section name}` (canon/CONTINUITY.md) was pinned only as a
 // literal string, never against what `banana state archive` itself writes
