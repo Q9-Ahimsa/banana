@@ -539,3 +539,60 @@ the DESIGN intro nit (the other, STATE.md, is main's at close). Same rules and o
 R3 done when: mutation proofs and the N1 red test recorded; `npm run check` exit 0; `npm test` 0
 fail; one commit `test(init,readme): pin init's Not-wired filter and the #26 README sentence` with
 body sentences, `Refs #26`, and the Co-Authored-By line above.
+
+## Review round 4 fixes (lane R4, on top of bb806a7)
+
+Round 4: 1 product defect, 2 test gaps. The defect is the write-side twin of round 1's P1: one
+stale home file sync cannot WRITE (a read-only attribute, EACCES) throws to runSync's outer catch,
+exit 1, and every later file stays stale. The v3 -> v4 bump makes sync write every wired home file
+on every machine. Main extends the same fix to the canon loop (P6): it has the identical shape
+(one unwritable canon file stops the canon files after it and the whole fence sweep).
+Decided contract (extends P1): sync never lets one file it cannot read or write stop the others;
+each such file gets a `skipped <path>: <reason>` err line, sync carries on and exits 0, and
+doctor still reports whatever stayed stale. A failure to read the kit's own bundled files stays
+fatal (that is a broken kit, not a user file).
+
+- P5 lib/sync.mjs fence loop: `adapter.wire(home, { owner, tag }, wiringDir);` becomes
+  ```js
+      try {
+        adapter.wire(home, { owner, tag }, wiringDir);
+      } catch (error) {
+        err(`skipped ${target}: ${error instanceof Error ? error.message : error}`);
+        continue;
+      }
+  ```
+  Test first, test/sync.test.mjs next to P1's test: 'sync: an unwritable home target is skipped,
+  later stale files are still re-fenced'. CLAUDE.md = a v1 block with an identity line, then
+  `chmodSync(claudePath, 0o444)`; codex AGENTS.md = a v1 block with
+  `- **Identity:** you are \`alpha\`; owner: \`alice\`.`. Probe: if a write to claudePath still
+  succeeds (POSIX root), `t.skip`. Restore 0o644 in `t.after`. runSync with no exec. Assert code 0;
+  an err line starts with `skipped ${claudePath}: `; the codex file carries the current opener;
+  auditUpstream's stale-fence list names only claudePath.
+- P6 lib/sync.mjs canon loop: the `writeKitFile(target, bundled)` call (NOT the bundled read)
+  goes in a try/catch that prints `skipped ${target}: <reason>` and continues. Test first, same
+  file: 'sync: an unwritable canon file is skipped; the other canon files and the fences are still
+  refreshed'. Install the canon, make one installed canon file stale (different text) and 0o444,
+  make another canon file stale and writable, and put a v1 identity block in codex AGENTS.md.
+  Probe and restore as in P5. Assert code 0; a `skipped <that canon path>: ` err line; the other
+  canon file now equals the bundled text; the codex file carries the current opener.
+- Docs: docs/DESIGN.md sync move 2, "and an unreadable file is skipped the same way (a `skipped
+  <path>: <reason>` line, exit 0, later files still refreshed)" -> "and a file it can't read or
+  write — a wiring file or a canon file — is skipped the same way (a `skipped <path>: <reason>`
+  line, exit 0, later files still refreshed)". lib/sync.mjs header comment: "or a file that can't
+  be read," -> "or a file that can't be read or written (canon included),". Re-wrap only the
+  touched lines.
+- G13 test/canon.test.mjs, after the '#20d H52' ADR test: 'docs/adr/0006 records that #24
+  superseded its state-lint-only roster bullet': the file's `flatten` of ADR 0006 includes
+  '*Superseded 2026-10-14 by #24:* the roster now names `state archive`.' Mutant: delete the two
+  note lines.
+- G14 test/templates.test.mjs, after the DESIGN intro test: 'docs/DESIGN.md names the #26 init
+  remedy where it describes doctor and sync': `flat(design)` includes each of
+  'A stale home block with no readable owner/tag line names `banana init --harnesses <id>` instead, with the reason: sync skips such a block (#26;',
+  "a stale block whose owner/tag it can't read is skipped with a message naming `banana init --harnesses <id>` (#26)",
+  "`sync` never falls back: it skips a stale home block whose identity it can't read and names `banana init --harnesses <id>` (#26).",
+  and the new P5/P6 wording "and a file it can't read or write". Mutants: each phrase deleted.
+
+Order: G13-G14 with mutation proofs first (G14's last phrase is red until the docs edit; record
+it), then P5 and P6 tests-first, then gates, then one commit
+`fix(sync): skip a home or canon file it cannot write, keep refreshing the rest` with body
+sentences, `Refs #24 #26`, and the Co-Authored-By line above.
