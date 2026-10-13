@@ -288,7 +288,7 @@ Commands:
   project   initialize a workspace (git repo or topic dir) with LOGBOOK.md, STATE.md, and .agents/session.log
   brief     compile a per-intent context brief for a session; no feature arg lists active slugs
   doctor    check wiring versions and run liveness audits
-  sync      refresh the kit-owned canon and re-apply stale wiring fences
+  sync      refresh the kit-owned canon and re-apply stale home wiring fences
   log       stamp session-log entries: stub / append / close / supersede (envelope computed, never hand-typed)
   state     lint a STATE.md page against the canon's mechanical invariants, or move a bullet into the append-only archive (state lint · archive)
 

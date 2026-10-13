@@ -1372,6 +1372,54 @@ test('stale fence (#26): a tag without an owner still gets the init remedy', (t)
   assert.ok(messages[0].includes('run banana init --harnesses codex to re-fence'), messages[0]);
 });
 
+for (const [label, body] of [
+  ['owner only', '- **Identity:** owner: `alice`.'],
+  ['tag only', '- **Identity:** you are `alpha`.'],
+]) {
+  test(`stale fence (#26): sync really skips a half-identity block (${label}), as doctor's init remedy says`, async (t) => {
+    const home = sandbox(t);
+    installCanon(home);
+    mkdirSync(join(home, '.codex'), { recursive: true });
+    const file = join(home, '.codex', 'AGENTS.md');
+    const text = fencedBlock(body, 1) + '\n';
+    writeFileSync(file, text);
+
+    /** @type {string[]} */
+    const errLines = [];
+    const syncIo = { out: () => {}, err: (/** @type {string} */ line = '') => errLines.push(line) };
+    const synced = await runSync(parseSyncArgs([]), { home, io: syncIo });
+    assert.equal(synced.code, 0);
+    assert.equal(readFileSync(file, 'utf8'), text, 'the skipped file is byte-identical');
+    assert.ok(
+      errLines.includes(
+        `skipped ${file}: cannot recover owner/tag from the v1 block — run banana init --harnesses codex to re-fence`,
+      ),
+      errLines.join('\n'),
+    );
+  });
+}
+
+test('stale fence (#26): identity text after the fence does not count either — doctor agrees with sync', async (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  mkdirSync(join(home, '.codex'), { recursive: true });
+  const codexFile = join(home, '.codex', 'AGENTS.md');
+  const text = STALE_FENCE_NO_IDENTITY + '\nNote: you are `alpha`; owner: `alice`.\n';
+  writeFileSync(codexFile, text);
+
+  const messages = staleFenceMessages(home, project);
+  assert.equal(messages.length, 1, messages.join('\n'));
+  assert.ok(messages[0].includes('run banana init --harnesses codex to re-fence'), messages[0]);
+
+  /** @type {string[]} */
+  const errLines = [];
+  const syncIo = { out: () => {}, err: (/** @type {string} */ line = '') => errLines.push(line) };
+  await runSync(parseSyncArgs([]), { home, io: syncIo });
+  assert.equal(readFileSync(codexFile, 'utf8'), text, 'sync leaves the file byte-identical');
+  assert.ok(errLines.some((line) => line.startsWith(`skipped ${codexFile}`)), errLines.join('\n'));
+});
+
 test('stale fence: a directory where a home harness file belongs never aborts doctor', async (t) => {
   const project = cleanProject(t);
   const home = sandbox(t);

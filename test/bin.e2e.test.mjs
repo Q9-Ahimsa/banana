@@ -106,6 +106,12 @@ test('bin: top-level --help lists `lint · archive` on the `state` entry', () =>
   assert.ok(stdout.includes('lint · archive'), `stdout: ${stdout}`);
 });
 
+// Review round 2 P4: sync re-fences home files only, and the help line says so.
+test('bin: top-level --help says sync re-applies stale home wiring fences', () => {
+  const { stdout } = run(['--help']);
+  assert.ok(stdout.includes('stale home wiring fences'), `stdout: ${stdout}`);
+});
+
 // #20c E12/H23/H37: exit-2 causes are named in plain words, never by an
 // internal spec label like "D1"/"D3" — the pre-#20c help passed this test
 // by including the literal substrings "D1"/"D3" with no definition anywhere

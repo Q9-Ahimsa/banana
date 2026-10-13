@@ -199,4 +199,12 @@ test('README doctor and sync rows name the right refresh commands (#19, #25, #26
   for (const phrase of ['home wiring fence', '`banana project`']) {
     assert.ok(sync.includes(phrase), `the sync row names ${phrase}`);
   }
+  const prose = readFileSync(readmePath, 'utf8').replace(/\s+/g, ' ');
+  assert.ok(
+    prose.includes(
+      "re-applies any stale wiring block in a home instruction file (`banana project` refreshes a project's `AGENTS.md`)",
+    ),
+    'the sync paragraph says one block, home file, and points project files at banana project',
+  );
+  assert.ok(!prose.includes('re-applies any stale wiring blocks'), 'the plural overclaim is gone');
 });
