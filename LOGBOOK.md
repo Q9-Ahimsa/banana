@@ -123,3 +123,12 @@ NEXT: claude — file two issues (README command table out of date; real handles
 WHAT: #22 README drift (`state` missing from the table, a six-command test guard, v2 fence example, archive prose); #23 the owner's handle as sample data in older tests and help examples, and a deny-list that skips test/, bin/, lib/
 ref: .agents/session.log triage.1; GitHub #22, #23
 NEXT: claude — #19, then #18; #22 and #23 after (owner may reorder)
+
+## [2026-10-13] claude kit.18 | RELEASE — 0.6.0 pushed and synced on the owner machine (#18, #19, #22, #23 closed)
+WHAT: #18 `log supersede --all` retires every entry under a duplicate id (owner ruling: no `--target-date`, since SUPERSEDES is id-keyed); `--target-agent` WARNs that it retires them all. #19 sync and init treat a line-ending-only difference as no change and keep each file's style; doctor names `banana sync` for a home file and `banana project` for a project AGENTS.md, and audits one file reached two ways (letter case, junction, dotfiles link) once. #22 README command table read from the CLI. #23 placeholder owner in fixtures and help; deny-list scan over bin/ lib/ adapters/ test/
+DONE: built on cli-24 in 4 TDD lanes (each looped through verify and fix), then 4 merged-tree review rounds: rounds 1-2 found real defects (one a #19 doctor regression), rounds 3-4 only missing tests; final verifier diffed doctor output on 21 scenarios; tests 1036 -> 1089, 0 fail
+DONE: origin 2965f94..48890eb; `banana sync` here: "kit updated: v0.5.0 -> v0.6.0", no changes; a second sync on 0.6.0 code: "kit current", no changes; all 8 home files byte-identical to the pre-sync backup; doctor: only [oversize]; global lint PASS
+DONE: us-001.1..us-008.1 duplicate handoffs retired with `--all`; 10 lane worktree folders and 420 temp test copies removed (branches kept)
+ref: .agents/session.log cli.24, cli.25; GitHub #18, #19, #22, #23; spec .agents/specs/cli-24-batch.md; follow-ups #24, #25, #26
+NEXT: claude — .agents/session.log is past the 700-line rotation threshold: archive the tail (SESSION-LOG section 8)
+NEXT: claude — #24 + #25 together (wiring template wording, fence v3 -> v4), then #26; owner may reorder

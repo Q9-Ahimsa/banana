@@ -769,3 +769,9 @@ SUPERSEDES: cli.24 (continuation — closes the entry left open above)
 STATUS: in-progress
 FILES: f4b5539 chore(release) 0.6.0 (package.json + lock).
 VALIDATED: post-release cleanup with the new --all: us-001.2..us-008.2 written (one entry per id, each retiring both same-agent copies); brief cli --tag claude listed 7 stale us-00N.1 handoffs on the 392ca7f log and none now (checked on an independent copy); doctor here: only [oversize] (log 765 lines, rotation is a separate step).
+FILES: 48890eb pushed (origin 2965f94..48890eb); #18 #19 #22 #23 closed by commit footers; #18 close comment on the dropped --target-date.
+VALIDATED: banana sync here (PowerShell): "kit updated: v0.5.0 -> v0.6.0", no changes; second sync on 0.6.0: "kit current", no changes; 8 home files byte-identical to backup ~/.agents/_backups/2026-10-13-banana-0.6.0/; doctor: only [oversize]; global lint WARN 1 (a closed line expired by my re-stamp; left for the owner).
+FILES: follow-ups #24, #25, #26 filed. LOGBOOK kit.18; STATE.md rebuilt through kit.18; global page banana thread re-stamped 10-13.
+VALIDATED: deletions: 10 lane worktree folders removed (11 cli-24* branches kept, all in main); 420 b24-* temp copies deleted after removing 4 node_modules junctions inside them (3 pointed at the real repo node_modules; its 278 files counted before and after).
+STATUS: complete
+NEXT: claude — rotate .agents/session.log (771 lines, threshold 700), then #24 + #25 (fence v4), then #26

@@ -1,14 +1,13 @@
 # STATE — banana
-> Projection of LOGBOOK.md as of 2026-10-12 (through kit.17). Logbook wins
+> Projection of LOGBOOK.md as of 2026-10-13 (through kit.18). Logbook wins
 > on conflict. One page, hard cap. Rebuilt at session close; mid-arc
 > section patches are legal and must carry the dirty-marker line.
 
 ## Now
-- 0.5.0 released and live (pushed, served by npx, installed and synced on the owner machine): #21 global
-  page v1.8 — threads leave at 15+ idle days, backlog lines go dormant 22+ days after `(queued …)`,
-  watch lines carry `(validate-by: …)` and WARN when due, waiting form, near-cap WARN, writer pays;
-  canon CONTINUITY v1.8 (ratified) + ADR 0007. The owner page is migrated to v1.8 (global lint PASS,
-  7,506 chars) — kit.16. Frontier: #19, then #18, then #22 and #23 (filed, kit.17).
+- 0.6.0 released and live (pushed, served by npx, installed and synced on the owner machine): #18 `supersede
+  --all`, #19 line endings + doctor remedies, #22 README table from the CLI, #23 placeholder owner + source
+  deny-list — kit.18. Frontier: rotate .agents/session.log (past 700 lines), then #24 + #25 (wiring template
+  wording, fence v3 -> v4), then #26.
 
 ## Truths
 - banana = protocol + mechanical CLI; markdown canonical, no datastore (spec #3) — kit.1
@@ -38,14 +37,22 @@
 - doctor's origin check compares `package.json` versions, so every behavior-changing release bumps it — kit.11
 - After a real fetch, exit via `process.exitCode`, never `process.exit()` (Windows aborts) — kit.11
 - Envelope grammar single-sourced in lib/sessionlog.mjs; log.mjs composes, sessionlog parses (#4, #7)
+- SUPERSEDES is id-keyed: one line retires every entry under `{feature}.{n}`; `supersede --all` says so,
+  `--target-agent` only picks what the new entry copies and WARNs; no date selector (owner ruling) — kit.18
+- A line-ending-only difference is never a change for sync or a kit-owned file; a write keeps the target's
+  style (LF when new); a fence takes its host's style, judged outside the fence — kit.18
+- doctor's stale-fence remedy: `banana sync` for a home harness file, `banana project` for a project's
+  AGENTS.md; one file reached two ways (case, junction, symlink) is audited and listed once, as home — kit.18
+- The README command table is checked against lib/commands.mjs `COMMANDS`, the CLI's own list — kit.18
 - Public repo: fixtures, docs, specs and this repo's own records carry no real project/person names,
-  usernames or local paths — kit.3, kit.13
+  usernames or local paths; test/deny-list.test.mjs scans bin/, lib/, adapters/, test/ — kit.3, kit.13, kit.18
 - The CLI deploys on push (npx serves origin/main); canon reaches installed sites only via `sync` — kit.6, kit.9
 
 ## Next
-- claude — #19 (sync line endings, doctor remedy text), then #18 (supersede duplicate ids) — kit.12
-- claude — then #22 (README command table) and #23 (owner handle in fixtures and help; deny-list scope);
-  owner may reorder — kit.17
+- claude — rotate .agents/session.log (771 lines, threshold 700; SESSION-LOG section 8) — kit.18
+- claude — #24 + #25 together (wiring template: name `state archive`; project block refreshed by
+  `banana project`; one fence v3 -> v4 bump), then #26 (doctor remedy for an identity-less fence); owner
+  may reorder — kit.18
 - claude — other projects' banana blocks (still v2) lift to v3 via `banana project` in each project's next
   session (global-page backlog line)
 
@@ -64,6 +71,10 @@
   can be created (validate-by: the first run on a POSIX machine or with developer mode on)
 - ADR 0006 and ADR 0007 "Known limits" list the accepted edge cases (validate-by: any real hit on the
   owner machine)
+- #19's CRLF path has run only in tests and a sandboxed walk: every installed canon and harness file on the
+  owner machine is LF (validate-by: the first sync where an installed file is CRLF)
+- The dotfiles-link doctor test's audit half runs only where file symlinks can be created; here it takes
+  the junction fallback (validate-by: the first POSIX or developer-mode run)
 
 ## Dead ends
 - Exact-line section matching — real pages qualify headings; now qualifier-tolerant — kit.3
@@ -71,3 +82,7 @@
 - Whole-page rebuilds of the global page — lost a concurrent session's update; per-thread edits — kit.7
 - Idle threads demoted to a Backlog line (v1.7) — moved the pile into a section with no outflow; v1.8
   archives them whole — kit.15
+- A `--target-date` selector for duplicate ids — an id-keyed SUPERSEDES line cannot retire just one
+  entry; dropped by owner ruling — kit.18
+- Same-file check by path spelling (`resolve()`) — Windows letter case and junctions defeated it; now
+  the on-disk path (`realpathSync.native`) — kit.18
