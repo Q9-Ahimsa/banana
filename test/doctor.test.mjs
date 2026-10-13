@@ -13,6 +13,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -916,8 +917,9 @@ test('stale fence (#19): a cwd naming the home harness dir another way (letter c
   symlinkSync(codexDir, linkDir, 'junction'); // a junction on Windows (no privilege), a dir symlink elsewhere
 
   const spellings = [linkDir];
-  if (process.platform === 'win32') spellings.push(codexDir.toUpperCase(), codexDir[0].toLowerCase() + codexDir.slice(1));
+  if (process.platform === 'win32') spellings.push(join(home, '.CODEX'), codexDir[0].toLowerCase() + codexDir.slice(1));
   for (const cwd of spellings) {
+    assert.ok(existsSync(cwd), cwd);
     const findings = auditUpstream(home, cwd).filter((finding) => finding.type === 'stale-fence');
     assert.equal(findings.length, 1, `cwd ${cwd}:\n${findings.map((finding) => finding.message).join('\n')}`);
     assert.ok(findings[0].message.includes('run banana sync to re-fence'), findings[0].message);
@@ -939,8 +941,9 @@ test('stale fence (#19): a cwd naming the home harness dir another way (letter c
   mkdirSync(piDir, { recursive: true });
   writeFileSync(join(piDir, 'AGENTS.md'), fencedBlock('# continuity wiring', 1) + '\n');
   const piSpellings = [piDir];
-  if (process.platform === 'win32') piSpellings.push(piDir.toUpperCase());
+  if (process.platform === 'win32') piSpellings.push(join(home, '.PI', 'AGENT'));
   for (const cwd of piSpellings) {
+    assert.ok(existsSync(cwd), cwd);
     const findings = auditUpstream(home, cwd).filter(
       (finding) => finding.type === 'stale-fence' && finding.message.includes('AGENTS.md'),
     );
@@ -974,8 +977,9 @@ test('report (#19): with cwd at a home harness dir, the Wiring fences section li
     [linkDir, home],
     [codexDir, homeLink],
   ];
-  if (process.platform === 'win32') runs.push([codexDir.toUpperCase(), home]);
+  if (process.platform === 'win32') runs.push([join(home, '.CODEX'), home]);
   for (const [cwd, homeArg] of runs) {
+    assert.ok(existsSync(cwd), cwd);
     const section = await wiringSection(cwd, homeArg);
     const label = `cwd ${cwd}, home ${homeArg}:\n${section.join('\n')}`;
     const rows = section.filter((line) => line.includes(join(homeArg, '.codex', 'AGENTS.md')));
@@ -1005,13 +1009,101 @@ test('report (#19): a home harness dir with no AGENTS.md yet, reached another wa
   symlinkSync(codexDir, linkDir, 'junction');
 
   const cwds = [linkDir];
-  if (process.platform === 'win32') cwds.push(codexDir.toUpperCase());
+  if (process.platform === 'win32') cwds.push(join(home, '.CODEX'));
   for (const cwd of cwds) {
+    assert.ok(existsSync(cwd), cwd);
     const section = await wiringSection(cwd, home);
     const label = `cwd ${cwd}, home ${home}:\n${section.join('\n')}`;
     assert.equal(section.filter((line) => line.trim().startsWith('project ')).length, 0, label);
     assert.equal(section.filter((line) => line.includes(join(home, '.codex', 'AGENTS.md'))).length, 1, label);
   }
+});
+
+test('stale fence (#19): cwd at <home>/.claude keeps its AGENTS.md a project file — the home target there is CLAUDE.md', async (t) => {
+  const home = sandbox(t);
+  installCanon(home);
+  const claudeDir = join(home, '.claude');
+  mkdirSync(claudeDir, { recursive: true });
+  let section = await wiringSection(claudeDir, home); // neither file exists yet
+  assert.equal(section.filter((line) => line.trim().startsWith('project ')).length, 1, section.join('\n'));
+  writeFileSync(join(claudeDir, 'CLAUDE.md'), fencedBlock('# continuity wiring', CURRENT_FENCE) + '\n');
+  const projectAgents = join(claudeDir, 'AGENTS.md');
+  writeFileSync(projectAgents, fencedBlock('# continuity wiring', 1) + '\n');
+  section = await wiringSection(claudeDir, home);
+  assert.equal(section.filter((line) => line.trim().startsWith('project ')).length, 1, section.join('\n'));
+  const staleFences = auditUpstream(home, claudeDir).filter((finding) => finding.type === 'stale-fence');
+  assert.deepEqual(staleFences.map((finding) => finding.message), [
+    `[stale-fence] ${projectAgents} fence is v1 but current is v${wiringTemplateVersion('agents-md.md')} — run banana project to re-fence`,
+  ]);
+});
+
+test('report (#19): an ordinary project lists its AGENTS.md once, under a project row', async (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  writeFileSync(join(project, 'AGENTS.md'), fencedBlock('# continuity wiring', 1) + '\n');
+  const section = await wiringSection(project, home);
+  const rows = section.filter((line) => line.trim().startsWith('project '));
+  assert.equal(rows.length, 1, section.join('\n'));
+  assert.ok(rows[0].includes(`${join(project, 'AGENTS.md')}  fence v1`), section.join('\n'));
+});
+
+for (const [dir, name] of [
+  ['.codex', 'AGENTS.md'],
+  ['.claude', 'CLAUDE.md'],
+]) {
+  test(`#19: a home ${dir}/${name} linked into the project (dotfiles) is audited and listed once, as the home file`, async (t) => {
+    const home = sandbox(t);
+    installCanon(home);
+    const repo = join(home, 'dotfiles');
+    mkdirSync(repo, { recursive: true });
+    const repoFile = join(repo, 'AGENTS.md');
+    writeFileSync(repoFile, fencedBlock('# continuity wiring', 1) + '\n');
+    mkdirSync(join(home, dir), { recursive: true });
+    const homeFile = join(home, dir, name);
+    let isFileLink = true;
+    try {
+      symlinkSync(repoFile, homeFile, 'file');
+    } catch (error) {
+      const code = /** @type {NodeJS.ErrnoException} */ (error).code;
+      if (code !== 'EPERM' && code !== 'EACCES') throw error;
+      // No symlink privilege: a junction to a directory named AGENTS.md is the same final-component link.
+      isFileLink = false;
+      rmSync(repoFile);
+      mkdirSync(repoFile);
+      symlinkSync(repoFile, homeFile, 'junction');
+    }
+
+    const section = await wiringSection(repo, home);
+    const label = section.join('\n');
+    assert.equal(section.filter((line) => line.trim().startsWith('project ')).length, 0, label);
+    assert.equal(section.filter((line) => line.includes(homeFile)).length, 1, label);
+
+    if (isFileLink) {
+      const findings = auditUpstream(home, repo).filter((finding) => finding.type === 'stale-fence');
+      assert.equal(findings.length, 1, findings.map((finding) => finding.message).join('\n'));
+      assert.ok(findings[0].message.includes(homeFile), findings[0].message);
+      assert.ok(findings[0].message.includes('run banana sync to re-fence'), findings[0].message);
+    }
+  });
+}
+
+test('stale fence (#19): the shared AGENTS.md finding names the home path whatever the cwd spelling', (t) => {
+  const home = sandbox(t);
+  installCanon(home);
+  const codexDir = join(home, '.codex');
+  mkdirSync(codexDir, { recursive: true });
+  const shared = join(codexDir, 'AGENTS.md');
+  writeFileSync(shared, fencedBlock('# continuity wiring', 1) + '\n');
+  const linkDir = join(home, 'codex-link');
+  symlinkSync(codexDir, linkDir, 'junction');
+  const current = wiringTemplateVersion('agents-md.md');
+  assert.deepEqual(
+    auditUpstream(home, linkDir)
+      .filter((finding) => finding.type === 'stale-fence')
+      .map((finding) => finding.message),
+    [`[stale-fence] ${shared} fence is v1 but current is v${current} — run banana sync to re-fence`],
+  );
 });
 
 /**
