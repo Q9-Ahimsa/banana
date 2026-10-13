@@ -596,3 +596,86 @@ Order: G13-G14 with mutation proofs first (G14's last phrase is red until the do
 it), then P5 and P6 tests-first, then gates, then one commit
 `fix(sync): skip a home or canon file it cannot write, keep refreshing the rest` with body
 sentences, `Refs #24 #26`, and the Co-Authored-By line above.
+
+## Review round 5 fixes (lane R5, on top of 189bf92)
+
+Owner ruling, 2026-10-14 (raised by a side note on the exit-0 contract from P1/P5/P6):
+sync exit = "Exit 1 if any failed (Recommended)"; canon files = "Same rule (Recommended)".
+So: sync still finishes every other file, then exits 1 when any file could not be read or
+written. Deliberate skips keep exit 0: a block with no owner/tag line, and a file whose markers
+are malformed (both existed before this batch). Round 5 itself: no product defect, 3 test gaps.
+
+Order: G15-G17 with mutation proofs first (on the current lib/ code), then X1 tests-first (red),
+then gates, then one commit.
+
+- X1 lib/sync.mjs. Add `let failed = 0;` next to `let changes = 0;`. Canon loop catch: add
+  `failed += 1;` before `continue;`. Fence loop: split the read from the marker parse so they can
+  be told apart:
+  ```js
+      /** @type {string} */
+      let text;
+      try {
+        text = readFileSync(target, 'utf8');
+      } catch (error) {
+        err(`skipped ${target}: ${error instanceof Error ? error.message : error}`);
+        failed += 1;
+        continue;
+      }
+      /** @type {ReturnType<typeof findFence>} */
+      let fence;
+      try {
+        fence = findFence(text);
+      } catch (error) {
+        err(`skipped ${target}: ${error instanceof Error ? error.message : error}`);
+        continue;
+      }
+  ```
+  Wire catch: add `failed += 1;` before `continue;`. Replace the final summary and return with:
+  ```js
+    if (failed > 0) {
+      out(`sync: ${changes} change(s)`);
+      err(`banana sync: ${failed} file(s) could not be read or written — see the skipped lines above`);
+      return { code: 1 };
+    }
+    out(changes === 0 ? 'sync: no changes — canon and fences current' : `sync: ${changes} change(s)`);
+    return { code: 0 };
+  ```
+  Tests first, test/sync.test.mjs:
+  - The unreadable-home-target test, the unwritable-home-target test and the unwritable-canon test
+    now assert `code` 1 (message: 'a file sync could not read or write fails the run, after the
+    rest is done'), keep their "later files still refreshed" assertions, and assert an err line
+    `banana sync: 1 file(s) could not be read or written — see the skipped lines above`.
+  - The identity-less skip test and the corrupt-fence skip test keep `code` 0 (deliberate skips).
+  - New: 'sync: a read/write failure never prints "canon and fences current"': with one unwritable
+    home file and nothing else to change, out has 'sync: 0 change(s)' and no line containing
+    'canon and fences current'.
+  Mutants to kill afterwards: each `failed += 1` removed (three, one at a time); the final
+  `return { code: 1 }` -> `{ code: 0 }`; the corrupt-fence catch also counting `failed`.
+- Docs: docs/DESIGN.md sync move 2: "(a `skipped <path>: <reason>` line, exit 0, later files still
+  refreshed)" -> "(a `skipped <path>: <reason>` line; later files are still refreshed, then sync
+  exits 1)". lib/sync.mjs header comment: after "is skipped with a message (#26)" add "; a file it
+  could not read or write still makes sync exit 1 once the rest is done". Keep G14's pinned
+  phrases intact. Re-wrap only the touched lines.
+- G15 test/doctor.test.mjs, after G1: 'stale fence (#26): the init remedy leaves every other
+  already-wired harness file alone'. All file-harness dot-dirs exist; CLAUDE.md = '# mine\n\n' +
+  STALE_FENCE + '\n'; pi and codex = STALE_FENCE_NO_IDENTITY. runInit(parseInitArgs(['--harnesses',
+  'codex', '--yes'])) with ENV, a throwing prompt stub and git user name 'alice'. Assert code 0;
+  CLAUDE.md and the pi file byte-identical; the stale-fence messages are exactly the claude-code
+  sync remedy and the pi `init --harnesses pi` remedy. Mutant: init's wire loop also re-wires a
+  deselected harness whose file already has a fence.
+- G16 test/init.e2e.test.mjs, in 'e2e: fresh init installs the canon dir and STATE.md plus wiring
+  for detected harnesses', after the 'Other tools (no adapter)' assertion: the whitespace-flattened
+  output includes 'To refresh this block, re-run `banana init` and use the copy it prints.' and
+  does not include 'refreshes this block'. test/hermes.test.mjs, after the sender-header test:
+  'hermes (#25): the delivered directive carries the portable refresh sentence, never a file-only
+  one' — `hermes.compose({ owner: 'alice' }).directive` flattened includes that sentence and
+  includes neither 'refreshes this block' nor 'refreshes the blocks in home instruction files'.
+  Mutants: lib/init.mjs's paste block renders 'claude-code.md'; adapters/hermes.mjs renders
+  'claude-code.md'.
+- G17 test/sync.test.mjs, in the unwritable-home-target test: also take `lines` from
+  `collectedIo()` and assert no line starts with `re-fenced ${claudePath}`. Mutant: the wire
+  catch's `continue` deleted.
+
+R5 done when: mutation proofs and the X1 red set recorded; `npm run check` exit 0; `npm test` 0
+fail; one commit `fix(sync): exit 1 when a file could not be read or written, after the rest is done`
+with body sentences (name the owner ruling), `Refs #24 #26`, and the Co-Authored-By line above.
