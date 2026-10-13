@@ -257,9 +257,10 @@ silently prevented. Three moves, in order:
    rendered with (`lib/fence.mjs`'s identity preservation, #16); a stale block whose owner/tag it
    can't read is skipped with a message naming `banana init --harnesses <id>` (#26), and a file
    it can't read or write — a wiring file or a canon file — is skipped the same way (a `skipped
-   <path>: <reason>` line; later files are still refreshed, then sync exits 1). User-owned surfaces
-   (STATE.md, session logs, logbooks, anything outside a fence) are never touched, and unwired
-   files are never created.
+   <path>: <reason>` line; later files are still refreshed, then sync exits 1; the deliberate skips —
+   no owner/tag line, malformed markers — keep exit 0). User-owned surfaces (STATE.md, session
+   logs, logbooks, anything outside a fence) are never touched, and unwired files are never
+   created.
 
 **Line endings (#19).** For sync, a line-ending difference is never a change (init and project
 refit a same-version fence whose line endings differ from its host's, once). The canon refresh

@@ -313,6 +313,7 @@ test('docs/DESIGN.md names the #26 init remedy where it describes doctor and syn
     "a stale block whose owner/tag it can't read is skipped with a message naming `banana init --harnesses <id>` (#26)",
     "`sync` never falls back: it skips a stale home block whose identity it can't read and names `banana init --harnesses <id>` (#26).",
     "and a file it can't read or write",
+    'later files are still refreshed, then sync exits 1',
   ]) {
     assert.ok(text.includes(phrase), `docs/DESIGN.md missing: ${phrase}`);
   }

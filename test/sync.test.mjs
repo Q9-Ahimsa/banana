@@ -9,6 +9,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -460,6 +461,91 @@ test('sync: a read/write failure never prints "canon and fences current"', async
   assert.equal(result.code, 1);
   assert.ok(lines.includes('sync: 0 change(s)'), lines.join('\n'));
   assert.ok(!lines.some((line) => line.includes('canon and fences current')), lines.join('\n'));
+});
+
+test('sync: every file it could not read or write is counted in the exit-1 line', async (t) => {
+  const home = sandbox(t);
+  const piPath = join(home, '.pi', 'agent', 'AGENTS.md');
+  const claudePath = join(home, '.claude', 'CLAUDE.md');
+  mkdirSync(piPath, { recursive: true }); // a directory where the file belongs: reading it throws EISDIR
+  mkdirSync(dirname(claudePath), { recursive: true });
+  writeFileSync(claudePath, `# My instructions\n\n${V1_BLOCK}\n`);
+  chmodSync(claudePath, 0o444);
+  t.after(() => existsSync(claudePath) && chmodSync(claudePath, 0o644));
+  if (writeStillWorks(claudePath)) return t.skip('read-only files are still writable here (root)');
+  const { io, errLines } = collectedIo();
+
+  const result = await runSync(parseSyncArgs([]), { home, io });
+  assert.equal(result.code, 1);
+  assert.ok(
+    errLines.includes('banana sync: 2 file(s) could not be read or written — see the skipped lines above'),
+    errLines.join('\n'),
+  );
+});
+
+test('sync: a kit missing one of its own canon files stays fatal — no skip line, nothing re-fenced', async (t) => {
+  const home = sandbox(t);
+  const kitRoot = sandboxKitRoot(t, '1.0.0');
+  unlinkSync(join(kitRoot, 'canon', CANON_FILES[1]));
+  const codexPath = join(home, '.codex', 'AGENTS.md');
+  mkdirSync(dirname(codexPath), { recursive: true });
+  const content = '<!-- banana:begin v1 -->\n- **Identity:** you are `alpha`; owner: `alice`.\n<!-- banana:end -->\n';
+  writeFileSync(codexPath, content);
+  const { io, errLines } = collectedIo();
+
+  const result = await runSync(parseSyncArgs([]), { home, io, kitRoot });
+  assert.equal(result.code, 1);
+  assert.ok(
+    errLines.some((line) => line.startsWith('banana sync: ') && line.includes('ENOENT')),
+    errLines.join('\n'),
+  );
+  assert.ok(!errLines.some((line) => line.startsWith('skipped ')), errLines.join('\n'));
+  assert.equal(readFileSync(codexPath, 'utf8'), content, 'nothing re-fenced');
+});
+
+test('sync: a skipped stale block never gets a "canon and fences current" summary', async (t) => {
+  const skippedContents = [
+    '<!-- banana:begin v1 -->\nno identity line here\n<!-- banana:end -->\n',
+    '<!-- banana:begin v2 -->\nno end marker here\n',
+  ];
+  for (const content of skippedContents) {
+    const home = sandbox(t);
+    const claudePath = join(home, '.claude', 'CLAUDE.md');
+    mkdirSync(dirname(claudePath), { recursive: true });
+    const first = await runSync(parseSyncArgs([]), { home, io: collectedIo().io }); // installs the canon
+    assert.equal(first.code, 0);
+    writeFileSync(claudePath, content);
+    const { io, lines, errLines } = collectedIo();
+
+    const result = await runSync(parseSyncArgs([]), { home, io });
+    assert.equal(result.code, 0, 'a deliberate skip keeps exit 0');
+    assert.ok(errLines.some((line) => line.startsWith(`skipped ${claudePath}: `)), errLines.join('\n'));
+    assert.ok(!lines.some((line) => line.includes('canon and fences current')), lines.join('\n'));
+    assert.ok(lines.includes('sync: 0 change(s)'), lines.join('\n'));
+  }
+});
+
+test('sync: a canon dir it cannot create never stops the fence refresh', async (t) => {
+  const home = sandbox(t);
+  const canonDir = join(home, '.agents', 'canon');
+  mkdirSync(dirname(canonDir), { recursive: true });
+  writeFileSync(canonDir, 'a file where the canon dir belongs');
+  const codexPath = join(home, '.codex', 'AGENTS.md');
+  mkdirSync(dirname(codexPath), { recursive: true });
+  writeFileSync(codexPath, '<!-- banana:begin v1 -->\n- **Identity:** you are `alpha`; owner: `alice`.\n<!-- banana:end -->\n');
+  const { io, errLines } = collectedIo();
+
+  const result = await runSync(parseSyncArgs([]), { home, io });
+  assert.equal(result.code, 1);
+  assert.ok(
+    errLines.some((line) => line.startsWith(`skipped ${join(canonDir, CANON_FILES[0])}: `)),
+    errLines.join('\n'),
+  );
+  assert.equal(
+    findFence(readFileSync(codexPath, 'utf8'))?.version,
+    wiringTemplateVersion('agents-md.md'),
+    'the fences are still refreshed',
+  );
 });
 
 test('e2e: a corrupt fence (dangling begin marker, no matching end) is skipped, not thrown', async (t) => {
