@@ -686,3 +686,86 @@ VALIDATED: design workflow wf_7f8fd75a-7c4 done (9 agents, 0 errors; critics: no
 DECISION (ahimsa): #18 = "--all only (Recommended)"; us-008.1 = "Retire all 8 (Recommended)".
 ASSUMED (claude): #19 kit writes keep the target file's line-ending style, a new file LF; canon v1.7 history text stays (spec C16, C17; stated to the owner in the ask).
 FILES: .agents/specs/cli-24-batch.md (resolved spec: rulings O1/O2, lane 18 rewritten to --all only, lanes write no record files).
+FILES: 392ca7f docs(spec) on main (spec + log). Worktrees made by hand from 392ca7f: .claude/worktrees/cli-24-18, -19, -22, -23 (branches cli-24-<n>); fresh worktrees check out CRLF (core.autocrlf=true); no committed blob holds a CR.
+IN FLIGHT: build workflow wf_f74b90f4-19b (per lane: Sonnet build, TDD -> Opus verify -> Sonnet fix, until a verify is dry, max 3 rounds; no commits). Main checkout tracked files + home harness/canon files set read-only for the run; mutation proofs run in throwaway copies.
+VALIDATED: build workflow wf_f74b90f4-19b done (20 agents, 0 errors). Lane tests: 22 1042, 19 1054, 18 1046, 23 1042 (all 0 fail, 2 skipped); every lane check clean. Last verify: 23 pass; 22 nits only; 19 and 18 still had should findings after round 3 (unpinned message tails, two surviving fence mutants).
+ASSUMED (claude): the one-author ambiguity error under --target-agent listed only the narrowed pool but said --all retires "every entry"; message now lists the pool and states the true total ("retire all N entries under the id"). Spec wording change, main's call.
+NOTE: own3 (deny-list walk keeping only .mjs files) joins the accepted survivors: no scanned dir holds a subdirectory or a non-.mjs file today.
+IN FLIGHT: final fix workflow wf_30a1e807-724 (exact edits per lane, named mutations). NEXT: main re-runs gates per worktree, commits each lane, merges 22 -> 19 -> 18 -> 23, then a merged-tree review until dry.
+FILES: lane commits daadce6 (#22), 857ebdb (#19), 00fc76f (#18), 4fb618a (#23); integrated linearly on branch cli-24 (main checkout) in order 22 -> 19 -> 18 -> 23 with no conflict: HEAD aa1d2f0.
+VALIDATED: cli-24 aa1d2f0: npm run check clean; 1076 tests, 1074 pass, 0 fail, 2 skipped (exactly as projected); diff --check clean; git ls-files --eol: 116 files i/lf; privacy grep on README/docs/AGENTS/.agents added lines empty; home hashes unchanged.
+PROBLEM: the copy helper skipped nothing on Windows (a Bash heredoc collapsed [\/] to [\/]), so lane mutation copies carried the worktree .git pointer file; copies taken from the locked checkout stayed read-only (13 EPERM fails). FIX: helper rewritten with the Write tool (basename skip list; chmod after copy); lanes were barred from git writes and their commits passed main gates. Also: git grep with a lone-CR pattern is a false probe in Git Bash; use git ls-files --eol.
+IN FLIGHT: merged-tree review wf_156c7f8d-b94 round 1 (contract, sandboxed CLI walk, mutation sweep, edge lenses; each blocker/should re-checked by an Opus refuter). Main checkout + home harness/canon locked again.
+VALIDATED: review round 1 wf_156c7f8d-b94 (13 agents): 0 blocker, 3 confirmed should (all test-only: sync change count unpinned, a vacuous init refresh assert, --target-agent zero-match untested), 17 nits, 0 refuted. Sandboxed CLI walk matched the spec.
+DECISION (claude): also fix 6 nits: doctor double-audits a home harness AGENTS.md with contradictory remedies when cwd is ~/.codex or ~/.pi/agent (a #19 regression: both used to say sync); supersede notes print before later validation; misleading texts (supersede help, fence.mjs header, README doctor row + network sentence, AGENTS.md rule); command-order and lone-CR asserts.
+NOTE: left as is: mixed-host separator branch untested; a host wired by 0.5.0 keeps its two bare LFs outside the fence (outside text is never rewritten, by design); spec Release text says 684 log lines (now 688+); spec integration check 6 replaced by git ls-files --eol.
+IN FLIGHT: round-1 fix workflow wf_e6836b31-ea9 in worktrees cli-24-r18, -r19, -rdoc (from aa1d2f0).
+FILES: round-1 fixes on cli-24: c8ff4e7 fix(log), a9cdd63 fix(doctor), dad2cb6 docs(readme) (rebased linearly, no conflict).
+VALIDATED: cli-24 dad2cb6: check clean; 1080 tests, 1078 pass, 0 fail, 2 skipped; diff --check clean; 116 files i/lf; privacy grep: one false positive (s:/ in https://); home hashes unchanged.
+IN FLIGHT: review round 2 wf_816233b2-254 (same 4 lenses; accepted items listed so they are not re-reported).
+VALIDATED: review round 2 wf_816233b2-254 (12 agents): 0 blocker, 4 confirmed should with one root (the round-1 doctor dedupe compares resolve() spellings, so a cwd typed in another letter case or through a junction still double-audits ~/.codex/AGENTS.md); 13 nits, 0 refuted.
+DECISION (claude): fix with realpathSync.native file identity (try/catch fallback) + test over case and junction spellings; also take 7 accuracy nits (Wiring fences report row, DESIGN/comment wording, archive/author note order test, CONTEXT Supersede term, AGENTS.md parenthetical, README brief row).
+NOTE: the shared agents-md.md template still tells a project AGENTS.md that banana sync refreshes its block; fixing it needs a fence v3 -> v4 bump (every installed fence goes stale), so it goes to the owner as a follow-up issue, not this batch.
+IN FLIGHT: round-2 fix wf_f0fffaf8-74e in worktree cli-24-r2 (from dad2cb6).
+FILES: 5f46a5b fix(doctor) on cli-24 (round-2 fix: fileId = realpathSync.native in the audit and the Wiring fences report; note-order test; wording).
+VALIDATED: cli-24 5f46a5b: check clean; 1083 tests, 1081 pass, 0 fail, 2 skipped; 116 files i/lf. Junction + upper-case + lower-drive-letter cwd test red before, green after.
+IN FLIGHT: review round 3 wf_ac6ca5a4-688.
+VALIDATED: review round 3 wf_ac6ca5a4-688 (12 agents): 0 blocker, 8 confirmed should: 7 are test gaps on the round-2 doctor fix (report half only tested with the exact spelling; home never spelled another way; pi harness untested; home-row label unpinned), 1 predates the batch (doctor names sync for a fence with no identity line; artificial fixture; deferred). 7 nits, 0 refuted.
+DECISION (claude): fix the 7 test gaps + the missing-file edge (fileId resolves a not-yet-created file through its directory). Deferred to the owner as follow-ups: the identity-less fence remedy; templates omit state archive and say sync refreshes a project block (both need fence v4); dry-run rotation WARN states the projected size as current.
+IN FLIGHT: round-3 fix wf_28f70f0b-6c5 in worktree cli-24-r3 (from 5f46a5b); then a doctor-focused round 4.
+FILES: d858f11 test(doctor) on cli-24 (round-3 fix: fileId resolves a missing file through its directory; audit/report tests over case, junction, home junction, pi; home-row label pinned). 7 named mutants all red.
+VALIDATED: cli-24 d858f11: check clean; 1084 tests, 1082 pass, 0 fail, 2 skipped.
+IN FLIGHT: doctor-focused review round 4 wf_8eadb3d2-f0e (mutation + contract/edge lenses, refuter per finding); rounds 2-3 found nothing confirmed outside doctor.
+VALIDATED: doctor-focused review round 4 wf_8eadb3d2-f0e (8 agents): 0 product defects; 4 confirmed should, all missing tests (cwd at ~/.claude, ordinary project row, file-level realpath step for dotfiles links); 4 nits; 0 refuted. Second full round in a row with no product defect.
+DECISION (claude): stop rule = no product defect in two consecutive rounds; close test hardening with one fixer (shared predicate projectAgentsIsHomeFile for audit + report, the pre-verified tests, segment-only upper-casing, DESIGN wording) and one Opus verifier; later surviving mutants are recorded as accepted, not chased.
+PROBLEM: the wake-lock holder was stopped by Claude Code for low system memory; not re-armed (agents now run one at a time).
+IN FLIGHT: wf_c7fc094e-b9a (fix then verify) in worktree cli-24-r4 from d858f11.
+FILES: aff1fd2 refactor(doctor) on cli-24 (one same-file predicate for audit + report; final test gaps). Verifier: 21 doctor scenarios before/after, 0 output differences; 9 named mutants red; 2 equivalent survivors accepted (resolve() no-op on joined absolute paths; case-folded compare equals realpath canonical case).
+VALIDATED: cli-24 aff1fd2: 10 commits; check clean; 1089 tests, 1087 pass, 0 fail, 2 skipped (+53 vs 1036); diff --check clean; 116 files i/lf; home hashes unchanged vs the pre-run snapshot; this entry privacy-clean.
+DECISION (ahimsa): release = "Full release (Recommended)"; leftovers = "Delete both (Recommended)" (10 worktree folders, 423 b24-* temp copies); follow-ups = "Template: state archive, Template: project refresh, Doctor: no-identity fence" (dry-run rotation WARN not filed).
+
+## [2026-10-13] claude us-001.2 | build — retire stale story NEXT us-001.1
+SUPERSEDES: us-001.1 (stale story handoff; both loops finished and shipped)
+STATUS: complete
+NEXT: none — consumed by the loop
+
+## [2026-10-13] claude us-002.2 | build — retire stale story NEXT us-002.1
+SUPERSEDES: us-002.1 (stale story handoff; both loops finished and shipped)
+STATUS: complete
+NEXT: none — consumed by the loop
+
+## [2026-10-13] claude us-003.2 | build — retire stale story NEXT us-003.1
+SUPERSEDES: us-003.1 (stale story handoff; both loops finished and shipped)
+STATUS: complete
+NEXT: none — consumed by the loop
+
+## [2026-10-13] claude us-004.2 | build — retire stale story NEXT us-004.1
+SUPERSEDES: us-004.1 (stale story handoff; both loops finished and shipped)
+STATUS: complete
+NEXT: none — consumed by the loop
+
+## [2026-10-13] claude us-005.2 | build — retire stale story NEXT us-005.1
+SUPERSEDES: us-005.1 (stale story handoff; both loops finished and shipped)
+STATUS: complete
+NEXT: none — consumed by the loop
+
+## [2026-10-13] claude us-006.2 | build — retire stale story NEXT us-006.1
+SUPERSEDES: us-006.1 (stale story handoff; both loops finished and shipped)
+STATUS: complete
+NEXT: none — consumed by the loop
+
+## [2026-10-13] claude us-007.2 | build — retire stale story NEXT us-007.1
+SUPERSEDES: us-007.1 (stale story handoff; both loops finished and shipped)
+STATUS: complete
+NEXT: none — consumed by the loop
+
+## [2026-10-13] claude us-008.2 | build — retire stale handoff us-008.1
+SUPERSEDES: us-008.1 (owner handoff closed by owner ruling O2: the T3/T3-R review passed and the kit has shipped since)
+STATUS: complete
+NEXT: none — done: review passed, kit shipped
+
+## [2026-10-13] claude cli.25 | build — batch release: #18 supersede duplicate ids, #19 sync line endings + doctor remedy, #22 README table, #23 owner handle in fixtures
+SUPERSEDES: cli.24 (continuation — closes the entry left open above)
+STATUS: in-progress
+FILES: f4b5539 chore(release) 0.6.0 (package.json + lock).
+VALIDATED: post-release cleanup with the new --all: us-001.2..us-008.2 written (one entry per id, each retiring both same-agent copies); brief cli --tag claude listed 7 stale us-00N.1 handoffs on the 392ca7f log and none now (checked on an independent copy); doctor here: only [oversize] (log 765 lines, rotation is a separate step).
