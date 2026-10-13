@@ -8,9 +8,9 @@
 A harness-neutral continuity kit. It installs a file-based coordination protocol shared by every
 AI agent (Claude Code, Pi, Codex, Hermes, …) and human on a machine, so that work survives session
 death and no agent's private memory becomes load-bearing. Seven commands: `init` (machine wiring),
-`project` (repo init), `brief` (per-intent context compiler), `doctor` (audits), `sync` (propagates
-upstream canon and wiring changes), `log` (stamps session-log entries), `state` (lints a STATE
-page; archives a global-page line) — plus a bare `version` subcommand.
+`project` (repo init), `brief` (per-intent context compiler), `doctor` (audits), `sync`
+(propagates upstream canon and home wiring changes), `log` (stamps session-log entries), `state`
+(lints a STATE page; archives a global-page line) — plus a bare `version` subcommand.
 
 ## The architecture being shipped (canon v1.3 baseline; later revisions in the canon changelog)
 

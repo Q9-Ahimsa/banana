@@ -296,3 +296,11 @@ test('docs/DESIGN.md states the current wiring fence version', () => {
     `docs/DESIGN.md must say the wiring templates are fenced at v${CURRENT_WIRING_VERSION}`,
   );
 });
+
+test('docs/DESIGN.md intro says sync propagates home wiring changes (#26)', () => {
+  const design = readFileSync(fileURLToPath(new URL('../docs/DESIGN.md', import.meta.url)), 'utf8');
+  assert.ok(
+    flat(design).includes('`sync` (propagates upstream canon and home wiring changes)'),
+    'the DESIGN intro names home wiring, not wiring in general',
+  );
+});

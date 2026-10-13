@@ -179,6 +179,54 @@ test('e2e (#26 review): init --harnesses <id> does not tell the user to paste in
   assert.ok(output.includes('pi — re-run init'), 'an unwired harness keeps the paste advice');
 });
 
+test('e2e (#26 review): init --harnesses <id> still lists a deselected harness whose file has no banana block', async (t) => {
+  const home = sandbox(t);
+  const claudeMd = join(home, '.claude', 'CLAUDE.md');
+  const codexMd = join(home, '.codex', 'AGENTS.md');
+  mkdirSync(dirname(claudeMd), { recursive: true });
+  mkdirSync(dirname(codexMd), { recursive: true });
+  const notes = '# my own notes, no banana block\n';
+  writeFileSync(claudeMd, notes);
+  writeFileSync(codexMd, '<!-- banana:begin v1 -->\nno identity line here\n<!-- banana:end -->\n');
+  const { io, lines } = scriptedIo();
+
+  const result = await runInit(parseInitArgs(['--harnesses', 'codex', '--yes']), {
+    home,
+    env: NO_PATH,
+    io,
+    gitUserName: () => 'alice',
+  });
+  assert.equal(result.code, 0);
+  assert.equal(readFileSync(claudeMd, 'utf8'), notes, 'the deselected file is untouched');
+  assert.ok(lines.join('\n').includes('claude-code — re-run init'), 'a file with no block keeps the paste advice');
+});
+
+test('e2e (#26 review): a deselected harness file with a corrupt fence never aborts init --harnesses <id>', async (t) => {
+  const home = sandbox(t);
+  const claudeMd = join(home, '.claude', 'CLAUDE.md');
+  const codexMd = join(home, '.codex', 'AGENTS.md');
+  mkdirSync(dirname(claudeMd), { recursive: true });
+  mkdirSync(dirname(codexMd), { recursive: true });
+  const corrupt = '# my notes\n<!-- banana:begin v3 -->\nhalf a block, end marker lost\n';
+  writeFileSync(claudeMd, corrupt);
+  writeFileSync(codexMd, '<!-- banana:begin v1 -->\nno identity line here\n<!-- banana:end -->\n');
+  const { io, lines } = scriptedIo();
+
+  const result = await runInit(parseInitArgs(['--harnesses', 'codex', '--yes']), {
+    home,
+    env: NO_PATH,
+    io,
+    gitUserName: () => 'alice',
+  });
+  assert.equal(result.code, 0);
+  assert.ok(
+    readFileSync(codexMd, 'utf8').includes(`<!-- banana:begin v${wiringTemplateVersion('agents-md.md')} -->`),
+    'the selected file carries the current opener',
+  );
+  assert.equal(readFileSync(claudeMd, 'utf8'), corrupt, 'the corrupt file is untouched');
+  assert.ok(lines.join('\n').includes('claude-code — re-run init'), 'a corrupt fence keeps the paste advice');
+});
+
 test('e2e: a second init run exits 0 with a byte-identical tree', async (t) => {
   const home = sandbox(t);
   mkdirSync(join(home, '.claude'));
