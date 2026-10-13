@@ -509,3 +509,33 @@ then gates, then one commit.
 R2 done when: mutation proofs and the P4 red test recorded; `npm run check` exit 0; `npm test` 0
 fail; one commit `test(doctor,sync,readme): pin #26 identity parity and #25 README prose; help names home fences`
 with body sentences, `Refs #24 #25 #26`, and the Co-Authored-By line above.
+
+## Review round 3 fixes (lane R3, on top of 121da9f)
+
+Round 3: no product defect; 4 test gaps confirmed (3 after merging a duplicate), 2 nits. Main takes
+the DESIGN intro nit (the other, STATE.md, is main's at close). Same rules and order as R1.
+
+- G10 test/init.e2e.test.mjs, after the '(#26 review): init --harnesses <id> does not tell the user
+  to paste…' test: 'e2e (#26 review): init --harnesses <id> still lists a deselected harness whose
+  file has no banana block'. CLAUDE.md = '# my own notes, no banana block\n'; codex AGENTS.md = the
+  identity-less v1 block; runInit(parseInitArgs(['--harnesses', 'codex', '--yes'])) with the file's
+  sandbox/env/io helpers and git user name 'alice'. Assert code 0; CLAUDE.md byte-identical; output
+  includes 'claude-code — re-run init'. Mutants: the filter becomes `return !existsSync(target);`;
+  `findFence(…) === null` becomes `false`.
+- G11 same file: 'e2e (#26 review): a deselected harness file with a corrupt fence never aborts init
+  --harnesses <id>'. CLAUDE.md = '# my notes\n<!-- banana:begin v3 -->\nhalf a block, end marker
+  lost\n'; codex as above. Assert code 0; the codex file carries the current agents-md opener;
+  CLAUDE.md byte-identical; output includes 'claude-code — re-run init'. Mutants: the filter's
+  try/catch removed; `catch { return true; }` -> `catch { return false; }`.
+- G12 test/readme.test.mjs: 'README fence paragraph says sync skips a block with no identity line and
+  names the init remedy (#26)': the whitespace-flattened README includes 'A block with no identity
+  line is skipped (`sync` never invents one); `banana doctor` then names
+  `banana init --harnesses <id>`.' Mutant: that sentence deleted from README.
+- N1 docs/DESIGN.md intro: "`sync` (propagates upstream canon and wiring changes)" -> "`sync`
+  (propagates upstream canon and home wiring changes)". Re-wrap that paragraph only. Pin it in
+  test/templates.test.mjs next to the DESIGN fence-version test:
+  `flat(design).includes('`sync` (propagates upstream canon and home wiring changes)')` (red first).
+
+R3 done when: mutation proofs and the N1 red test recorded; `npm run check` exit 0; `npm test` 0
+fail; one commit `test(init,readme): pin init's Not-wired filter and the #26 README sentence` with
+body sentences, `Refs #26`, and the Co-Authored-By line above.
