@@ -354,3 +354,121 @@ by the commit footers. Each other project needs `banana project` in its next ses
 - An older kit running `project`/`init` over a newer block rewrites it to the older version
   (no downgrade guard). Pre-existing; a candidate follow-up issue.
 - init's no-owner fallback hint drops `--harnesses`. Pre-existing.
+
+## Review round 1 fixes (lane R1, on top of 9693fb7)
+
+Round 1: 16 findings confirmed by refute-first verifiers: 3 product defects, 13 test gaps (9 tests
+after merging duplicates). Two product defects predate this batch, but #26's new remedy puts users
+on their path, so they ride this batch. Same rules as the lanes above.
+
+Order: (1) gap tests G1-G6 with mutation proofs, on the unchanged lib/ code; (2) product fixes
+P1-P3, tests first (red), then the edit (green); (3) gates; (4) one commit.
+
+### G — test gaps (behavior is right; each test must kill its named mutant)
+
+Prove each G test: it passes on the current code; then apply the named mutant to the lib file,
+run the test file and see it fail; then undo the mutant (edit it back) and confirm with
+`git diff --stat` that lib/ has no pending change. Record each mutant and the failing test.
+
+- G1 test/doctor.test.mjs 'stale fence (#26): every home harness gets its own init remedy, sync's
+  skip line names the same command, and that command re-fences only that file'. Loop over every
+  FILE_ADAPTERS entry (import it from where doctor.test.mjs or lib/ already exports it). Per adapter:
+  fresh sandbox home with the canon installed; create the dot-dirs of ALL file harnesses so plain
+  init would detect them; write STALE_FENCE_NO_IDENTITY at that adapter's target only. Assert:
+  (a) the stale-fence messages deepEqual
+  [`[stale-fence] ${target} fence is v1 but current is v${current} — run banana init --harnesses ${adapter.id} to re-fence (banana sync skips a block with no owner/tag line)`];
+  (b) `runSync` with no exec leaves the file byte-identical, and its err has a line
+  `skipped ${target}: cannot recover owner/tag from the v1 block — run banana init --harnesses ${adapter.id} to re-fence`;
+  (c) parse the command from doctor's message, run it via parseInitArgs/runInit (git user name
+  'alice', `--yes`): code 0, doctor's stale-fence list is [], and no OTHER adapter's target file was
+  created. Mutants: doctor hardcodes `--harnesses codex`; sync hardcodes `--harnesses claude-code`.
+- G2 test/doctor.test.mjs 'stale fence (#26): identity text outside the fence does not count —
+  doctor agrees with sync'. Codex file = 'Note: you are `alpha`; owner: `alice`.\n\n' +
+  STALE_FENCE_NO_IDENTITY. Assert the init remedy, and that `runSync` skips the file. Mutant:
+  doctor calls `extractIdentity(text)` instead of the fence slice.
+- G3 test/doctor.test.mjs 'stale fence (#26): a tag without an owner still gets the init remedy'.
+  Codex file = fencedBlock('- **Identity:** you are `alpha`.', 1) + '\n'. Assert the init remedy.
+  Mutant: doctor's test narrowed to `tag === null`.
+- G4 test/doctor.test.mjs 'stale fence: a directory where a home harness file belongs never aborts
+  doctor'. mkdirSync the codex AGENTS.md path as a directory; canon installed; clean project. Assert
+  runDoctor does not print `banana doctor: EISDIR`, and auditUpstream's stale-fence list is [].
+  Mutant: move doctor's `text = readFileSync(…)` above its `try`.
+- G5 test/templates.test.mjs "the repo's own AGENTS.md block is exactly what banana project renders
+  today (C10)". Read ../AGENTS.md, `toLf`, `findFence`; take the identity with `extractIdentity` on
+  the fence slice; assert the fence slice equals
+  `renderWiringTemplate('agents-md.md', { owner, tag })` with its trailing newline handled the
+  way findFence's end offset requires. Mutant: AGENTS.md opener set back to v3 (a data mutant).
+- G6 test/templates.test.mjs 'docs/DESIGN.md states the current wiring fence version':
+  `flat(design)` includes `is currently fenced at \`v${CURRENT_WIRING_VERSION}\``. Mutant: DESIGN.md
+  says v3.
+
+### P — product fixes (tests first, red, then the edit)
+
+- P1 sync aborts on an unreadable home target and never reaches later stale files.
+  Test (test/sync.test.mjs) 'sync: an unreadable home target is skipped, later stale files are still
+  re-fenced': mkdirSync the pi AGENTS.md path as a directory; codex AGENTS.md = a v1 block with an
+  identity line (`- **Identity:** you are \`alpha\`; owner: \`alice\`.`). runSync (no exec): code 0;
+  an err line starts with `skipped ${piPath}: EISDIR`; the codex file now carries the current opener;
+  auditUpstream reports no stale fence. Edit lib/sync.mjs fence loop:
+  OLD
+  ```js
+      const text = readFileSync(target, 'utf8');
+      /** @type {ReturnType<typeof findFence>} */
+      let fence;
+      try {
+        fence = findFence(text);
+      } catch (error) {
+  ```
+  NEW
+  ```js
+      /** @type {string} */
+      let text;
+      /** @type {ReturnType<typeof findFence>} */
+      let fence;
+      try {
+        text = readFileSync(target, 'utf8');
+        fence = findFence(text);
+      } catch (error) {
+  ```
+  Contract change, decided: an unreadable home file is skipped with a `skipped <path>: <reason>`
+  line and sync carries on (exit 0), like a file with malformed markers. Add one sentence saying so
+  to docs/DESIGN.md's sync move 2.
+- P2 `init --harnesses <id>` lists already-wired harnesses under "Not wired" and tells the user to
+  paste the portable block into them (a second fence). Test (test/init.e2e.test.mjs or the file
+  that already tests init's "Not wired" output): home with a CURRENT claude-code block (render the
+  current claude-code.md with an identity) at the CLAUDE.md path, a v1 identity-less codex block, and
+  an empty pi dot-dir (no AGENTS.md). runInit with `--harnesses codex --yes`, git user name 'alice'.
+  Assert: output has no `claude-code — re-run init`; CLAUDE.md byte-identical; output still has
+  `pi — re-run init` (an unwired harness keeps the paste advice). Edit lib/init.mjs:
+  import `findFence` from './fence.mjs' (add it to the existing fence.mjs import), and replace
+  `    const manual = FILE_ADAPTERS.filter((a) => !selected.includes(a.id));` with
+  ```js
+    // A harness whose file already carries a banana block needs no paste: pasting the portable
+    // block there would add a second fence (#26 review).
+    const manual = FILE_ADAPTERS.filter((a) => {
+      if (selected.includes(a.id)) return false;
+      const target = join(home, a.describe().target);
+      try {
+        return !existsSync(target) || findFence(readFileSync(target, 'utf8')) === null;
+      } catch {
+        return true;
+      }
+    });
+  ```
+- P3 README's sync row still says sync re-applies every stale fence. Test (test/readme.test.mjs)
+  'README doctor and sync rows name the right refresh commands (#19, #25, #26)': the
+  '| `banana doctor`' row includes '`banana sync`', '`banana init --harnesses <id>`' and
+  '`banana project`'; the '| `banana sync`' row includes 'home wiring fence' and '`banana project`'.
+  Edits: README.md sync row: `re-apply any wiring fence older than current;` ->
+  `re-apply any home wiring fence older than current (a block with no owner/tag line is skipped; \`banana project\` refreshes a project's \`AGENTS.md\`);`
+  docs/DESIGN.md sync move 2: after "(`lib/fence.mjs`'s identity preservation, #16)" insert
+  "; a stale block whose owner/tag it can't read is skipped with a message naming
+  `banana init --harnesses <id>` (#26), and an unreadable file is skipped the same way". Re-wrap
+  the touched lines to the paragraph's width.
+
+### R1 done when
+
+- G1-G6 mutation proofs and P1-P3 red sets recorded; `npm run check` exit 0; `npm test` 0 fail.
+- One commit: `fix(sync,init): skip unreadable home files; list only unwired harnesses; tests for #26 review`
+  Body: two or three plain sentences, `Refs #26`, then
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
