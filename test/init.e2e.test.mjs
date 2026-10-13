@@ -152,6 +152,12 @@ test('e2e: fresh init installs the canon dir and STATE.md plus wiring for detect
   const output = lines.join('\n');
   assert.ok(output.includes('pi — re-run init after installing'), 'paste instructions name pi');
   assert.ok(output.includes('Other tools (no adapter)'), 'manual-only paste path printed');
+  const flat = output.replace(/\s+/g, ' ');
+  assert.ok(
+    flat.includes('To refresh this block, re-run `banana init` and use the copy it prints.'),
+    'the pasted block carries the portable refresh sentence (#25)',
+  );
+  assert.ok(!flat.includes('refreshes this block'), 'the pasted block never carries the file-only sentence (#25)');
 });
 
 test('e2e (#26 review): init --harnesses <id> does not tell the user to paste into an already-wired harness', async (t) => {

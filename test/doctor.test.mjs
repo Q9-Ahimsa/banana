@@ -1339,6 +1339,43 @@ test("stale fence (#26): every home harness gets its own init remedy, sync's ski
   }
 });
 
+test('stale fence (#26): the init remedy leaves every other already-wired harness file alone', async (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  for (const adapter of FILE_ADAPTERS) {
+    mkdirSync(dirname(join(home, adapter.describe().target)), { recursive: true });
+  }
+  const claudeFile = join(home, '.claude', 'CLAUDE.md');
+  const piFile = join(home, '.pi', 'agent', 'AGENTS.md');
+  const codexFile = join(home, '.codex', 'AGENTS.md');
+  const claudeText = '# mine\n\n' + STALE_FENCE + '\n';
+  writeFileSync(claudeFile, claudeText);
+  writeFileSync(piFile, STALE_FENCE_NO_IDENTITY);
+  writeFileSync(codexFile, STALE_FENCE_NO_IDENTITY);
+
+  const initResult = await runInit(parseInitArgs(['--harnesses', 'codex', '--yes']), {
+    home,
+    env: ENV,
+    io: {
+      out: () => {},
+      err: () => {},
+      prompt: async () => {
+        throw new Error('init --yes must not prompt');
+      },
+    },
+    gitUserName: () => 'alice',
+  });
+
+  assert.equal(initResult.code, 0);
+  assert.equal(readFileSync(claudeFile, 'utf8'), claudeText, 'the claude-code file is byte-identical');
+  assert.equal(readFileSync(piFile, 'utf8'), STALE_FENCE_NO_IDENTITY, 'the pi file is byte-identical');
+  assert.deepEqual(staleFenceMessages(home, project), [
+    `[stale-fence] ${claudeFile} fence is v1 but current is v${wiringTemplateVersion('claude-code.md')} — run banana sync to re-fence`,
+    `[stale-fence] ${piFile} fence is v1 but current is v${wiringTemplateVersion('agents-md.md')} — run banana init --harnesses pi to re-fence (banana sync skips a block with no owner/tag line)`,
+  ]);
+});
+
 test('stale fence (#26): identity text outside the fence does not count — doctor agrees with sync', async (t) => {
   const project = cleanProject(t);
   const home = sandbox(t);

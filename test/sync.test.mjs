@@ -350,6 +350,8 @@ test('e2e: a wired file whose block identity is unrecoverable is skipped, not br
   );
 });
 
+const FAILED_LINE = 'banana sync: 1 file(s) could not be read or written — see the skipped lines above';
+
 test('sync: an unreadable home target is skipped, later stale files are still re-fenced', async (t) => {
   const home = sandbox(t);
   const piPath = join(home, '.pi', 'agent', 'AGENTS.md');
@@ -360,8 +362,9 @@ test('sync: an unreadable home target is skipped, later stale files are still re
   const { io, errLines } = collectedIo();
 
   const result = await runSync(parseSyncArgs([]), { home, io });
-  assert.equal(result.code, 0, 'an unreadable file is a skip, not a failure');
+  assert.equal(result.code, 1, 'a file sync could not read or write fails the run, after the rest is done');
   assert.ok(errLines.some((line) => line.startsWith(`skipped ${piPath}: EISDIR`)), errLines.join('\n'));
+  assert.ok(errLines.includes(FAILED_LINE), errLines.join('\n'));
   const codexText = readFileSync(codexPath, 'utf8');
   assert.equal(findFence(codexText)?.version, wiringTemplateVersion('agents-md.md'), 'the later codex file is re-fenced');
   assert.deepEqual(
@@ -391,11 +394,16 @@ test('sync: an unwritable home target is skipped, later stale files are still re
   chmodSync(claudePath, 0o444);
   t.after(() => existsSync(claudePath) && chmodSync(claudePath, 0o644));
   if (writeStillWorks(claudePath)) return t.skip('read-only files are still writable here (root)');
-  const { io, errLines } = collectedIo();
+  const { io, lines, errLines } = collectedIo();
 
   const result = await runSync(parseSyncArgs([]), { home, io });
-  assert.equal(result.code, 0, 'an unwritable file is a skip, not a failure');
+  assert.equal(result.code, 1, 'a file sync could not read or write fails the run, after the rest is done');
   assert.ok(errLines.some((line) => line.startsWith(`skipped ${claudePath}: `)), errLines.join(', '));
+  assert.ok(errLines.includes(FAILED_LINE), errLines.join('\n'));
+  assert.ok(
+    !lines.some((line) => line.startsWith(`re-fenced ${claudePath}`)),
+    'a file that was not written is never reported as re-fenced',
+  );
   assert.equal(
     findFence(readFileSync(codexPath, 'utf8'))?.version,
     wiringTemplateVersion('agents-md.md'),
@@ -424,14 +432,34 @@ test('sync: an unwritable canon file is skipped; the other canon files and the f
   const { io, errLines } = collectedIo();
 
   const result = await runSync(parseSyncArgs([]), { home, io });
-  assert.equal(result.code, 0, 'an unwritable canon file is a skip, not a failure');
+  assert.equal(result.code, 1, 'a file sync could not read or write fails the run, after the rest is done');
   assert.ok(errLines.some((line) => line.startsWith(`skipped ${lockedPath}: `)), errLines.join(', '));
+  assert.ok(errLines.includes(FAILED_LINE), errLines.join('\n'));
   assert.ok(sameText(otherPath, join(KIT_ROOT, 'canon', CANON_FILES[1])), 'the later canon file is refreshed');
   assert.equal(
     findFence(readFileSync(codexPath, 'utf8'))?.version,
     wiringTemplateVersion('agents-md.md'),
     'the fences are still refreshed',
   );
+});
+
+test('sync: a read/write failure never prints "canon and fences current"', async (t) => {
+  const home = sandbox(t);
+  const canonDir = join(home, '.agents', 'canon');
+  mkdirSync(canonDir, { recursive: true });
+  for (const name of CANON_FILES) cpSync(join(KIT_ROOT, 'canon', name), join(canonDir, name));
+  const claudePath = join(home, '.claude', 'CLAUDE.md');
+  mkdirSync(dirname(claudePath), { recursive: true });
+  writeFileSync(claudePath, `# My instructions\n\n${V1_BLOCK}\n`);
+  chmodSync(claudePath, 0o444);
+  t.after(() => existsSync(claudePath) && chmodSync(claudePath, 0o644));
+  if (writeStillWorks(claudePath)) return t.skip('read-only files are still writable here (root)');
+  const { io, lines } = collectedIo();
+
+  const result = await runSync(parseSyncArgs([]), { home, io });
+  assert.equal(result.code, 1);
+  assert.ok(lines.includes('sync: 0 change(s)'), lines.join('\n'));
+  assert.ok(!lines.some((line) => line.includes('canon and fences current')), lines.join('\n'));
 });
 
 test('e2e: a corrupt fence (dangling begin marker, no matching end) is skipped, not thrown', async (t) => {

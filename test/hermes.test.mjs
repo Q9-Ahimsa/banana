@@ -72,6 +72,13 @@ test('hermes: directive carries the sender header, canon pointer, and agent tag'
   );
 });
 
+test('hermes (#25): the delivered directive carries the portable refresh sentence, never a file-only one', () => {
+  const flat = hermes.compose({ owner: 'alice' }).directive.replace(/\s+/g, ' ');
+  assert.ok(flat.includes('To refresh this block, re-run `banana init` and use the copy it prints.'));
+  assert.ok(!flat.includes('refreshes this block'));
+  assert.ok(!flat.includes('refreshes the blocks in home instruction files'));
+});
+
 test('hermes: an explicit tag overrides the default', () => {
   const { directive, tag } = hermes.compose({ owner: 'alice', tag: 'custom-tag' });
   assert.equal(tag, 'custom-tag');
