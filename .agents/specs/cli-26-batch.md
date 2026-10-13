@@ -679,3 +679,50 @@ then gates, then one commit.
 R5 done when: mutation proofs and the X1 red set recorded; `npm run check` exit 0; `npm test` 0
 fail; one commit `fix(sync): exit 1 when a file could not be read or written, after the rest is done`
 with body sentences (name the owner ruling), `Refs #24 #26`, and the Co-Authored-By line above.
+
+## Review round 6 fixes (lane R6, on top of 10c7ae3)
+
+Round 6: 4 product findings, 3 test gaps, 1 nit. Two product findings are in sync and ride this
+lane (Q1, Q2). Two are in the hermes adapter's delivery (POSIX sh runs every backticked span of the
+directive; on Windows cmd.exe cuts the directive at its first line feed). Both predate this batch
+and need their own design; they go to the owner as a scope question, not into this lane.
+
+- Q1 sync's summary says "no changes — canon and fences current" after a DELIBERATE skip (no
+  owner/tag line, malformed markers) while that fence stays stale. lib/sync.mjs: add
+  `let skipped = 0;` next to `let failed = 0;`; in the findFence catch (the one WITHOUT
+  `failed += 1`) add `skipped += 1;` before `continue;`; in the `owner === null || tag === null`
+  branch add `skipped += 1;` after the err(...) call; the exit-0 summary becomes
+  `out(changes === 0 && skipped === 0 ? 'sync: no changes — canon and fences current' : `sync: ${changes} change(s)`);`.
+  Exit codes do not change. Test first, test/sync.test.mjs: 'sync: a skipped stale block never gets
+  a "canon and fences current" summary' — for each of the identity-less v1 block and
+  '<!-- banana:begin v2 -->\nno end marker here\n': fresh sandbox home, one runSync to install the
+  canon, then write that content to the CLAUDE.md path, run again: code 0; no line contains
+  'canon and fences current'; lines include 'sync: 0 change(s)'. Mutants: each `skipped += 1`
+  removed; the summary condition back to `changes === 0`.
+- Q2 a canon dir sync cannot create (`mkdirSync` throws, e.g. a file sits at that path) stops sync
+  before the fence loop. lib/sync.mjs: delete the standalone `mkdirSync(canonDir, { recursive: true });`
+  above the canon loop, and make it the first statement inside the canon loop's existing try (before
+  `result = writeKitFile(target, bundled);`). Test first: 'sync: a canon dir it cannot create never
+  stops the fence refresh' — write a regular file at `<home>/.agents/canon`, a v1 identity block in
+  codex AGENTS.md; runSync: code 1; an err line starts with `skipped ${join(canonDir, CANON_FILES[0])}: `;
+  the codex file carries the current opener. Mutant: mkdirSync moved back outside the try.
+- G18 test/sync.test.mjs: 'sync: every file it could not read or write is counted in the exit-1
+  line' — pi AGENTS.md path is a directory (EISDIR) and CLAUDE.md holds a v1 identity block made
+  0o444 (probe and t.skip if still writable; restore 0o644 guarded by existsSync in t.after). Assert
+  code 1 and the err line `banana sync: 2 file(s) could not be read or written — see the skipped lines above`.
+  Mutant: the failure line hard-codes 1, or one `failed += 1` becomes `failed = 1`.
+- G19 test/sync.test.mjs: 'sync: a kit missing one of its own canon files stays fatal — no skip
+  line, nothing re-fenced' — use the file's sandboxKitRoot helper, delete one bundled canon file,
+  put a v1 identity block in codex AGENTS.md; runSync with that kitRoot: code 1; an err line starts
+  with 'banana sync: ' and includes 'ENOENT'; no err line starts with 'skipped '; the codex file is
+  byte-identical. Mutant: the canon try widened to cover the bundled read.
+- G20 test/templates.test.mjs, in 'docs/DESIGN.md names the #26 init remedy where it describes
+  doctor and sync': add the phrase 'later files are still refreshed, then sync exits 1'. Mutant:
+  DESIGN back to "exit 0".
+- N2 docs/DESIGN.md sync move 2: after "then sync exits 1" add "; the deliberate skips — no
+  owner/tag line, malformed markers — keep exit 0". Keep every pinned phrase intact (G14, G20);
+  re-wrap the paragraph only.
+
+Order: G18-G20 with mutation proofs first, then Q1 and Q2 tests-first, then N2, then gates, then
+one commit `fix(sync): honest summary after a deliberate skip; a canon dir it cannot create never stops the fences`
+with body sentences, `Refs #26`, and the Co-Authored-By line above.
