@@ -14,6 +14,7 @@ import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { extractIdentity, parseSyncArgs, runSync } from '../lib/sync.mjs';
+import { auditUpstream } from '../lib/doctor.mjs';
 import { CANON_FILES, FILE_ADAPTERS } from '../lib/init.mjs';
 import { findFence, fenceBegin } from '../lib/fence.mjs';
 import { renderWiringTemplate, wiringTemplateVersion } from '../lib/wiring.mjs';
@@ -344,6 +345,26 @@ test('e2e: a wired file whose block identity is unrecoverable is skipped, not br
   assert.ok(
     errLines.join('\n').includes('run banana init --harnesses claude-code to re-fence'),
     'skip names the command that re-fences it (#26)',
+  );
+});
+
+test('sync: an unreadable home target is skipped, later stale files are still re-fenced', async (t) => {
+  const home = sandbox(t);
+  const piPath = join(home, '.pi', 'agent', 'AGENTS.md');
+  const codexPath = join(home, '.codex', 'AGENTS.md');
+  mkdirSync(piPath, { recursive: true }); // a directory where the file belongs: reading it throws EISDIR
+  mkdirSync(dirname(codexPath), { recursive: true });
+  writeFileSync(codexPath, '<!-- banana:begin v1 -->\n- **Identity:** you are `alpha`; owner: `alice`.\n<!-- banana:end -->\n');
+  const { io, errLines } = collectedIo();
+
+  const result = await runSync(parseSyncArgs([]), { home, io });
+  assert.equal(result.code, 0, 'an unreadable file is a skip, not a failure');
+  assert.ok(errLines.some((line) => line.startsWith(`skipped ${piPath}: EISDIR`)), errLines.join('\n'));
+  const codexText = readFileSync(codexPath, 'utf8');
+  assert.equal(findFence(codexText)?.version, wiringTemplateVersion('agents-md.md'), 'the later codex file is re-fenced');
+  assert.deepEqual(
+    auditUpstream(home, home).filter((finding) => finding.type === 'stale-fence'),
+    [],
   );
 });
 

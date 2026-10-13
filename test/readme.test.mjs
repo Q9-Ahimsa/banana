@@ -188,3 +188,15 @@ test('banana --version prints the package version', () => {
   const out = execFileSync(process.execPath, [binPath, '--version'], { encoding: 'utf8' });
   assert.equal(out.trim(), pkg.version);
 });
+
+test('README doctor and sync rows name the right refresh commands (#19, #25, #26)', () => {
+  const rows = tableRows(readFileSync(readmePath, 'utf8'));
+  const doctor = rows.find((row) => row.cmd === 'doctor')?.line ?? '';
+  const sync = rows.find((row) => row.cmd === 'sync')?.line ?? '';
+  for (const phrase of ['`banana sync`', '`banana init --harnesses <id>`', '`banana project`']) {
+    assert.ok(doctor.includes(phrase), `the doctor row names ${phrase}`);
+  }
+  for (const phrase of ['home wiring fence', '`banana project`']) {
+    assert.ok(sync.includes(phrase), `the sync row names ${phrase}`);
+  }
+});

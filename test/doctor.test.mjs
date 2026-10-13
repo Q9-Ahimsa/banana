@@ -40,7 +40,7 @@ import {
   stateAsOfMalformed,
 } from '../lib/doctor.mjs';
 import { fencedBlock } from '../lib/fence.mjs';
-import { CANON_FILES, parseInitArgs, runInit } from '../lib/init.mjs';
+import { CANON_FILES, FILE_ADAPTERS, parseInitArgs, runInit } from '../lib/init.mjs';
 import { parseSyncArgs, runSync } from '../lib/sync.mjs';
 import { wiringTemplateVersion } from '../lib/wiring.mjs';
 
@@ -1276,4 +1276,110 @@ test('stale fence (#26): owner without a tag still gets the init remedy', (t) =>
   const messages = staleFenceMessages(home, project);
   assert.equal(messages.length, 1, messages.join('\n'));
   assert.ok(messages[0].includes('run banana init --harnesses codex to re-fence'), messages[0]);
+});
+
+test("stale fence (#26): every home harness gets its own init remedy, sync's skip line names the same command, and that command re-fences only that file", async (t) => {
+  for (const adapter of FILE_ADAPTERS) {
+    const project = cleanProject(t);
+    const home = sandbox(t);
+    installCanon(home);
+    // Every file harness's dot-dir exists, so a plain `banana init` would detect and wire them all.
+    for (const other of FILE_ADAPTERS) {
+      mkdirSync(dirname(join(home, other.describe().target)), { recursive: true });
+    }
+    const target = join(home, adapter.describe().target);
+    writeFileSync(target, STALE_FENCE_NO_IDENTITY);
+    const current = wiringTemplateVersion(adapter.describe().template);
+
+    // (a) doctor names this adapter's id.
+    const messages = staleFenceMessages(home, project);
+    assert.deepEqual(messages, [
+      `[stale-fence] ${target} fence is v1 but current is v${current} — run banana init --harnesses ${adapter.id} to re-fence (banana sync skips a block with no owner/tag line)`,
+    ]);
+
+    // (b) sync, with no exec, skips the file and names the same command.
+    /** @type {string[]} */
+    const errLines = [];
+    const syncIo = { out: () => {}, err: (/** @type {string} */ line = '') => errLines.push(line) };
+    const synced = await runSync(parseSyncArgs([]), { home, io: syncIo });
+    assert.equal(synced.code, 0);
+    assert.equal(readFileSync(target, 'utf8'), STALE_FENCE_NO_IDENTITY, `${adapter.id}: the skipped file is byte-identical`);
+    assert.ok(
+      errLines.includes(
+        `skipped ${target}: cannot recover owner/tag from the v1 block — run banana init --harnesses ${adapter.id} to re-fence`,
+      ),
+      errLines.join('\n'),
+    );
+
+    // (c) the command doctor printed re-fences this file and creates no other target.
+    const printed = /— run banana init (.+?) to re-fence/.exec(messages[0])?.[1];
+    assert.ok(printed, messages[0]);
+    const initResult = await runInit(parseInitArgs([...printed.split(' '), '--yes']), {
+      home,
+      env: ENV,
+      io: {
+        out: () => {},
+        err: () => {},
+        prompt: async () => {
+          throw new Error('init --yes must not prompt');
+        },
+      },
+      gitUserName: () => 'alice',
+    });
+    assert.equal(initResult.code, 0, adapter.id);
+    assert.deepEqual(staleFenceMessages(home, project), [], adapter.id);
+    for (const other of FILE_ADAPTERS) {
+      if (other.id === adapter.id) continue;
+      assert.equal(
+        existsSync(join(home, other.describe().target)),
+        false,
+        `${adapter.id}: init --harnesses ${adapter.id} must not create the ${other.id} target`,
+      );
+    }
+  }
+});
+
+test('stale fence (#26): identity text outside the fence does not count — doctor agrees with sync', async (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  mkdirSync(join(home, '.codex'), { recursive: true });
+  const codexFile = join(home, '.codex', 'AGENTS.md');
+  const text = 'Note: you are `alpha`; owner: `alice`.\n\n' + STALE_FENCE_NO_IDENTITY;
+  writeFileSync(codexFile, text);
+
+  const messages = staleFenceMessages(home, project);
+  assert.equal(messages.length, 1, messages.join('\n'));
+  assert.ok(messages[0].includes('run banana init --harnesses codex to re-fence'), messages[0]);
+
+  /** @type {string[]} */
+  const errLines = [];
+  const syncIo = { out: () => {}, err: (/** @type {string} */ line = '') => errLines.push(line) };
+  await runSync(parseSyncArgs([]), { home, io: syncIo });
+  assert.equal(readFileSync(codexFile, 'utf8'), text, 'sync leaves the file byte-identical');
+  assert.ok(errLines.some((line) => line.startsWith(`skipped ${codexFile}`)), errLines.join('\n'));
+});
+
+test('stale fence (#26): a tag without an owner still gets the init remedy', (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  mkdirSync(join(home, '.codex'), { recursive: true });
+  writeFileSync(join(home, '.codex', 'AGENTS.md'), fencedBlock('- **Identity:** you are `alpha`.', 1) + '\n');
+
+  const messages = staleFenceMessages(home, project);
+  assert.equal(messages.length, 1, messages.join('\n'));
+  assert.ok(messages[0].includes('run banana init --harnesses codex to re-fence'), messages[0]);
+});
+
+test('stale fence: a directory where a home harness file belongs never aborts doctor', async (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  mkdirSync(join(home, '.codex', 'AGENTS.md'), { recursive: true });
+
+  const captured = capturedIo();
+  await runDoctor({ verify: false }, { cwd: project, home, io: captured.io, now: NOW, env: ENV });
+  assert.ok(!captured.text().includes('banana doctor: EISDIR'), captured.text());
+  assert.deepEqual(staleFenceMessages(home, project), []);
 });

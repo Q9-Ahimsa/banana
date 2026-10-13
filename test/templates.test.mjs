@@ -6,8 +6,8 @@ import { join } from 'node:path';
 
 import { COMMANDS } from '../lib/commands.mjs';
 import { RETIRED_HEADER_RE, STATE_VERBS } from '../lib/state.mjs';
-import { fenceBegin } from '../lib/fence.mjs';
-import { wiringTemplateVersion } from '../lib/wiring.mjs';
+import { extractIdentity, fenceBegin, findFence, toLf } from '../lib/fence.mjs';
+import { renderWiringTemplate, wiringTemplateVersion } from '../lib/wiring.mjs';
 
 const flat = (text) => text.replace(/\s+/g, ' ');
 
@@ -275,5 +275,24 @@ test('global-STATE.md Recently-closed placeholder names the (closed YYYY-MM-DD) 
   assert.ok(
     !text.includes('- (last few finished threads, one line each, with pointers)'),
     'global-STATE.md still ships the pre-#20 Recently-closed placeholder text'
+  );
+});
+
+test("the repo's own AGENTS.md block is exactly what banana project renders today (C10)", () => {
+  const text = toLf(readFileSync(fileURLToPath(new URL('../AGENTS.md', import.meta.url)), 'utf8'));
+  const fence = findFence(text);
+  assert.ok(fence, 'AGENTS.md carries a banana fence');
+  const block = text.slice(fence.start, fence.end);
+  const { owner, tag } = extractIdentity(block);
+  assert.ok(owner && tag, 'the block carries a readable identity');
+  // findFence's end offset stops right after the end marker; the render has no trailing newline.
+  assert.equal(block, renderWiringTemplate('agents-md.md', { owner, tag }));
+});
+
+test('docs/DESIGN.md states the current wiring fence version', () => {
+  const design = readFileSync(fileURLToPath(new URL('../docs/DESIGN.md', import.meta.url)), 'utf8');
+  assert.ok(
+    flat(design).includes(`is currently fenced at \`v${CURRENT_WIRING_VERSION}\``),
+    `docs/DESIGN.md must say the wiring templates are fenced at v${CURRENT_WIRING_VERSION}`,
   );
 });

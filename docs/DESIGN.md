@@ -254,9 +254,11 @@ silently prevented. Three moves, in order:
 2. **Canon + fence refresh (v1.2; compare rule #19).** Refreshes `~/.agents/canon/` to the bundled
    canon's text, then re-applies the fenced wiring block to every already-wired harness file
    whose block version is older than the current template, preserving the owner/tag the block was
-   rendered with (`lib/fence.mjs`'s identity preservation, #16). User-owned surfaces (STATE.md,
-   session logs, logbooks, anything outside a fence) are never touched, and unwired files are never
-   created.
+   rendered with (`lib/fence.mjs`'s identity preservation, #16); a stale block whose owner/tag it
+   can't read is skipped with a message naming `banana init --harnesses <id>` (#26), and an
+   unreadable file is skipped the same way (a `skipped <path>: <reason>` line, exit 0, later files
+   still refreshed). User-owned surfaces (STATE.md, session logs, logbooks, anything outside a
+   fence) are never touched, and unwired files are never created.
 
 **Line endings (#19).** For sync, a line-ending difference is never a change (init and project
 refit a same-version fence whose line endings differ from its host's, once). The canon refresh

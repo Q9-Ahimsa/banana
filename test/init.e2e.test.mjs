@@ -14,7 +14,7 @@ import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { CANON_FILES, parseInitArgs, runInit } from '../lib/init.mjs';
-import { wiringTemplateVersion } from '../lib/wiring.mjs';
+import { renderWiringTemplate, wiringTemplateVersion } from '../lib/wiring.mjs';
 
 const KIT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -152,6 +152,31 @@ test('e2e: fresh init installs the canon dir and STATE.md plus wiring for detect
   const output = lines.join('\n');
   assert.ok(output.includes('pi — re-run init after installing'), 'paste instructions name pi');
   assert.ok(output.includes('Other tools (no adapter)'), 'manual-only paste path printed');
+});
+
+test('e2e (#26 review): init --harnesses <id> does not tell the user to paste into an already-wired harness', async (t) => {
+  const home = sandbox(t);
+  const claudeMd = join(home, '.claude', 'CLAUDE.md');
+  const codexMd = join(home, '.codex', 'AGENTS.md');
+  mkdirSync(dirname(claudeMd), { recursive: true });
+  mkdirSync(dirname(codexMd), { recursive: true });
+  mkdirSync(join(home, '.pi'), { recursive: true }); // pi is installed but has no AGENTS.md yet
+  const current = renderWiringTemplate('claude-code.md', { owner: 'alice', tag: 'alpha' }) + '\n';
+  writeFileSync(claudeMd, current);
+  writeFileSync(codexMd, '<!-- banana:begin v1 -->\nno identity line here\n<!-- banana:end -->\n');
+  const { io, lines } = scriptedIo();
+
+  const result = await runInit(parseInitArgs(['--harnesses', 'codex', '--yes']), {
+    home,
+    env: NO_PATH,
+    io,
+    gitUserName: () => 'alice',
+  });
+  assert.equal(result.code, 0);
+  assert.equal(readFileSync(claudeMd, 'utf8'), current, 'the unselected wired file is untouched');
+  const output = lines.join('\n');
+  assert.ok(!output.includes('claude-code — re-run init'), 'an already-wired harness needs no paste advice');
+  assert.ok(output.includes('pi — re-run init'), 'an unwired harness keeps the paste advice');
 });
 
 test('e2e: a second init run exits 0 with a byte-identical tree', async (t) => {
