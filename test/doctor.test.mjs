@@ -7,7 +7,9 @@
 // US-007 (v2) acceptance: two upstream audits — a home canon dir missing or
 // older than the kit's bundled canon, and any wired fence block older than
 // its current template — each flagged with exit 1 and a finding naming its fix
-// command (banana sync, or banana project for the project AGENTS.md — #19);
+// command (banana sync, or banana project for the project AGENTS.md — #19, or
+// banana init --harnesses <id> for a home file whose stale block has no
+// owner/tag line, which sync skips — #26);
 // a current canon + current fences add no finding.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -38,13 +40,20 @@ import {
   stateAsOfMalformed,
 } from '../lib/doctor.mjs';
 import { fencedBlock } from '../lib/fence.mjs';
-import { CANON_FILES } from '../lib/init.mjs';
+import { CANON_FILES, parseInitArgs, runInit } from '../lib/init.mjs';
+import { parseSyncArgs, runSync } from '../lib/sync.mjs';
 import { wiringTemplateVersion } from '../lib/wiring.mjs';
 
 const KIT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** Fence version the current claude-code wiring template declares. */
 const CURRENT_FENCE = wiringTemplateVersion('claude-code.md');
+
+/** A stale (v1) block whose identity line sync can read back: sync re-fences it. */
+const STALE_FENCE = fencedBlock('- **Identity:** you are `alpha`; owner: `alice`.', 1);
+
+/** A stale (v1) block with no owner/tag line (the #26 repro): sync skips it. */
+const STALE_FENCE_NO_IDENTITY = '<!-- banana:begin v1 -->\nno identity line here\n<!-- banana:end -->\n';
 
 /** Fixed clock: audits must be deterministic, never read the real time. */
 const NOW = Date.parse('2026-07-04T12:00:00Z');
@@ -518,7 +527,7 @@ test('stale fence: v1 block in a wired home file flagged with exit 1, finding na
   const home = sandbox(t);
   installCanon(home);
   mkdirSync(join(home, '.claude'), { recursive: true });
-  writeFileSync(join(home, '.claude', 'CLAUDE.md'), fencedBlock('# continuity wiring', 1) + '\n');
+  writeFileSync(join(home, '.claude', 'CLAUDE.md'), STALE_FENCE + '\n');
 
   const captured = capturedIo();
   const result = await runDoctor({ verify: false }, { cwd: project, home, io: captured.io, now: NOW, env: ENV });
@@ -917,7 +926,7 @@ test('auditUpstream: current canon + current fences add no finding; both drifts 
   const canonDir = installCanon(driftedHome);
   writeFileSync(join(canonDir, 'STANDARD.md'), '<!-- banana:canon rev 1.1 -->\nstale\n');
   mkdirSync(join(driftedHome, '.claude'), { recursive: true });
-  writeFileSync(join(driftedHome, '.claude', 'CLAUDE.md'), fencedBlock('# continuity wiring', 1) + '\n');
+  writeFileSync(join(driftedHome, '.claude', 'CLAUDE.md'), STALE_FENCE + '\n');
   assert.deepEqual(
     auditUpstream(driftedHome, cwd).map((f) => f.type).sort(),
     ['stale-canon', 'stale-fence'],
@@ -931,7 +940,7 @@ test('stale fence (#19): each stale fence names the command that re-fences it �
   mkdirSync(join(home, '.codex'), { recursive: true });
   const homeAgents = join(home, '.codex', 'AGENTS.md');
   const projectAgents = join(project, 'AGENTS.md');
-  writeFileSync(homeAgents, fencedBlock('# continuity wiring', 1) + '\n');
+  writeFileSync(homeAgents, STALE_FENCE + '\n');
   writeFileSync(projectAgents, fencedBlock('# continuity wiring', 1) + '\n');
 
   const current = wiringTemplateVersion('agents-md.md');
@@ -950,7 +959,7 @@ test('stale fence (#19): with cwd in a home harness dir, the shared AGENTS.md is
   const codexDir = join(home, '.codex');
   mkdirSync(codexDir, { recursive: true });
   const shared = join(codexDir, 'AGENTS.md');
-  writeFileSync(shared, fencedBlock('# continuity wiring', 1) + '\n');
+  writeFileSync(shared, STALE_FENCE + '\n');
 
   const findings = auditUpstream(home, codexDir).filter((finding) => finding.type === 'stale-fence');
   assert.equal(findings.length, 1, findings.map((finding) => finding.message).join('\n'));
@@ -962,7 +971,7 @@ test('stale fence (#19): a cwd naming the home harness dir another way (letter c
   installCanon(home);
   const codexDir = join(home, '.codex');
   mkdirSync(codexDir, { recursive: true });
-  writeFileSync(join(codexDir, 'AGENTS.md'), fencedBlock('# continuity wiring', 1) + '\n');
+  writeFileSync(join(codexDir, 'AGENTS.md'), STALE_FENCE + '\n');
   const linkDir = join(home, 'codex-link');
   symlinkSync(codexDir, linkDir, 'junction'); // a junction on Windows (no privilege), a dir symlink elsewhere
 
@@ -989,7 +998,7 @@ test('stale fence (#19): a cwd naming the home harness dir another way (letter c
   // The pi harness: <home>/.pi/agent/AGENTS.md.
   const piDir = join(home, '.pi', 'agent');
   mkdirSync(piDir, { recursive: true });
-  writeFileSync(join(piDir, 'AGENTS.md'), fencedBlock('# continuity wiring', 1) + '\n');
+  writeFileSync(join(piDir, 'AGENTS.md'), STALE_FENCE + '\n');
   const piSpellings = [piDir];
   if (process.platform === 'win32') piSpellings.push(join(home, '.PI', 'AGENT'));
   for (const cwd of piSpellings) {
@@ -1014,7 +1023,7 @@ test('report (#19): with cwd at a home harness dir, the Wiring fences section li
   const codexDir = join(home, '.codex');
   mkdirSync(codexDir, { recursive: true });
   const shared = join(codexDir, 'AGENTS.md');
-  writeFileSync(shared, fencedBlock('# continuity wiring', 1) + '\n');
+  writeFileSync(shared, STALE_FENCE + '\n');
 
   const linkDir = join(home, 'codex-link');
   symlinkSync(codexDir, linkDir, 'junction');
@@ -1041,7 +1050,7 @@ test('report (#19): with cwd at a home harness dir, the Wiring fences section li
   // pi: <home>/.pi/agent/AGENTS.md
   const piDir = join(home, '.pi', 'agent');
   mkdirSync(piDir, { recursive: true });
-  writeFileSync(join(piDir, 'AGENTS.md'), fencedBlock('# continuity wiring', 1) + '\n');
+  writeFileSync(join(piDir, 'AGENTS.md'), STALE_FENCE + '\n');
   const piSection = await wiringSection(piDir, home);
   const piLabel = `pi, cwd ${piDir}, home ${home}:\n${piSection.join('\n')}`;
   const piRows = piSection.filter((line) => line.includes(join(home, '.pi', 'agent', 'AGENTS.md')));
@@ -1108,7 +1117,7 @@ for (const [dir, name] of [
     const repo = join(home, 'dotfiles');
     mkdirSync(repo, { recursive: true });
     const repoFile = join(repo, 'AGENTS.md');
-    writeFileSync(repoFile, fencedBlock('# continuity wiring', 1) + '\n');
+    writeFileSync(repoFile, STALE_FENCE + '\n');
     mkdirSync(join(home, dir), { recursive: true });
     const homeFile = join(home, dir, name);
     let isFileLink = true;
@@ -1144,7 +1153,7 @@ test('stale fence (#19): the shared AGENTS.md finding names the home path whatev
   const codexDir = join(home, '.codex');
   mkdirSync(codexDir, { recursive: true });
   const shared = join(codexDir, 'AGENTS.md');
-  writeFileSync(shared, fencedBlock('# continuity wiring', 1) + '\n');
+  writeFileSync(shared, STALE_FENCE + '\n');
   const linkDir = join(home, 'codex-link');
   symlinkSync(codexDir, linkDir, 'junction');
   const current = wiringTemplateVersion('agents-md.md');
@@ -1169,3 +1178,102 @@ async function wiringSection(cwd, home) {
   assert.ok(start >= 0, captured.text());
   return captured.lines.slice(start, captured.lines.indexOf('', start));
 }
+
+/** The stale-fence messages doctor reports for a home + project pair. */
+function staleFenceMessages(home, project) {
+  return auditUpstream(home, project)
+    .filter((finding) => finding.type === 'stale-fence')
+    .map((finding) => finding.message);
+}
+
+test('stale fence (#26): a stale home fence with no identity line names banana init — banana sync skips it', (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  mkdirSync(join(home, '.codex'), { recursive: true });
+  const homeAgents = join(home, '.codex', 'AGENTS.md');
+  const projectAgents = join(project, 'AGENTS.md');
+  writeFileSync(homeAgents, STALE_FENCE_NO_IDENTITY);
+  writeFileSync(projectAgents, STALE_FENCE_NO_IDENTITY);
+
+  const current = wiringTemplateVersion('agents-md.md');
+  assert.deepEqual(staleFenceMessages(home, project), [
+    `[stale-fence] ${homeAgents} fence is v1 but current is v${current} — run banana init --harnesses codex to re-fence (banana sync skips a block with no owner/tag line)`,
+    `[stale-fence] ${projectAgents} fence is v1 but current is v${current} — run banana project to re-fence`,
+  ]);
+});
+
+test('stale fence (#26): a stale home fence with an identity line keeps banana sync', (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  mkdirSync(join(home, '.codex'), { recursive: true });
+  const homeAgents = join(home, '.codex', 'AGENTS.md');
+  writeFileSync(homeAgents, STALE_FENCE + '\n');
+
+  const current = wiringTemplateVersion('agents-md.md');
+  assert.deepEqual(staleFenceMessages(home, project), [
+    `[stale-fence] ${homeAgents} fence is v1 but current is v${current} — run banana sync to re-fence`,
+  ]);
+});
+
+test('stale fence (#26): each named remedy does what doctor says', async (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  mkdirSync(join(home, '.codex'), { recursive: true });
+  mkdirSync(join(home, '.claude'), { recursive: true });
+  const codexFile = join(home, '.codex', 'AGENTS.md');
+  writeFileSync(codexFile, STALE_FENCE_NO_IDENTITY);
+  writeFileSync(join(home, '.claude', 'CLAUDE.md'), STALE_FENCE + '\n');
+
+  // (1) sync, with no exec (no npm, no network): re-fences CLAUDE.md, skips the codex file.
+  /** @type {string[]} */
+  const errLines = [];
+  const syncIo = { out: () => {}, err: (/** @type {string} */ line = '') => errLines.push(line) };
+  const synced = await runSync(parseSyncArgs([]), { home, io: syncIo });
+  assert.equal(synced.code, 0);
+  assert.equal(readFileSync(codexFile, 'utf8'), STALE_FENCE_NO_IDENTITY, 'the skipped file is byte-identical');
+  assert.ok(
+    errLines.some((line) => line.startsWith('skipped ') && line.includes(codexFile)),
+    errLines.join('\n'),
+  );
+
+  // (2) exactly one finding remains, naming the codex file.
+  const remaining = staleFenceMessages(home, project);
+  assert.equal(remaining.length, 1, remaining.join('\n'));
+  assert.ok(remaining[0].includes(codexFile), remaining[0]);
+
+  // (3) run the init command doctor printed.
+  const printed = /— run banana init (.+?) to re-fence/.exec(remaining[0])?.[1];
+  assert.ok(printed, remaining[0]);
+  const initResult = await runInit(parseInitArgs([...printed.split(' '), '--yes']), {
+    home,
+    env: ENV,
+    io: {
+      out: () => {},
+      err: () => {},
+      prompt: async () => {
+        throw new Error('init --yes must not prompt');
+      },
+    },
+    gitUserName: () => 'alice',
+  });
+
+  // (4) the codex file is re-fenced and nothing stale is left.
+  assert.equal(initResult.code, 0);
+  assert.deepEqual(staleFenceMessages(home, project), []);
+});
+
+test('stale fence (#26): owner without a tag still gets the init remedy', (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  mkdirSync(join(home, '.codex'), { recursive: true });
+  const homeAgents = join(home, '.codex', 'AGENTS.md');
+  writeFileSync(homeAgents, fencedBlock('- **Identity:** owner: `alice`.', 1) + '\n');
+
+  const messages = staleFenceMessages(home, project);
+  assert.equal(messages.length, 1, messages.join('\n'));
+  assert.ok(messages[0].includes('run banana init --harnesses codex to re-fence'), messages[0]);
+});

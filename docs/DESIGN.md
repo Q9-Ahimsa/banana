@@ -303,7 +303,9 @@ Reports: detected harnesses; fence-block versions found in wired files. Audits (
   — any wired fence block (home adapters plus the project's `AGENTS.md`) is older than its
   template's current version. `stale-canon` names `banana sync`; `stale-fence` names the command
   that re-fences that file (#19): `banana sync` for a home harness file, `banana project` for the
-  project's `AGENTS.md` (sync never touches project files). When the project's `AGENTS.md` is
+  project's `AGENTS.md` (sync never touches project files). A stale home block with no readable
+  owner/tag line names `banana init --harnesses <id>` instead, with the reason: sync skips such a
+  block (#26; doctor runs sync's own `extractIdentity` test). When the project's `AGENTS.md` is
   itself a home harness file (cwd is `~/.codex` or `~/.pi/agent` itself, whatever letter case,
   junction or symlink reaches it, and whether or not the file exists yet; or a home file is a
   symlink to the project's `AGENTS.md`), it is audited once, as the home file, and the report's
@@ -381,10 +383,12 @@ unchanged, even as it upgrades everything else (version, template text). An expl
 command was given for this run (`project`'s and `init`'s `--tag`/`--owner`) wins over a preserved
 one — `init` resolves this per adapter target, so a machine wired at different times with
 different `--owner`/`--tag` values keeps each file's own identity independently; `sync` takes no
-such flags, so a preserved value always wins there. No existing fence, or a fence whose identity
-line can't be parsed, falls back to the command's normal default computation (`init`'s per-adapter
-fallback is this run's resolved owner and the adapter's own default tag) — the unparseable case
-also prints exactly one warning line naming the file, so identity loss is never silent. The hermes
+such flags, so a preserved value always wins there. For `project` and `init`, no existing fence,
+or a fence whose identity line can't be parsed, falls back to the command's normal default
+computation (`init`'s per-adapter fallback is this run's resolved owner and the adapter's own
+default tag) — the unparseable case also prints exactly one warning line naming the file, so
+identity loss is never silent. `sync` never falls back: it skips a stale home block whose identity
+it can't read and names `banana init --harnesses <id>` (#26). The hermes
 adapter never writes files: it
 composes a directive (sender header + protocol summary + agent tag) and the one-shot command
 string; delivery only behind an explicit `--deliver` flag. Rationale: another agent's memory is

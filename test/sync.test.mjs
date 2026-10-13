@@ -341,6 +341,10 @@ test('e2e: a wired file whose block identity is unrecoverable is skipped, not br
   assert.equal(result.code, 0, 'a skip is not a failure');
   assert.equal(readFileSync(claudeMd, 'utf8'), content, 'unrecoverable file left untouched');
   assert.ok(errLines.join('\n').includes('skipped'), 'skip reported');
+  assert.ok(
+    errLines.join('\n').includes('run banana init --harnesses claude-code to re-fence'),
+    'skip names the command that re-fences it (#26)',
+  );
 });
 
 test('e2e: a corrupt fence (dangling begin marker, no matching end) is skipped, not thrown', async (t) => {
