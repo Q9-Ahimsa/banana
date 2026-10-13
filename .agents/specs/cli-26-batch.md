@@ -472,3 +472,40 @@ run the test file and see it fail; then undo the mutant (edit it back) and confi
 - One commit: `fix(sync,init): skip unreadable home files; list only unwired harnesses; tests for #26 review`
   Body: two or three plain sentences, `Refs #26`, then
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+
+## Review round 2 fixes (lane R2, on top of ea48f92)
+
+Round 2: 4 test gaps confirmed (3 after merging a duplicate) and one help-text overclaim that two
+reviewers filed as a nit. Main counts that overclaim as a product defect: it is the same class as
+round 1's P3. Same rules and order as R1: G tests with mutation proofs first, then P4 tests-first,
+then gates, then one commit.
+
+- G7 test/readme.test.mjs, in 'README doctor and sync rows name the right refresh commands (#19,
+  #25, #26)': `const prose = readFileSync(readmePath, 'utf8').replace(/\s+/g, ' ');` then assert it
+  includes "re-applies any stale wiring block in a home instruction file (`banana project` refreshes
+  a project's `AGENTS.md`)" and does not include 're-applies any stale wiring blocks'. Mutant: the
+  README sync paragraph reverted to "…and re-applies any stale wiring blocks. Your own files —".
+- G8 test/doctor.test.mjs, next to G3: for each of ['owner only', '- **Identity:** owner: `alice`.']
+  and ['tag only', '- **Identity:** you are `alpha`.'], a test "stale fence (#26): sync really skips
+  a half-identity block (<label>), as doctor's init remedy says": codex file = fencedBlock(body, 1) +
+  '\n'; runSync with no exec; code 0; file byte-identical; err includes exactly
+  `skipped ${file}: cannot recover owner/tag from the v1 block — run banana init --harnesses codex to re-fence`.
+  Mutant: lib/sync.mjs `owner === null || tag === null` -> `owner === null && tag === null`.
+- G9 test/doctor.test.mjs, next to G2: 'stale fence (#26): identity text after the fence does not
+  count either — doctor agrees with sync'. Codex file = STALE_FENCE_NO_IDENTITY + '\nNote: you are
+  `alpha`; owner: `alice`.\n'. Assert doctor's one message names
+  'run banana init --harnesses codex to re-fence', and runSync leaves the file byte-identical with a
+  `skipped ${file}` err line. Mutants (one at a time): doctor's slice -> `text.slice(fence.start)`;
+  sync's slice -> `text.slice(fence.start)`.
+- P4 `banana --help` says sync re-applies "stale wiring fences" (all of them). Test first in the
+  file that already tests top-level help (test/bin.e2e.test.mjs or test/smoke.test.mjs): the help
+  line for sync includes 'stale home wiring fences'. Edits: bin/banana.mjs help line
+  `  sync      refresh the kit-owned canon and re-apply stale wiring fences` ->
+  `  sync      refresh the kit-owned canon and re-apply stale home wiring fences`; lib/sync.mjs header
+  comment, after "preserving the owner/tag the block was rendered with" add "; a block whose
+  owner/tag can't be read, or a file that can't be read, is skipped with a message (#26)" and re-wrap
+  that comment paragraph.
+
+R2 done when: mutation proofs and the P4 red test recorded; `npm run check` exit 0; `npm test` 0
+fail; one commit `test(doctor,sync,readme): pin #26 identity parity and #25 README prose; help names home fences`
+with body sentences, `Refs #24 #25 #26`, and the Co-Authored-By line above.
