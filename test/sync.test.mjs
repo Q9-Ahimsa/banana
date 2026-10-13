@@ -84,6 +84,33 @@ const V1_BLOCK = `<!-- banana:begin v1 -->
   files are the source of truth, never any agent's private memory.
 <!-- banana:end -->`;
 
+// A real v3 agents-md block (placeholders alpha / owner-x), as the v3 kit rendered it.
+const V3_AGENTS_MD_BLOCK = `<!-- banana:begin v3 -->
+## Continuity bootstrap (banana)
+
+- **Identity:** you are \`alpha\`; owner: \`owner-x\`. Sign every entry
+  you author with your tag.
+- **Protocol authority:** \`~/.agents/canon/\` — the harness-neutral continuity
+  protocol shared by every agent and human on this machine (CONTINUITY.md,
+  STANDARD.md, SESSION-LOG.md). All rules live behind this pointer, never in
+  this block; on conflict, the canon wins. Read CONTINUITY.md before your
+  first entry.
+- **Kit:** \`banana <command>\` (commands: init · project · brief · doctor ·
+  sync · log · state lint). Install once:
+  \`npm install -g github:Q9-Ahimsa/banana\`; then \`banana sync\` updates the
+  kit and refreshes this block. Not installed yet? Prefix
+  \`npx --yes github:Q9-Ahimsa/banana\` instead. Kits can drift between
+  machines: the brief prints the kit version, and \`banana doctor\` warns when
+  a newer one exists.
+- **Self-setup:** if this workspace (git repo or non-code topic dir) lacks
+  continuity files, initialize it yourself per the canon's agent bootstrap
+  section: run \`banana project\` from the workspace root.
+- **Session ritual:** read \`~/.agents/STATE.md\` first (machine grain — the
+  brief does not carry it), then your brief
+  (\`banana brief <feature> --tag alpha\`);
+  end by closing your log entry with an owned \`NEXT:\` (\`banana log close\`).
+<!-- banana:end -->`;
+
 const STATE_SENTINEL = '# GLOBAL STATE\n> user-owned; the kit must never rewrite this.\n';
 
 /** Wire the standard upgrade fixture: stale canon + v1-fenced CLAUDE.md + STATE.md. */
@@ -123,7 +150,7 @@ test('extractIdentity round-trips the rendered wiring templates', () => {
   }
 });
 
-test('e2e: sync refreshes a stale canon to the bundled text and upgrades a v1 fence to v3', async (t) => {
+test('e2e: sync refreshes a stale canon to the bundled text and upgrades a v1 fence to the current version', async (t) => {
   const home = sandbox(t);
   const { canonDir, claudeMd } = staleFixture(home);
   const { io, lines } = collectedIo();
@@ -211,7 +238,7 @@ const V2_CLAUDE_CODE_BLOCK = `<!-- banana:begin v2 -->
   end by closing your log entry with an owned \`NEXT:\`.
 <!-- banana:end -->`;
 
-test('e2e (#10): sync upgrades a real v2 block to v3, preserving a non-default owner/tag pair; bytes outside the fence untouched', async (t) => {
+test('e2e (#10): sync upgrades a real v2 block to the current version, preserving a non-default owner/tag pair; bytes outside the fence untouched', async (t) => {
   const home = sandbox(t);
   const canonDir = join(home, '.agents', 'canon');
   mkdirSync(canonDir, { recursive: true });
@@ -250,6 +277,38 @@ test('e2e (#10): sync upgrades a real v2 block to v3, preserving a non-default o
   assert.ok(lines.join('\n').includes(`v2 -> v${CURRENT_FENCE}`), 'fence upgrade reported');
 
   // A second run is byte-identical and reports no changes (idempotency).
+  const snapshotAfterFirst = snapshot(home);
+  const { io: io2, lines: lines2 } = collectedIo();
+  const second = await runSync(parseSyncArgs([]), { home, io: io2 });
+  assert.equal(second.code, 0);
+  assert.ok(lines2.join('\n').includes('no changes'), 'second run must report no changes');
+  assertTreesIdentical(snapshotAfterFirst, snapshot(home));
+});
+
+test('e2e (#24, #25): sync upgrades a real v3 codex block to the current template, identity kept; second run byte-identical', async (t) => {
+  const home = sandbox(t);
+  const canonDir = join(home, '.agents', 'canon');
+  mkdirSync(canonDir, { recursive: true });
+  for (const name of CANON_FILES) {
+    writeFileSync(join(canonDir, name), readFileSync(join(KIT_ROOT, 'canon', name)));
+  }
+  const codexMd = join(home, '.codex', 'AGENTS.md');
+  mkdirSync(dirname(codexMd), { recursive: true });
+  const above = '# Codex notes\n\n';
+  const below = '\nafter\n';
+  writeFileSync(codexMd, `${above}${V3_AGENTS_MD_BLOCK}${below}`);
+
+  const { io, lines } = collectedIo();
+  const result = await runSync(parseSyncArgs([]), { home, io });
+  assert.equal(result.code, 0);
+
+  const expected = renderWiringTemplate('agents-md.md', { owner: 'owner-x', tag: 'alpha' });
+  assert.equal(readFileSync(codexMd, 'utf8'), `${above}${expected}${below}`);
+  assert.ok(
+    lines.join('\n').includes(`re-fenced ${codexMd}: v3 -> v${wiringTemplateVersion('agents-md.md')}`),
+    'fence upgrade reported',
+  );
+
   const snapshotAfterFirst = snapshot(home);
   const { io: io2, lines: lines2 } = collectedIo();
   const second = await runSync(parseSyncArgs([]), { home, io: io2 });

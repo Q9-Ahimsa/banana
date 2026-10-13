@@ -29,7 +29,7 @@ Default vocabulary — the five canonical label strings used as-is. See `docs/ag
 
 Single-context: `CONTEXT.md` at repo root + `docs/adr/`. See `docs/agents/domain.md`.
 
-<!-- banana:begin v3 -->
+<!-- banana:begin v4 -->
 ## Continuity bootstrap (banana)
 
 - **Identity:** you are `claude`; owner: `ahimsa`. Sign every entry
@@ -40,12 +40,13 @@ Single-context: `CONTEXT.md` at repo root + `docs/adr/`. See `docs/agents/domain
   this block; on conflict, the canon wins. Read CONTINUITY.md before your
   first entry.
 - **Kit:** `banana <command>` (commands: init · project · brief · doctor ·
-  sync · log · state lint). Install once:
+  sync · log · state lint · state archive). Install once:
   `npm install -g github:Q9-Ahimsa/banana`; then `banana sync` updates the
-  kit and refreshes this block. Not installed yet? Prefix
-  `npx --yes github:Q9-Ahimsa/banana` instead. Kits can drift between
-  machines: the brief prints the kit version, and `banana doctor` warns when
-  a newer one exists.
+  kit and refreshes the blocks in home instruction files, and
+  `banana project`, run in a workspace, refreshes its AGENTS.md block.
+  Not installed yet? Prefix `npx --yes github:Q9-Ahimsa/banana` instead.
+  Kits can drift between machines: the brief prints the kit version, and
+  `banana doctor` warns when a newer one exists.
 - **Self-setup:** if this workspace (git repo or non-code topic dir) lacks
   continuity files, initialize it yourself per the canon's agent bootstrap
   section: run `banana project` from the workspace root.

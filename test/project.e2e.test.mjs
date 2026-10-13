@@ -21,6 +21,33 @@ const CURRENT_FENCE = wiringTemplateVersion('agents-md.md');
 /** @param {string} s @returns {string} s with every line ending CRLF */
 const asCrlf = (s) => s.replace(/\r\n/g, '\n').replace(/\n/g, '\r\n');
 
+// A real v3 agents-md block (placeholders alpha / owner-x), as the v3 kit rendered it.
+const V3_AGENTS_MD_BLOCK = `<!-- banana:begin v3 -->
+## Continuity bootstrap (banana)
+
+- **Identity:** you are \`alpha\`; owner: \`owner-x\`. Sign every entry
+  you author with your tag.
+- **Protocol authority:** \`~/.agents/canon/\` — the harness-neutral continuity
+  protocol shared by every agent and human on this machine (CONTINUITY.md,
+  STANDARD.md, SESSION-LOG.md). All rules live behind this pointer, never in
+  this block; on conflict, the canon wins. Read CONTINUITY.md before your
+  first entry.
+- **Kit:** \`banana <command>\` (commands: init · project · brief · doctor ·
+  sync · log · state lint). Install once:
+  \`npm install -g github:Q9-Ahimsa/banana\`; then \`banana sync\` updates the
+  kit and refreshes this block. Not installed yet? Prefix
+  \`npx --yes github:Q9-Ahimsa/banana\` instead. Kits can drift between
+  machines: the brief prints the kit version, and \`banana doctor\` warns when
+  a newer one exists.
+- **Self-setup:** if this workspace (git repo or non-code topic dir) lacks
+  continuity files, initialize it yourself per the canon's agent bootstrap
+  section: run \`banana project\` from the workspace root.
+- **Session ritual:** read \`~/.agents/STATE.md\` first (machine grain — the
+  brief does not carry it), then your brief
+  (\`banana brief <feature> --tag alpha\`);
+  end by closing your log entry with an owned \`NEXT:\` (\`banana log close\`).
+<!-- banana:end -->`;
+
 /** @returns {string} a fresh temp dir, cleaned up when the test ends */
 function sandbox(t) {
   const dir = mkdtempSync(join(tmpdir(), 'banana-project-'));
@@ -290,6 +317,26 @@ test('e2e: project upgrades an old fence version while preserving its custom ide
 
   const expectedBlock = renderWiringTemplate('agents-md.md', { owner: 'beta-owner', tag: 'alpha-agent' });
   assert.ok(agents.includes(expectedBlock), 'rest of the block matches the current template verbatim');
+});
+
+test('e2e (#24, #25): project upgrades a real v3 block in a CRLF AGENTS.md — identity kept, CRLF kept, bytes outside untouched', async (t) => {
+  const repo = repoSandbox(t);
+  const agentsTarget = join(repo, 'AGENTS.md');
+  writeFileSync(agentsTarget, asCrlf('# Repo notes\n\n' + V3_AGENTS_MD_BLOCK + '\n'));
+
+  const result = await runProject(
+    { owner: null, tag: null, yes: true },
+    { cwd: repo, io: scriptedIo().io, gitUserName: () => 'Someone Else' },
+  );
+  assert.equal(result.code, 0);
+
+  const agents = readFileSync(agentsTarget, 'utf8');
+  const expectedBlock = renderWiringTemplate('agents-md.md', { owner: 'owner-x', tag: 'alpha' });
+  assert.equal(agents, asCrlf('# Repo notes\n\n') + asCrlf(expectedBlock) + '\r\n');
+  assert.ok(agents.includes(fenceBegin(CURRENT_FENCE)), 'current opener present');
+  assert.ok(!agents.includes(fenceBegin(3)), 'no v3 opener left');
+  assert.ok(agents.includes('state archive'), 'roster names state archive');
+  assert.ok(agents.includes('`banana project`, run in a workspace'), 'refresh wording present');
 });
 
 test('e2e: explicit --owner/--tag flags win over a preserved identity', async (t) => {

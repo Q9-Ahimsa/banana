@@ -1,4 +1,4 @@
-<!-- banana:begin v3 -->
+<!-- banana:begin v4 -->
 ## Continuity bootstrap (banana)
 
 - **Identity:** you are `__AGENT_TAG__`; owner: `__OWNER__`. Sign every entry
@@ -8,7 +8,7 @@
   lives behind this pointer, not in this block; read CONTINUITY.md before your
   first entry on this machine. On conflict, the canon wins.
 - **Kit:** `banana <command>` (commands: init · project · brief · doctor ·
-  sync · log · state lint). Install once:
+  sync · log · state lint · state archive). Install once:
   `npm install -g github:Q9-Ahimsa/banana`; then `banana sync` updates the
   kit and refreshes this block. Not installed yet? Prefix
   `npx --yes github:Q9-Ahimsa/banana` instead. Kits can drift between

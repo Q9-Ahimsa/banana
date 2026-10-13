@@ -372,7 +372,7 @@ adapters) or `compose(opts)` (write-through adapters). File adapters write ONLY 
 creating the file if missing, preserving everything outside the fence byte-for-byte — idempotency
 is THE contract: second run must be byte-identical). The block is written in the line-ending style
 of the host's text outside the fence, LF for a new file, so a CRLF file stays CRLF (#19). Every
-shipped wiring template (`templates/wiring/*.md`) is currently fenced at `v3`. **Identity preservation (#16):** when a
+shipped wiring template (`templates/wiring/*.md`) is currently fenced at `v4`. **Identity preservation (#16):** when a
 fence-writing path rewrites or upgrades an EXISTING fence, it reads the agent tag and owner off
 that fence's own identity line (`lib/fence.mjs`'s `readPreservedIdentity`/`extractIdentity` —
 single-sourced there for every fence-writing path: `project`'s own `AGENTS.md` write, `init`'s

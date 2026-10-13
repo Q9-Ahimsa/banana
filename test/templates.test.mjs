@@ -4,9 +4,12 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
-import { RETIRED_HEADER_RE } from '../lib/state.mjs';
+import { COMMANDS } from '../lib/commands.mjs';
+import { RETIRED_HEADER_RE, STATE_VERBS } from '../lib/state.mjs';
 import { fenceBegin } from '../lib/fence.mjs';
 import { wiringTemplateVersion } from '../lib/wiring.mjs';
+
+const flat = (text) => text.replace(/\s+/g, ' ');
 
 const templatesDir = fileURLToPath(new URL('../templates', import.meta.url));
 
@@ -66,31 +69,69 @@ test('every wiring template carries both current fence markers', () => {
     const text = readFileSync(join(templatesDir, f), 'utf8');
     assert.ok(text.includes(FENCE_BEGIN), `templates/${f} missing ${FENCE_BEGIN}`);
     assert.ok(text.includes(FENCE_END), `templates/${f} missing ${FENCE_END}`);
-    assert.ok(!text.includes('banana:begin v1'), `templates/${f} still carries a v1 marker`);
+    const openers = text.match(/<!-- banana:begin v\d+ -->/g) ?? [];
+    assert.deepEqual(openers, [FENCE_BEGIN], `templates/${f} must carry exactly the current opener`);
   }
 });
 
-// #10: v2 -> v3 — the npx-always-fresh promise is retired; install-once +
-// sync-to-update + skew-surfaced replaces it, and the command roster grows
-// `log` and `state lint`.
-test('every wiring template Kit bullet: v3 opener, install-once + sync-to-update text, npx-always-fresh promise gone', () => {
-  assert.equal(CURRENT_WIRING_VERSION, 3, 'templates/wiring must be bumped to v3 (#10)');
+// #24, #25: v3 -> v4 — the roster spells out `state archive`, and each block
+// names the command that refreshes it.
+test('every wiring template Kit bullet: v4 opener, install-once + sync-to-update text, npx-always-fresh promise gone', () => {
+  assert.equal(CURRENT_WIRING_VERSION, 4, 'templates/wiring must be bumped to v4 (#24, #25)');
   for (const f of WIRING_FILES) {
     const text = readFileSync(join(templatesDir, f), 'utf8');
-    assert.ok(text.includes('<!-- banana:begin v3 -->'), `templates/${f} missing the v3 fence opener`);
+    assert.ok(text.includes('<!-- banana:begin v4 -->'), `templates/${f} missing the v4 fence opener`);
     assert.ok(
       text.includes('npm install -g github:Q9-Ahimsa/banana'),
       `templates/${f} missing the global install command`,
     );
-    assert.ok(text.includes('banana sync'), `templates/${f} missing banana sync`);
     assert.ok(
-      text.includes('sync · log · state lint'),
-      `templates/${f} command roster missing log and state lint`,
+      flat(text).includes('then `banana sync` updates the kit'),
+      `templates/${f} missing the sync-to-update text`,
     );
     assert.ok(
       !text.includes('npx always fetches the latest kit'),
       `templates/${f} still carries the retired npx-always-fresh promise`,
     );
+  }
+});
+
+test('every wiring template roster lists every CLI command, state spelled out per verb (#24)', () => {
+  const expected = COMMANDS.flatMap((c) => (c === 'state' ? STATE_VERBS.map((v) => `state ${v}`) : [c]));
+  for (const f of WIRING_FILES) {
+    const text = readFileSync(join(templatesDir, f), 'utf8');
+    const roster = /\(commands: ([^)]*)\)/.exec(flat(text))?.[1];
+    assert.ok(roster !== undefined, `templates/${f} has no command roster`);
+    assert.deepEqual(roster.split(' · '), expected, `templates/${f} roster`);
+  }
+});
+
+test('each wiring template names the command that refreshes its block (#25)', () => {
+  const read = (f) => flat(readFileSync(join(templatesDir, 'wiring', f), 'utf8'));
+  const agents = read('agents-md.md');
+  const claude = read('claude-code.md');
+  const portable = read('portable-directive.md');
+  assert.ok(
+    agents.includes(
+      'then `banana sync` updates the kit and refreshes the blocks in home instruction files, and `banana project`, run in a workspace, refreshes its AGENTS.md block.',
+    ),
+  );
+  assert.ok(claude.includes('then `banana sync` updates the kit and refreshes this block.'));
+  assert.ok(
+    portable.includes(
+      'then `banana sync` updates the kit. To refresh this block, re-run `banana init` and use the copy it prints.',
+    ),
+  );
+  assert.ok(!agents.includes('refreshes this block'), 'agents-md.md is installed in many places');
+  assert.ok(!portable.includes('refreshes this block'), 'portable-directive.md is only printed');
+});
+
+test('every wiring template line is 78 characters or fewer', () => {
+  for (const f of WIRING_FILES) {
+    const text = readFileSync(join(templatesDir, f), 'utf8');
+    for (const line of text.split(/\r?\n/)) {
+      assert.ok([...line].length <= 78, `templates/${f} line over 78 chars: ${line}`);
+    }
   }
 });
 

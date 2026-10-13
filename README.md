@@ -21,10 +21,11 @@ banana sync
 ```
 
 `sync` runs the kit's own update step, then refreshes the kit-owned canon at
-`~/.agents/canon/` and re-applies any stale wiring blocks. Your own files —
+`~/.agents/canon/` and re-applies any stale wiring block in a home instruction
+file (`banana project` refreshes a project's `AGENTS.md`). Your own files —
 `STATE.md`, session logs, logbooks — are never touched. Offline or npm
-unreachable? Sync warns and still refreshes canon/fences from whatever kit
-you have installed.
+unreachable? Sync warns and still refreshes canon/fences from whatever kit you
+have installed.
 
 No shim installed yet? The cold-bootstrap path still works, just slower —
 `npx --yes github:Q9-Ahimsa/banana init` fetches the kit fresh every call.
@@ -80,7 +81,7 @@ Offline, `sync` warns and carries on, and `doctor` skips its check silently.
 word: npm keeps `--version` and `-v` for itself, so they never reach banana.
 
 Every write into an agent's instruction file is a fenced, version-marked
-block (`<!-- banana:begin v3 -->` … `<!-- banana:end -->`): re-running is
+block (`<!-- banana:begin v4 -->` … `<!-- banana:end -->`): re-running is
 idempotent, and content outside the fence is never touched. Owner and tag
 are recovered from the existing block on re-fence, so `sync` needs no flags.
 

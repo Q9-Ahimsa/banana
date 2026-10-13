@@ -534,9 +534,36 @@ test('stale fence: v1 block in a wired home file flagged with exit 1, finding na
   );
 });
 
+// A real v3 agents-md block (placeholders alpha / owner-x), as the v3 kit rendered it.
+const V3_AGENTS_MD_BLOCK = `<!-- banana:begin v3 -->
+## Continuity bootstrap (banana)
+
+- **Identity:** you are \`alpha\`; owner: \`owner-x\`. Sign every entry
+  you author with your tag.
+- **Protocol authority:** \`~/.agents/canon/\` — the harness-neutral continuity
+  protocol shared by every agent and human on this machine (CONTINUITY.md,
+  STANDARD.md, SESSION-LOG.md). All rules live behind this pointer, never in
+  this block; on conflict, the canon wins. Read CONTINUITY.md before your
+  first entry.
+- **Kit:** \`banana <command>\` (commands: init · project · brief · doctor ·
+  sync · log · state lint). Install once:
+  \`npm install -g github:Q9-Ahimsa/banana\`; then \`banana sync\` updates the
+  kit and refreshes this block. Not installed yet? Prefix
+  \`npx --yes github:Q9-Ahimsa/banana\` instead. Kits can drift between
+  machines: the brief prints the kit version, and \`banana doctor\` warns when
+  a newer one exists.
+- **Self-setup:** if this workspace (git repo or non-code topic dir) lacks
+  continuity files, initialize it yourself per the canon's agent bootstrap
+  section: run \`banana project\` from the workspace root.
+- **Session ritual:** read \`~/.agents/STATE.md\` first (machine grain — the
+  brief does not carry it), then your brief
+  (\`banana brief <feature> --tag alpha\`);
+  end by closing your log entry with an owned \`NEXT:\` (\`banana log close\`).
+<!-- banana:end -->`;
+
 // #10: a real v2-rendered block, as the v2 kit actually produced it (before
 // this ticket's Kit-bullet rewrite) — the literal migration case the
-// stale-fence audit must flag once the bundled template moves to v3.
+// stale-fence audit must flag once the bundled template moves past v2.
 const V2_CLAUDE_CODE_BLOCK = `<!-- banana:begin v2 -->
 ## Continuity bootstrap (banana)
 
@@ -558,7 +585,7 @@ const V2_CLAUDE_CODE_BLOCK = `<!-- banana:begin v2 -->
   end by closing your log entry with an owned \`NEXT:\`.
 <!-- banana:end -->`;
 
-test('stale fence (#10): a real v2 claude-code block is flagged once the bundled template is v3', async (t) => {
+test('stale fence (#10): a real v2 claude-code block is flagged once the bundled template is newer', async (t) => {
   const project = cleanProject(t);
   const home = sandbox(t);
   installCanon(home);
@@ -567,7 +594,7 @@ test('stale fence (#10): a real v2 claude-code block is flagged once the bundled
 
   const captured = capturedIo();
   const result = await runDoctor({ verify: false }, { cwd: project, home, io: captured.io, now: NOW, env: ENV });
-  assert.equal(result.code, 1, 'a v2 fence is a finding once current is v3');
+  assert.equal(result.code, 1, 'a v2 fence is a finding once current is past v2');
   const output = captured.text();
   assert.ok(output.includes('[stale-fence]'), 'stale fence flagged');
   assert.ok(output.includes('sync'), 'finding names sync as the remediation');
@@ -576,6 +603,29 @@ test('stale fence (#10): a real v2 claude-code block is flagged once the bundled
   assert.ok(
     output.includes('v2') && output.includes(`v${CURRENT_FENCE}`),
     'finding names both the v2 block and the current version',
+  );
+});
+
+test('stale fence (#24, #25): a real v3 agents-md block is flagged — banana sync for a home file, banana project for a project', async (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  const homeAgents = join(home, '.codex', 'AGENTS.md');
+  mkdirSync(dirname(homeAgents), { recursive: true });
+  writeFileSync(homeAgents, V3_AGENTS_MD_BLOCK + '\n');
+  const projectAgents = join(project, 'AGENTS.md');
+  writeFileSync(projectAgents, V3_AGENTS_MD_BLOCK + '\n');
+
+  const captured = capturedIo();
+  const result = await runDoctor({ verify: false }, { cwd: project, home, io: captured.io, now: NOW, env: ENV });
+  assert.equal(result.code, 1);
+  const current = wiringTemplateVersion('agents-md.md');
+  const output = captured.text();
+  assert.ok(
+    output.includes(`[stale-fence] ${homeAgents} fence is v3 but current is v${current} — run banana sync to re-fence`),
+  );
+  assert.ok(
+    output.includes(`[stale-fence] ${projectAgents} fence is v3 but current is v${current} — run banana project to re-fence`),
   );
 });
 

@@ -386,6 +386,8 @@ hold.
 - The machine-wiring roster still tells agents about `state lint` only; teaching it `state
   archive` too would mean re-fencing every already-wired instruction file on every machine for
   one line. Agents learn `state archive` from the page header and the canon instead.
+  *Superseded 2026-10-14 by #24:* the roster now names `state archive`. The re-fence this
+  bullet avoided is paid once, together with #25's refresh wording, in one v3 -> v4 bump.
 - A global page created before v1.7 keeps its old header text; no kit command rebuilds or
   migrates an existing page's header — `init` only ever CREATES `~/.agents/STATE.md` when it is
   missing (`lib/init.mjs`'s `createIfMissing`), it never rewrites one that already exists, and
