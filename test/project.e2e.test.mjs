@@ -389,6 +389,43 @@ test('e2e (#25 review): a recorded deferral with LOGBOOK.md already on disk prin
   assert.ok(!lines.some((line) => line.includes('kept LOGBOOK.md deferred')), 'no kept-deferred line');
 });
 
+/** A workspace whose .agents/session.log is a directory: it exists, and reading it throws EISDIR. */
+function unreadableLogWorkspace(t) {
+  const repo = repoSandbox(t);
+  const logPath = join(repo, '.agents', 'session.log');
+  mkdirSync(logPath, { recursive: true });
+  writeFileSync(join(repo, 'STATE.md'), '# state\n');
+  writeFileSync(join(repo, 'AGENTS.md'), V3_AGENTS_MD_BLOCK + '\n');
+  return { repo, logPath };
+}
+
+test('e2e (#25 review): a session log project cannot read never stops the block refresh', async (t) => {
+  const { repo, logPath } = unreadableLogWorkspace(t);
+  const { io, lines } = scriptedIo();
+  const result = await runProject({ owner: null, tag: null, yes: true }, { cwd: repo, io, gitUserName: () => null });
+  assert.equal(result.code, 1, 'a log project could not read fails the run, after the rest is done');
+  assert.ok(readFileSync(join(repo, 'AGENTS.md'), 'utf8').includes(fenceBegin(CURRENT_FENCE)), 'AGENTS.md is refreshed');
+  assert.ok(!existsSync(join(repo, 'LOGBOOK.md')), 'LOGBOOK.md is left alone');
+  assert.ok(
+    lines.some((line) =>
+      line.startsWith(`skipped LOGBOOK.md: cannot read ${logPath} to check for a deferral (`),
+    ),
+    lines.join('\n'),
+  );
+  assert.ok(lines.includes('banana project: 1 file could not be read — see the skipped line above'), lines.join('\n'));
+});
+
+test('e2e (#25 review): with LOGBOOK.md on disk project never reads the session log', async (t) => {
+  const { repo } = unreadableLogWorkspace(t);
+  writeFileSync(join(repo, 'LOGBOOK.md'), '# logbook\n');
+  const { io, lines } = scriptedIo();
+  const result = await runProject({ owner: null, tag: null, yes: true }, { cwd: repo, io, gitUserName: () => null });
+  assert.equal(result.code, 0);
+  assert.ok(readFileSync(join(repo, 'AGENTS.md'), 'utf8').includes(fenceBegin(CURRENT_FENCE)));
+  assert.ok(!lines.some((line) => line.startsWith('skipped ')), lines.join('\n'));
+  assert.equal(readFileSync(join(repo, 'LOGBOOK.md'), 'utf8'), '# logbook\n');
+});
+
 test('e2e: explicit --owner/--tag flags win over a preserved identity', async (t) => {
   const repo = repoSandbox(t);
   const agentsTarget = join(repo, 'AGENTS.md');

@@ -549,6 +549,27 @@ test('sync: a home instruction file with no banana block is no skip — the summ
   assert.ok(lines.includes('sync: no changes — canon and fences current'), lines.join('\n'));
 });
 
+test('sync (#26): a CURRENT home block with no owner/tag line is no skip — sync agrees with doctor', async (t) => {
+  const home = sandbox(t);
+  const codexPath = join(home, '.codex', 'AGENTS.md');
+  mkdirSync(dirname(codexPath), { recursive: true });
+  const first = await runSync(parseSyncArgs([]), { home, io: collectedIo().io }); // installs the canon
+  assert.equal(first.code, 0);
+  const content = `${fenceBegin(wiringTemplateVersion('agents-md.md'))}\nno identity line here\n<!-- banana:end -->\n`;
+  writeFileSync(codexPath, content);
+  const { io, lines, errLines } = collectedIo();
+
+  const result = await runSync(parseSyncArgs([]), { home, io });
+  assert.equal(result.code, 0);
+  assert.deepEqual(errLines, [], 'only a STALE block with no owner/tag line is skipped');
+  assert.ok(lines.includes('sync: no changes — canon and fences current'), lines.join('\n'));
+  assert.equal(readFileSync(codexPath, 'utf8'), content, 'the file is byte-identical');
+  assert.deepEqual(
+    auditUpstream(home, sandbox(t)).filter((finding) => finding.type === 'stale-fence'),
+    [],
+  );
+});
+
 test('sync: a canon dir it cannot create never stops the fence refresh', async (t) => {
   const home = sandbox(t);
   const canonDir = join(home, '.agents', 'canon');

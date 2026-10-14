@@ -196,6 +196,12 @@ test('README doctor and sync rows name the right refresh commands (#19, #25, #26
   for (const phrase of ['`banana sync`', '`banana init --harnesses <id>`', '`banana project`']) {
     assert.ok(doctor.includes(phrase), `the doctor row names ${phrase}`);
   }
+  assert.ok(
+    doctor.includes(
+      "`banana sync` for the canon and home instruction files, `banana init --harnesses <id>` for a home file whose block has no owner/tag line (sync skips it), `banana project` for a project's `AGENTS.md`",
+    ),
+    'the doctor row says which file each command fixes',
+  );
   for (const phrase of [
     'home wiring fence',
     '`banana project`',
@@ -228,7 +234,9 @@ test('README project row names the LOGBOOK.md deferral', () => {
   const rows = tableRows(readFileSync(readmePath, 'utf8'));
   const project = rows.find((row) => row.cmd === 'project')?.line ?? '';
   assert.ok(
-    project.includes('(`LOGBOOK.md` is skipped when `.agents/session.log` records a `defer LOGBOOK.md` decision)'),
+    project.includes(
+      '(`LOGBOOK.md` is skipped when `.agents/session.log` records a `defer LOGBOOK.md` decision, and left alone when that log cannot be read; project then exits 1 once the rest is done)',
+    ),
     'the project row names the deferral',
   );
 });

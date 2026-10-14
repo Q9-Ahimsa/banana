@@ -312,7 +312,7 @@ test('docs/DESIGN.md names the #26 init remedy where it describes doctor and syn
     'A stale home block with no readable owner/tag line names `banana init --harnesses <id>` instead, with the reason: sync skips such a block (#26;',
     "a stale block whose owner/tag it can't read is skipped with a message naming `banana init --harnesses <id>` (#26)",
     "`sync` never falls back: it skips a stale home block whose identity it can't read and names `banana init --harnesses <id>` (#26).",
-    "and a file it can't read or write",
+    "and a file it can't read or write — a wiring file or a canon file — is skipped the same way",
     'later files are still refreshed, then sync exits 1',
     'the deliberate skips — no owner/tag line, malformed markers — keep exit 0',
     "For `project` and `init`, no existing fence, or a fence whose identity line can't be parsed, falls back to",
