@@ -813,3 +813,22 @@ LOGBOOK.md. Main grepped every surface for the claim; only bin/banana.mjs:288 an
 Order: G23-G25 with mutation proofs first, then P8 and N3 tests-first, then gates, then one commit
 `fix(help,readme): project help names the LOGBOOK.md deferral; README says a fence bump needs banana project`
 with body sentences, `Refs #25`, and the Co-Authored-By line above.
+
+## Review rule from round 9 on (owner ruling, 2026-10-15)
+
+Owner: "Tighten the rule (Recommended)". Product = wrong behavior or false text in lines this batch
+changed (`git diff f100603 HEAD`), or a remedy doctor or sync prints that fails as printed. Every
+other pre-existing defect is a note, collected for one follow-up issue (filed on the owner's go).
+Still two clean rounds in a row. Before round 9, main swept bin/ usage strings, README, DESIGN,
+CONTEXT, docs/agents, canon, templates, ADRs and lib/ header comments for claims about behavior
+this batch changed (re-apply, refresh, LOGBOOK, exit, skip, Not wired, v3): none is stale. The
+README states sync's new exit code nowhere, so R8b adds it.
+
+## R8b (on top of bdd482f)
+
+- README.md `banana sync` row: after "(a block with no owner/tag line is skipped; `banana project`
+  refreshes a project's `AGENTS.md`)" add "; a file it cannot read or write is skipped too, and sync
+  exits 1 once the rest is done". Test first, test/readme.test.mjs sync-row phrase list: add
+  'a file it cannot read or write is skipped too, and sync exits 1 once the rest is done'.
+- One commit `docs(readme): sync row states the exit 1 on a read/write failure`, body sentence,
+  `Refs #26`, and the Co-Authored-By line above.
