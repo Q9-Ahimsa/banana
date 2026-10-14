@@ -966,3 +966,46 @@ Order: G29-G31 with mutation proofs first; then P10 (T1, T2 red, then the code, 
 then N6 tests-first; then gates; then one commit
 `fix(project): an unreadable session log never stops the block refresh` with body sentences,
 `Refs #25 #26`, and the Co-Authored-By line above.
+
+## Review round 11 fixes (lane R11, on top of 7322cfc)
+
+Round 11 (tightened rule): no product defect — clean round 1 of 2. 5 test gaps confirmed; two
+describe the same missing test, and one test covers three of them, so 3 tests. One pre-existing
+note for the follow-up list: doctor reports clean for a home harness file it cannot read, while
+sync exits 1 on it every run (doctor's read sits in the same `catch { continue; }` as the
+malformed-markers note; merge the two there).
+
+- G32 test/doctor.test.mjs, next to 'stale fence (#26): a stale home fence with an identity line
+  keeps banana sync': 'stale fence (#26): a v1-form identity line (agent tag / Owner) keeps banana
+  sync — doctor agrees with sync'. Using the file's sandbox and canon helpers, set the codex
+  AGENTS.md to `fencedBlock('- **Your agent tag:** \`alpha\`. Owner: \`alice\`.', 1) + '\n'`.
+  Assert `auditUpstream(home, cwd).filter((f) => f.type === 'stale-fence').map((f) => f.message)`
+  deepEquals [`[stale-fence] ${file} fence is v1 but current is v${current} — run banana sync to re-fence`].
+  Then runSync with no exec: code 0, a line `re-fenced ${file}: v1 -> v${current}`, no err line
+  starting 'skipped ', and the stale-fence list is now []. Mutants (lib/doctor.mjs, the
+  `const { owner, tag } = extractIdentity(text.slice(fence.start, fence.end));` line): (a) v2-only
+  inline regexes `owner: \`([^\`]+)\`` (no /i) and `you are \`([^\`]+)\`` in place of
+  extractIdentity; (b) extractIdentity for the tag but a case-sensitive owner regex
+  `/owner:\*{0,2}\s*\`([^\`]+)\`/`.
+- G33 test/project.e2e.test.mjs, after 'e2e (#25 review): with LOGBOOK.md on disk project never
+  reads the session log': 'e2e (#25 review): an unreadable session log still creates a missing
+  STATE.md, and the skip lines go to stderr'. repoSandbox; `mkdirSync(join(repo, '.agents',
+  'session.log'), { recursive: true })`; no STATE.md, no LOGBOOK.md, no AGENTS.md. A local io with
+  separate `out` and `err` arrays (typed `string[]`) and a prompt that throws 'unexpected prompt'.
+  runProject({ owner: 'alice', tag: 'alpha', yes: true }, { cwd: repo, io, gitUserName: () => null }).
+  Assert: code 1; STATE.md exists; LOGBOOK.md does not; an err line starts with
+  `skipped LOGBOOK.md: cannot read ${logPath} to check for a deferral (`; err lines include
+  'banana project: 1 file could not be read — see the skipped line above'; no out line starts with
+  'skipped ' or 'banana project: 1 file'. Mutants: STATE.md creation guarded by
+  `unreadableLog === null &&`; the skip line sent through `out` instead of `err`.
+- G34 test/sync.test.mjs, after 'sync: every file it could not read or write is counted in the
+  exit-1 line': 'sync: a deliberate skip in the same run is never counted in the exit-1 line'.
+  The pi AGENTS.md path is a directory (EISDIR); the codex AGENTS.md is
+  '<!-- banana:begin v1 -->\nno identity line here\n<!-- banana:end -->\n' (a deliberate skip).
+  Assert: code 1; an err line starts with `skipped ${codexPath}: cannot recover owner/tag`; err
+  lines include FAILED_LINE (the 1-file line). Mutant: the no-owner/tag branch's `skipped += 1` ->
+  `failed += 1`.
+
+Order: each test, then its mutants (record each), then gates, then one commit
+`test: pin doctor on v1 identity blocks, project on an unreadable log, sync's failure count`
+with body sentences, `Refs #25 #26`, and the Co-Authored-By line above.
