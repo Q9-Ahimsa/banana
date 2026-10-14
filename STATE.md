@@ -1,13 +1,14 @@
 # STATE — banana
-> Projection of LOGBOOK.md as of 2026-10-13 (through kit.18). Logbook wins
+> Projection of LOGBOOK.md as of 2026-10-15 (through kit.20). Logbook wins
 > on conflict. One page, hard cap. Rebuilt at session close; mid-arc
 > section patches are legal and must carry the dirty-marker line.
 
 ## Now
-- 0.6.0 released and live (pushed, served by npx, installed and synced on the owner machine): #18 `supersede
-  --all`, #19 line endings + doctor remedies, #22 README table from the CLI, #23 placeholder owner + source
-  deny-list — kit.18. Frontier: rotate .agents/session.log (past 700 lines), then #24 + #25 (wiring template
-  wording, fence v3 -> v4), then #26.
+- 0.7.0 released and live (pushed, synced on the owner machine): session log rotated; wiring templates at
+  fence v4 (#24, #25); doctor's init remedy for a home block with no owner/tag line (#26); sync's exit-1
+  contract and project's LOGBOOK.md deferral (owner rulings) — kit.19. Frontier: the owner picks the next
+  batch from #27 (hermes delivery), #28 (compact-prep hook, design first), #29 (edge cases) and #30
+  (doctor silent on a detected harness with no block; owner: essential, Pi stays unwired for now) — kit.20.
 
 ## Truths
 - banana = protocol + mechanical CLI; markdown canonical, no datastore (spec #3) — kit.1
@@ -33,7 +34,16 @@
 - Global page: edit only your own threads, never rewrite it (ADR 0005); the one kit write is
   `state archive` removing exactly the named line — kit.7, kit.13
 - Fence identity (tag/owner) survives `project` / `init` / `sync` rewrites: flag > existing fence > inference — kit.8
+- Wiring templates at fence v4: the roster names `state archive`; each says what refreshes it (`sync` for
+  home files, `banana project` for a workspace AGENTS.md, re-run init for the paste block); a fence bump
+  needs `banana project` in each workspace — kit.19
 - Install once; `sync` runs the install, then refreshes from the newer of launched and installed trees — kit.11
+- sync finishes every file it can, then exits 1 when any canon or home wiring file could not be read or
+  written; deliberate skips (no owner/tag line, malformed markers) keep exit 0; "canon and fences current"
+  prints only when nothing changed and nothing was skipped (owner ruling) — kit.19
+- project keeps a recorded `DECISION: … defer LOGBOOK.md` (canon CONTINUITY step 2) and reads the log only
+  while LOGBOOK.md is missing; a log it cannot read leaves LOGBOOK.md alone, the rest is done, exit 1
+  (owner ruling) — kit.19
 - doctor's origin check compares `package.json` versions, so every behavior-changing release bumps it — kit.11
 - After a real fetch, exit via `process.exitCode`, never `process.exit()` (Windows aborts) — kit.11
 - Envelope grammar single-sourced in lib/sessionlog.mjs; log.mjs composes, sessionlog parses (#4, #7)
@@ -41,20 +51,24 @@
   `--target-agent` only picks what the new entry copies and WARNs; no date selector (owner ruling) — kit.18
 - A line-ending-only difference is never a change for sync or a kit-owned file; a write keeps the target's
   style (LF when new); a fence takes its host's style, judged outside the fence — kit.18
-- doctor's stale-fence remedy: `banana sync` for a home harness file, `banana project` for a project's
-  AGENTS.md; one file reached two ways (case, junction, symlink) is audited and listed once, as home — kit.18
+- doctor's stale-fence remedy: `banana sync` for a home harness file, `banana init --harnesses <id>` for a
+  home block with no owner/tag line (sync skips it, never invents one), `banana project` for a project's
+  AGENTS.md; one file reached two ways (case, junction, symlink) is audited once, as home — kit.18, kit.19
 - The README command table is checked against lib/commands.mjs `COMMANDS`, the CLI's own list — kit.18
+- The session log rotates past 700 lines into `.agents/sessions/{YYYY}-{Qn}.log` (SESSION-LOG section 8);
+  the brief reads only the active log — kit.19
+- Review rounds judge this batch's lines, plus any remedy that fails as printed; older defects go to one
+  follow-up issue; stop after two clean rounds in a row (owner ruling) — kit.19
 - Public repo: fixtures, docs, specs and this repo's own records carry no real project/person names,
   usernames or local paths; test/deny-list.test.mjs scans bin/, lib/, adapters/, test/ — kit.3, kit.13, kit.18
 - The CLI deploys on push (npx serves origin/main); canon reaches installed sites only via `sync` — kit.6, kit.9
 
 ## Next
-- claude — rotate .agents/session.log (771 lines, threshold 700; SESSION-LOG section 8) — kit.18
-- claude — #24 + #25 together (wiring template: name `state archive`; project block refreshed by
-  `banana project`; one fence v3 -> v4 bump), then #26 (doctor remedy for an identity-less fence); owner
-  may reorder — kit.18
-- claude — other projects' banana blocks (still v2) lift to v3 via `banana project` in each project's next
-  session (global-page backlog line)
+- ahimsa — pick the next batch: #27 hermes `--deliver`, #28 compact-prep hook (design questions in the
+  issue and its comment), #29 six pre-existing fence and doctor edge cases, #30 unwired detected
+  harnesses (essential) — kit.19, kit.20
+- claude — other projects' banana blocks lift to v4 via `banana project` in each project's next session
+  (global-page backlog line) — kit.19
 
 ## Blocked
 - (none)
@@ -65,8 +79,12 @@
   month of v1.8 on the owner page)
 - 5 of 9 installed project pages FAIL state lint on their own content — each project's sessions fix them,
   never a looser lint (validate-by: rest of #11)
-- `sync` from cmd/Git Bash runs `banana.cmd`, which npm rewrites mid-run; only the PowerShell path has been
-  exercised (validate-by: the first `banana sync` from cmd or Git Bash)
+- `sync` from cmd runs `banana.cmd`, which npm rewrites mid-run; the PowerShell path and the Git Bash shim
+  (the 0.7.0 update) have run cleanly (validate-by: the first `banana sync` from cmd)
+- sync's exit 1 on a file it cannot read or write is new in 0.7.0: a script that runs sync must expect it
+  (validate-by: the first scripted sync)
+- The compact-prep checkpoint lands in the log above the session's current folder: a worktree's own copy,
+  or nowhere from a scratch folder; keep the shell in the main checkout until #28 decides (validate-by: #28)
 - The archive's symlinked-page test skips on Windows without developer mode; it runs only where symlinks
   can be created (validate-by: the first run on a POSIX machine or with developer mode on)
 - ADR 0006 and ADR 0007 "Known limits" list the accepted edge cases (validate-by: any real hit on the
@@ -86,3 +104,7 @@
   entry; dropped by owner ruling — kit.18
 - Same-file check by path spelling (`resolve()`) — Windows letter case and junctions defeated it; now
   the on-disk path (`realpathSync.native`) — kit.18
+- Judging every old defect on a path the batch sends users down — review rounds kept resetting on bugs
+  the batch did not write; now only this batch's lines or a failing remedy count (owner ruling) — kit.19
+- An unguarded read added to a command that writes several files (project's deferral check) — one throw
+  stopped the block refresh; read only when the answer matters, catch, finish the rest — kit.19

@@ -132,3 +132,18 @@ DONE: us-001.1..us-008.1 duplicate handoffs retired with `--all`; 10 lane worktr
 ref: .agents/session.log cli.24, cli.25; GitHub #18, #19, #22, #23; spec .agents/specs/cli-24-batch.md; follow-ups #24, #25, #26
 NEXT: claude — .agents/session.log is past the 700-line rotation threshold: archive the tail (SESSION-LOG section 8)
 NEXT: claude — #24 + #25 together (wiring template wording, fence v3 -> v4), then #26; owner may reorder
+
+## [2026-10-15] claude kit.19 | RELEASE — 0.7.0 pushed and synced on the owner machine (#24, #25, #26 closed)
+WHAT: #24 + #25 wiring templates at fence v4 name `state archive` and say what refreshes each block (sync: home files; project: a workspace AGENTS.md; init: the printed paste block). #26 doctor names `banana init --harnesses <id>` for a stale home block with no owner/tag line, which sync skips. Owner rulings: sync finishes every other file, then exits 1 when a file could not be read or written (canon included), while deliberate skips keep exit 0; project keeps a recorded `defer LOGBOOK.md` decision and exits 1 on a session log it cannot read (LOGBOOK.md left alone, the rest done)
+DONE: .agents/session.log rotated (75 entries to .agents/sessions/2026-Q3.log, byte-exact); built in 2 TDD lanes, then 12 review rounds; from round 9 the owner tightened the rule (product = a defect in this batch's lines, or a remedy that fails as printed), and rounds 11 + 12 were clean; tests 1089 -> 1142, 0 fail
+DONE: origin ab81ad5..09de65f; `banana sync` here: "kit updated: v0.6.0 -> v0.7.0", CLAUDE.md and codex AGENTS.md v3 -> v4, text outside both fences byte-identical to the pre-sync backup; a second sync: "no changes"; doctor clean (pi has no block, never wired)
+DONE: filed #27 (hermes --deliver), #28 (compact-prep hook, design first; design comment added from this run), #29 (six pre-existing fence and doctor edge cases)
+ref: .agents/session.log cli.26, cli.27; GitHub #24-#29; spec .agents/specs/cli-26-batch.md
+NEXT: claude — other projects' banana blocks lift to v4 via `banana project` in each project's next session (global-page backlog line)
+NEXT: ahimsa — pick the next batch: #27 hermes delivery, #28 compact-prep design, #29 edge cases
+
+## [2026-10-15] claude kit.20 | CAPTURE — #30 filed (doctor is silent on a detected harness with no banana block); cli-26 leftovers removed
+WHAT: at the 0.7.0 sync, Pi was detected but had no banana block, before and after; doctor printed "clean — no findings". Owner: "no need to wire it rn. add it as a future essential feat issue." -> #30 (doctor finding with a working remedy, a deliberate opt-out, a possible sync notice)
+DONE: owner go "Delete all, keep branch (Recommended)": cli-26 worktree removed (branch cli-26-batch kept); 1,722 OS-temp test copies removed (~1.1 GB; 0 refused, 0 failed); re-checked after: none left, main HEAD and status unchanged, 1142 tests, 0 fail
+ref: .agents/session.log cli.27; GitHub #30
+NEXT: ahimsa — pick the next batch: #27 hermes delivery, #28 compact-prep design, #29 edge cases, #30 unwired harnesses (essential)
