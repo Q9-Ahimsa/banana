@@ -492,6 +492,21 @@ test('sync: every file it could not read or write is counted in the exit-1 line'
   );
 });
 
+test('sync: a deliberate skip in the same run is never counted in the exit-1 line', async (t) => {
+  const home = sandbox(t);
+  const piPath = join(home, '.pi', 'agent', 'AGENTS.md');
+  const codexPath = join(home, '.codex', 'AGENTS.md');
+  mkdirSync(piPath, { recursive: true }); // a directory where the file belongs: reading it throws EISDIR
+  mkdirSync(dirname(codexPath), { recursive: true });
+  writeFileSync(codexPath, '<!-- banana:begin v1 -->\nno identity line here\n<!-- banana:end -->\n'); // a deliberate skip
+  const { io, errLines } = collectedIo();
+
+  const result = await runSync(parseSyncArgs([]), { home, io });
+  assert.equal(result.code, 1);
+  assert.ok(errLines.some((line) => line.startsWith(`skipped ${codexPath}: cannot recover owner/tag`)), errLines.join('\n'));
+  assert.ok(errLines.includes(FAILED_LINE), errLines.join('\n'));
+});
+
 test('sync: a kit missing one of its own canon files stays fatal — no skip line, nothing re-fenced', async (t) => {
   const home = sandbox(t);
   const kitRoot = sandboxKitRoot(t, '1.0.0');

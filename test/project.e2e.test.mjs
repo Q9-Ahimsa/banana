@@ -426,6 +426,33 @@ test('e2e (#25 review): with LOGBOOK.md on disk project never reads the session 
   assert.equal(readFileSync(join(repo, 'LOGBOOK.md'), 'utf8'), '# logbook\n');
 });
 
+test('e2e (#25 review): an unreadable session log still creates a missing STATE.md, and the skip lines go to stderr', async (t) => {
+  const repo = repoSandbox(t);
+  const logPath = join(repo, '.agents', 'session.log');
+  mkdirSync(logPath, { recursive: true });
+  /** @type {string[]} */
+  const out = [];
+  /** @type {string[]} */
+  const err = [];
+  const io = {
+    out: (/** @type {string} */ line = '') => out.push(line),
+    err: (/** @type {string} */ line = '') => err.push(line),
+    prompt: async () => {
+      throw new Error('unexpected prompt');
+    },
+  };
+  const result = await runProject({ owner: 'alice', tag: 'alpha', yes: true }, { cwd: repo, io, gitUserName: () => null });
+  assert.equal(result.code, 1);
+  assert.ok(existsSync(join(repo, 'STATE.md')), 'STATE.md is created');
+  assert.ok(!existsSync(join(repo, 'LOGBOOK.md')), 'LOGBOOK.md is left alone');
+  assert.ok(
+    err.some((line) => line.startsWith(`skipped LOGBOOK.md: cannot read ${logPath} to check for a deferral (`)),
+    err.join('\n'),
+  );
+  assert.ok(err.includes('banana project: 1 file could not be read — see the skipped line above'), err.join('\n'));
+  assert.ok(!out.some((line) => line.startsWith('skipped ') || line.startsWith('banana project: 1 file')), out.join('\n'));
+});
+
 test('e2e: explicit --owner/--tag flags win over a preserved identity', async (t) => {
   const repo = repoSandbox(t);
   const agentsTarget = join(repo, 'AGENTS.md');

@@ -1217,6 +1217,34 @@ test('stale fence (#26): a stale home fence with an identity line keeps banana s
   ]);
 });
 
+test('stale fence (#26): a v1-form identity line (agent tag / Owner) keeps banana sync — doctor agrees with sync', async (t) => {
+  const project = cleanProject(t);
+  const home = sandbox(t);
+  installCanon(home);
+  mkdirSync(join(home, '.codex'), { recursive: true });
+  const file = join(home, '.codex', 'AGENTS.md');
+  writeFileSync(file, fencedBlock('- **Your agent tag:** `alpha`. Owner: `alice`.', 1) + '\n');
+
+  const current = wiringTemplateVersion('agents-md.md');
+  assert.deepEqual(staleFenceMessages(home, project), [
+    `[stale-fence] ${file} fence is v1 but current is v${current} — run banana sync to re-fence`,
+  ]);
+
+  /** @type {string[]} */
+  const outLines = [];
+  /** @type {string[]} */
+  const errLines = [];
+  const io = {
+    out: (/** @type {string} */ line = '') => outLines.push(line),
+    err: (/** @type {string} */ line = '') => errLines.push(line),
+  };
+  const synced = await runSync(parseSyncArgs([]), { home, io });
+  assert.equal(synced.code, 0, errLines.join('\n'));
+  assert.ok(outLines.includes(`re-fenced ${file}: v1 -> v${current}`), outLines.join('\n'));
+  assert.ok(!errLines.some((line) => line.startsWith('skipped ')), errLines.join('\n'));
+  assert.deepEqual(staleFenceMessages(home, project), []);
+});
+
 test('stale fence (#26): each named remedy does what doctor says', async (t) => {
   const project = cleanProject(t);
   const home = sandbox(t);
