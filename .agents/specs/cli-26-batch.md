@@ -726,3 +726,55 @@ and need their own design; they go to the owner as a scope question, not into th
 Order: G18-G20 with mutation proofs first, then Q1 and Q2 tests-first, then N2, then gates, then
 one commit `fix(sync): honest summary after a deliberate skip; a canon dir it cannot create never stops the fences`
 with body sentences, `Refs #26`, and the Co-Authored-By line above.
+
+Owner ruling, 2026-10-14: the hermes delivery defects found in round 6 = "New issue, next batch
+(Recommended)". Filed as #27; out of scope here.
+
+## Review round 7 fixes (lane R7, on top of d830a0c)
+
+Round 7: 1 product finding, 2 test gaps, 1 pre-existing nit (left for a follow-up). The product
+finding predates this batch, but the v4 agents-md text names `banana project` as every
+workspace's refresh, and the bump sends every project there: `runProject` creates LOGBOOK.md even
+when the session log records the owner's deferral. The canon (CONTINUITY.md bootstrap step 2) says
+the `project` command creates the listed files, and its LOGBOOK.md item makes a `DECISION:` line
+containing `defer LOGBOOK.md` in `.agents/session.log` the owner's deferral, with the operational
+test `grep "DECISION:.*defer LOGBOOK.md" .agents/session.log`. The canon wins, so the kit runs the
+canon's own test.
+
+- P7 lib/project.mjs. Before the LOGBOOK.md step, compute the seed path and the deferral (move
+  `const agentsDir = join(cwd, '.agents');` and `const seedTarget = join(agentsDir, 'session.log');`
+  up; keep `mkdirSync(agentsDir, …)` and the seed's createIfMissing where they are, so the order of
+  "created" lines does not change):
+  ```js
+    // Canon CONTINUITY.md bootstrap step 2: a `DECISION:` line containing `defer LOGBOOK.md` in the
+    // session log is the owner's deferral. The kit runs the canon's own test and keeps it.
+    const logbookDeferred =
+      existsSync(seedTarget) && /DECISION:.*defer LOGBOOK.md/.test(readFileSync(seedTarget, 'utf8'));
+  ```
+  then `if (!logbookDeferred && createIfMissing(logbookTarget, logbook)) created.push(logbookTarget);`,
+  and after the `created` lines are printed:
+  `if (logbookDeferred && !existsSync(logbookTarget)) out(`kept LOGBOOK.md deferred (a DECISION line in ${seedTarget})`);`
+  Tests first, test/project.e2e.test.mjs (follow its helpers):
+  - 'e2e (#25 review): project keeps a recorded LOGBOOK.md deferral while it refreshes the block' —
+    workspace with `.agents/session.log` holding a line 'DECISION: defer LOGBOOK.md (owner)', a
+    STATE.md, no LOGBOOK.md, and AGENTS.md holding V3_AGENTS_MD_BLOCK. Run project non-interactively.
+    Assert code 0; LOGBOOK.md does not exist; the AGENTS.md block now has the current opener; output
+    includes 'kept LOGBOOK.md deferred'.
+  - 'e2e (#25 review): text about deferring outside a DECISION line does not defer LOGBOOK.md' —
+    same, but the log line is 'NOTE: we may defer LOGBOOK.md later'. Assert LOGBOOK.md is created.
+  Mutants: the `logbookDeferred` guard removed; the regex loosened to /defer LOGBOOK.md/.
+  Docs: lib/project.mjs header comment "Creates LOGBOOK.md, STATE.md, and the .agents/session.log
+  seed" gains "(LOGBOOK.md unless the session log records the owner's `defer LOGBOOK.md` decision,
+  canon CONTINUITY step 2)". README.md project row "with `LOGBOOK.md`, `STATE.md`, …" gains, after
+  the file list, "(`LOGBOOK.md` is skipped when `.agents/session.log` records a `defer LOGBOOK.md`
+  decision)". Re-wrap only touched lines.
+- G21 test/readme.test.mjs, the sync-row phrase list: add 'a block with no owner/tag line is
+  skipped'. Mutant: that clause deleted from the README sync row.
+- G22 test/templates.test.mjs, the DESIGN phrase list ('docs/DESIGN.md names the #26 init remedy…'):
+  add 'the deliberate skips — no owner/tag line, malformed markers — keep exit 0' and
+  "For `project` and `init`, no existing fence, or a fence whose identity line can't be parsed,
+  falls back to". Mutants: each phrase deleted.
+
+Order: G21-G22 with mutation proofs first, then P7 tests-first, then gates, then one commit
+`fix(project): keep a recorded LOGBOOK.md deferral; pin the sync and DESIGN skip wording`
+with body sentences, `Refs #25`, and the Co-Authored-By line above.
