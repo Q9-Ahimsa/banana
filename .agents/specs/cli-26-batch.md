@@ -1009,3 +1009,42 @@ malformed-markers note; merge the two there).
 Order: each test, then its mutants (record each), then gates, then one commit
 `test: pin doctor on v1 identity blocks, project on an unreadable log, sync's failure count`
 with body sentences, `Refs #25 #26`, and the Co-Authored-By line above.
+
+## Review round 12 fixes (lane R12, on top of 4c0451d)
+
+Round 12 (tightened rule): no product defect — clean round 2 of 2, so the review loop stops. Two
+test gaps; both only add assertions, so they are proven by mutants and gates, with no further
+review round.
+
+- G35 test/project.e2e.test.mjs 'e2e (#25 review): a session log project cannot read never stops
+  the block refresh': directly after the
+  `lines.includes('banana project: 1 file could not be read — see the skipped line above')`
+  assertion add:
+  ```js
+    assert.ok(!lines.some((line) => line.includes('kept LOGBOOK.md deferred')), lines.join('\n'));
+    assert.ok(lines.includes(`wired AGENTS.md -> ${join(repo, 'AGENTS.md')}`), lines.join('\n'));
+    assert.ok(
+      lines.some((line) => line.startsWith(`skipped LOGBOOK.md: cannot read ${join(repo, '.agents', 'session.log')} to check for a deferral (EISDIR`)),
+      lines.join('\n'),
+    );
+  ```
+  (use the test's own log-path variable if it has one). Mutants (lib/project.mjs): the kept-deferred
+  guard loses `logbookDeferred &&`; the `if (unreadableLog !== null) { … return }` block moves above
+  the `wired AGENTS.md -> …` out line; `(${unreadableLog})` becomes `()`.
+- G36 test/sync.test.mjs: after each of these three assertions add a reason check —
+  the unwritable-home-target test's `startsWith(`skipped ${claudePath}: `)`, the unwritable-canon
+  test's `startsWith(`skipped ${lockedPath}: `)`, and the canon-dir test's
+  `startsWith(`skipped ${join(canonDir, CANON_FILES[0])}: `)`:
+  ```js
+    assert.ok(
+      errLines.some((line) => line.startsWith(`skipped ${P}: `) && /^E[A-Z]+\b/.test(line.slice(`skipped ${P}: `.length))),
+      errLines.join('\n'),
+    );
+  ```
+  with P the same path expression. Do not pin one error code (EPERM on Windows, EACCES on POSIX,
+  EEXIST for the canon dir). Mutants (lib/sync.mjs): the wire catch's and the canon catch's
+  `${error instanceof Error ? error.message : error}` reason removed (each one separately).
+
+Order: G35 then G36, each with its mutants (record each), then gates, then one commit
+`test: pin project's unreadable-log output and sync's skip reasons` with body sentences,
+`Refs #25 #26`, and the Co-Authored-By line above.
