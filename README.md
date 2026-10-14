@@ -51,10 +51,12 @@ hot/cold context tiers — lives in the canon:
 ### Bootstrap model
 
 Wiring blocks are thin and stable; every rule lives behind the canon pointer,
-so upstream updates propagate via `sync` instead of re-wiring. Landing in a
-workspace (git repo or non-code topic dir) that lacks continuity files, set
-it up yourself: read the canon's agent bootstrap section, then run
-`banana project` from the workspace root.
+so rule changes propagate via `sync` instead of re-wiring; when a wiring
+block itself changes (a fence version bump), `sync` refreshes the home blocks
+and each workspace runs `banana project`. Landing in a workspace (git repo or
+non-code topic dir) that lacks continuity files, set it up yourself: read the
+canon's agent bootstrap section, then run `banana project` from the workspace
+root.
 
 ### Commands
 

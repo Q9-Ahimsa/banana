@@ -371,6 +371,24 @@ test('e2e (#25 review): text about deferring outside a DECISION line does not de
   assert.ok(existsSync(join(repo, 'LOGBOOK.md')), 'LOGBOOK.md was created');
 });
 
+test('e2e (#25 review): a DECISION line on another topic plus a later mention of the deferral does not defer LOGBOOK.md', async (t) => {
+  const repo = deferralWorkspace(t, 'DECISION: pick the shorter name\nNOTE: we may defer LOGBOOK.md later');
+  const { io } = scriptedIo();
+  const result = await runProject({ owner: null, tag: null, yes: true }, { cwd: repo, io, gitUserName: () => null });
+  assert.equal(result.code, 0);
+  assert.ok(existsSync(join(repo, 'LOGBOOK.md')), 'LOGBOOK.md was created');
+});
+
+test('e2e (#25 review): a recorded deferral with LOGBOOK.md already on disk prints no "kept deferred" line', async (t) => {
+  const repo = deferralWorkspace(t, 'DECISION: defer LOGBOOK.md (owner)');
+  writeFileSync(join(repo, 'LOGBOOK.md'), '# existing logbook\n');
+  const { io, lines } = scriptedIo();
+  const result = await runProject({ owner: null, tag: null, yes: true }, { cwd: repo, io, gitUserName: () => null });
+  assert.equal(result.code, 0);
+  assert.equal(readFileSync(join(repo, 'LOGBOOK.md'), 'utf8'), '# existing logbook\n');
+  assert.ok(!lines.some((line) => line.includes('kept LOGBOOK.md deferred')), 'no kept-deferred line');
+});
+
 test('e2e: explicit --owner/--tag flags win over a preserved identity', async (t) => {
   const repo = repoSandbox(t);
   const agentsTarget = join(repo, 'AGENTS.md');

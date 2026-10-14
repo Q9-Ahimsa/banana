@@ -112,6 +112,11 @@ test('bin: top-level --help says sync re-applies stale home wiring fences', () =
   assert.ok(stdout.includes('stale home wiring fences'), `stdout: ${stdout}`);
 });
 
+test('bin: top-level --help says project skips LOGBOOK.md when the session log defers it', () => {
+  const { stdout } = run(['--help']);
+  assert.ok(stdout.includes('LOGBOOK.md (unless the session log defers it)'), `stdout: ${stdout}`);
+});
+
 // #20c E12/H23/H37: exit-2 causes are named in plain words, never by an
 // internal spec label like "D1"/"D3" — the pre-#20c help passed this test
 // by including the literal substrings "D1"/"D3" with no definition anywhere

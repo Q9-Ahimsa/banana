@@ -213,6 +213,25 @@ test('README doctor and sync rows name the right refresh commands (#19, #25, #26
   assert.ok(!prose.includes('re-applies any stale wiring blocks'), 'the plural overclaim is gone');
 });
 
+test('README Bootstrap model says a fence bump needs banana project in each workspace', () => {
+  const prose = readFileSync(readmePath, 'utf8').replace(/\s+/g, ' ');
+  assert.ok(
+    prose.includes(
+      'when a wiring block itself changes (a fence version bump), `sync` refreshes the home blocks and each workspace runs `banana project`',
+    ),
+    'the Bootstrap model paragraph names the fence-bump step',
+  );
+});
+
+test('README project row names the LOGBOOK.md deferral', () => {
+  const rows = tableRows(readFileSync(readmePath, 'utf8'));
+  const project = rows.find((row) => row.cmd === 'project')?.line ?? '';
+  assert.ok(
+    project.includes('(`LOGBOOK.md` is skipped when `.agents/session.log` records a `defer LOGBOOK.md` decision)'),
+    'the project row names the deferral',
+  );
+});
+
 test('README fence paragraph says sync skips a block with no identity line and names the init remedy (#26)', () => {
   const prose = readFileSync(readmePath, 'utf8').replace(/\s+/g, ' ');
   assert.ok(
