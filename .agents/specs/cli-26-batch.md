@@ -832,3 +832,43 @@ README states sync's new exit code nowhere, so R8b adds it.
   'a file it cannot read or write is skipped too, and sync exits 1 once the rest is done'.
 - One commit `docs(readme): sync row states the exit 1 on a read/write failure`, body sentence,
   `Refs #26`, and the Co-Authored-By line above.
+
+Owner ruling, 2026-10-15: the compaction-prep hook enters banana as "Next batch, design first
+(Recommended)"; filed as #28. Out of scope here.
+
+## Review round 9 fixes (lane R9, on top of 54a68ac)
+
+Round 9 (tightened rule): no product defect — the first clean round. 3 test gaps; main takes two
+wording notes in lines this batch wrote. The third note (init's paste advice for a file with
+malformed markers) is pre-existing and goes to the follow-up list.
+
+- G26 test/sync.test.mjs 'sync: every file it could not read or write is counted in the exit-1
+  line': make it three failures in adapter order write, read, write — CLAUDE.md v1 identity block
+  0o444, the pi AGENTS.md path a directory, and codex AGENTS.md a v1 identity block
+  (`- **Identity:** you are \`alpha\`; owner: \`alice\`.`) 0o444; restore both modes in one
+  `t.after` guarded by existsSync; assert code 1 and
+  `banana sync: 3 file(s) could not be read or written — see the skipped lines above`. Add a
+  comment that the write/read/write order is what lets a `failed = 1` in either fence catch
+  undercount. Mutants: lib/sync.mjs wire catch `failed += 1` -> `failed = 1`; read catch the same.
+- G27 same file, 'sync: a canon dir it cannot create never stops the fence refresh': after the
+  `skipped ${join(canonDir, CANON_FILES[0])}: ` assertion add
+  `assert.ok(errLines.includes(`banana sync: ${CANON_FILES.length} file(s) could not be read or written — see the skipped lines above`), errLines.join('\n'));`.
+  Mutant: canon catch `failed += 1` -> `failed = 1`.
+- G28 same file, before that test: 'sync: a home instruction file with no banana block is no skip —
+  the summary says canon and fences current' — first runSync installs the canon (code 0); write
+  '# my own notes, no banana block\n' to the CLAUDE.md path; run again: code 0, errLines deepEqual
+  [], lines include 'sync: no changes — canon and fences current'. Mutant: `skipped += 1` added to
+  the `if (fence === null) continue;` branch.
+- N4 README.md: the doctor row's "for a home file whose block has no identity line (sync skips it)"
+  -> "for a home file whose block has no owner/tag line (sync skips it)"; the fence paragraph's "A
+  block with no identity line is skipped" -> "A block with no owner/tag line is skipped". Update the
+  matching pin in test/readme.test.mjs (the fence-paragraph test's phrase and title) first, red,
+  then the README. Re-wrap only the touched paragraph.
+- N5 bin/banana.mjs help: the project line "… STATE.md, and .agents/session.log" -> "…, STATE.md,
+  .agents/session.log, and a wired AGENTS.md block". Test first in test/bin.e2e.test.mjs next to
+  the project help test: stdout includes '.agents/session.log, and a wired AGENTS.md block'. Keep
+  the existing 'LOGBOOK.md (unless the session log defers it)' pin green.
+
+Order: G26-G28 with mutation proofs first, then N4 and N5 tests-first, then gates, then one commit
+`test(sync): count every read/write failure; README and help wording for #26 and #25` with body
+sentences, `Refs #25 #26`, and the Co-Authored-By line above.
