@@ -7,7 +7,7 @@
 // required sections, re-run idempotent.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -337,6 +337,38 @@ test('e2e (#24, #25): project upgrades a real v3 block in a CRLF AGENTS.md — i
   assert.ok(!agents.includes(fenceBegin(3)), 'no v3 opener left');
   assert.ok(agents.includes('state archive'), 'roster names state archive');
   assert.ok(agents.includes('`banana project`, run in a workspace'), 'refresh wording present');
+});
+
+/**
+ * A workspace holding a v3 AGENTS.md block, a STATE.md, and a session log with one line.
+ * @param {import('node:test').TestContext} t
+ * @param {string} logLine
+ */
+function deferralWorkspace(t, logLine) {
+  const repo = repoSandbox(t);
+  mkdirSync(join(repo, '.agents'));
+  writeFileSync(join(repo, '.agents', 'session.log'), logLine + '\n');
+  writeFileSync(join(repo, 'STATE.md'), '# state\n');
+  writeFileSync(join(repo, 'AGENTS.md'), V3_AGENTS_MD_BLOCK + '\n');
+  return repo;
+}
+
+test('e2e (#25 review): project keeps a recorded LOGBOOK.md deferral while it refreshes the block', async (t) => {
+  const repo = deferralWorkspace(t, 'DECISION: defer LOGBOOK.md (owner)');
+  const { io, lines } = scriptedIo();
+  const result = await runProject({ owner: null, tag: null, yes: true }, { cwd: repo, io, gitUserName: () => null });
+  assert.equal(result.code, 0);
+  assert.ok(!existsSync(join(repo, 'LOGBOOK.md')), 'LOGBOOK.md was not created');
+  assert.ok(readFileSync(join(repo, 'AGENTS.md'), 'utf8').includes(fenceBegin(CURRENT_FENCE)), 'current opener present');
+  assert.ok(lines.some((line) => line.includes('kept LOGBOOK.md deferred')), 'output names the kept deferral');
+});
+
+test('e2e (#25 review): text about deferring outside a DECISION line does not defer LOGBOOK.md', async (t) => {
+  const repo = deferralWorkspace(t, 'NOTE: we may defer LOGBOOK.md later');
+  const { io } = scriptedIo();
+  const result = await runProject({ owner: null, tag: null, yes: true }, { cwd: repo, io, gitUserName: () => null });
+  assert.equal(result.code, 0);
+  assert.ok(existsSync(join(repo, 'LOGBOOK.md')), 'LOGBOOK.md was created');
 });
 
 test('e2e: explicit --owner/--tag flags win over a preserved identity', async (t) => {

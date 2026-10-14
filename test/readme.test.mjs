@@ -196,7 +196,11 @@ test('README doctor and sync rows name the right refresh commands (#19, #25, #26
   for (const phrase of ['`banana sync`', '`banana init --harnesses <id>`', '`banana project`']) {
     assert.ok(doctor.includes(phrase), `the doctor row names ${phrase}`);
   }
-  for (const phrase of ['home wiring fence', '`banana project`']) {
+  for (const phrase of [
+    'home wiring fence',
+    '`banana project`',
+    'a block with no owner/tag line is skipped',
+  ]) {
     assert.ok(sync.includes(phrase), `the sync row names ${phrase}`);
   }
   const prose = readFileSync(readmePath, 'utf8').replace(/\s+/g, ' ');
