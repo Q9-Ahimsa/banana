@@ -467,18 +467,27 @@ test('sync: every file it could not read or write is counted in the exit-1 line'
   const home = sandbox(t);
   const piPath = join(home, '.pi', 'agent', 'AGENTS.md');
   const claudePath = join(home, '.claude', 'CLAUDE.md');
+  const codexPath = join(home, '.codex', 'AGENTS.md');
+  // Adapter order is claude, pi, codex: write failure, read failure, write failure.
+  // The write/read/write order is what lets a `failed = 1` in either fence catch
+  // undercount: the count only reaches 3 if every catch adds one.
   mkdirSync(piPath, { recursive: true }); // a directory where the file belongs: reading it throws EISDIR
   mkdirSync(dirname(claudePath), { recursive: true });
+  mkdirSync(dirname(codexPath), { recursive: true });
   writeFileSync(claudePath, `# My instructions\n\n${V1_BLOCK}\n`);
+  writeFileSync(codexPath, '<!-- banana:begin v1 -->\n- **Identity:** you are `alpha`; owner: `alice`.\n<!-- banana:end -->\n');
   chmodSync(claudePath, 0o444);
-  t.after(() => existsSync(claudePath) && chmodSync(claudePath, 0o644));
+  chmodSync(codexPath, 0o444);
+  t.after(() => {
+    for (const path of [claudePath, codexPath]) if (existsSync(path)) chmodSync(path, 0o644);
+  });
   if (writeStillWorks(claudePath)) return t.skip('read-only files are still writable here (root)');
   const { io, errLines } = collectedIo();
 
   const result = await runSync(parseSyncArgs([]), { home, io });
   assert.equal(result.code, 1);
   assert.ok(
-    errLines.includes('banana sync: 2 file(s) could not be read or written — see the skipped lines above'),
+    errLines.includes('banana sync: 3 file(s) could not be read or written — see the skipped lines above'),
     errLines.join('\n'),
   );
 });
@@ -525,6 +534,21 @@ test('sync: a skipped stale block never gets a "canon and fences current" summar
   }
 });
 
+test('sync: a home instruction file with no banana block is no skip — the summary says canon and fences current', async (t) => {
+  const home = sandbox(t);
+  const claudePath = join(home, '.claude', 'CLAUDE.md');
+  mkdirSync(dirname(claudePath), { recursive: true });
+  const first = await runSync(parseSyncArgs([]), { home, io: collectedIo().io }); // installs the canon
+  assert.equal(first.code, 0);
+  writeFileSync(claudePath, '# my own notes, no banana block\n');
+  const { io, lines, errLines } = collectedIo();
+
+  const result = await runSync(parseSyncArgs([]), { home, io });
+  assert.equal(result.code, 0);
+  assert.deepEqual(errLines, []);
+  assert.ok(lines.includes('sync: no changes — canon and fences current'), lines.join('\n'));
+});
+
 test('sync: a canon dir it cannot create never stops the fence refresh', async (t) => {
   const home = sandbox(t);
   const canonDir = join(home, '.agents', 'canon');
@@ -539,6 +563,10 @@ test('sync: a canon dir it cannot create never stops the fence refresh', async (
   assert.equal(result.code, 1);
   assert.ok(
     errLines.some((line) => line.startsWith(`skipped ${join(canonDir, CANON_FILES[0])}: `)),
+    errLines.join('\n'),
+  );
+  assert.ok(
+    errLines.includes(`banana sync: ${CANON_FILES.length} file(s) could not be read or written — see the skipped lines above`),
     errLines.join('\n'),
   );
   assert.equal(

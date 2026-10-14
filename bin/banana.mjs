@@ -285,7 +285,7 @@ Usage: banana <command> [options]
 
 Commands:
   init      detect installed agent harnesses, wire the continuity protocol into each
-  project   initialize a workspace (git repo or topic dir) with LOGBOOK.md (unless the session log defers it), STATE.md, and .agents/session.log
+  project   initialize a workspace (git repo or topic dir) with LOGBOOK.md (unless the session log defers it), STATE.md, .agents/session.log, and a wired AGENTS.md block
   brief     compile a per-intent context brief for a session; no feature arg lists active slugs
   doctor    check wiring versions and run liveness audits
   sync      refresh the kit-owned canon and re-apply stale home wiring fences

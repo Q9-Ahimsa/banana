@@ -74,7 +74,7 @@ Offline, `sync` warns and carries on, and `doctor` skips its check silently.
 | `banana init` | detect installed harnesses, install the canon into `~/.agents/canon/`, wire the bootstrap block into each instruction file. Non-interactive: `--owner`, `--tag`, `--harnesses`, `--yes`. `--deliver` also runs the Hermes one-shot delivery command instead of only printing it |
 | `banana project` | initialize the current workspace (git repo or non-code topic dir) with `LOGBOOK.md`, `STATE.md`, `.agents/session.log`, and a wired `AGENTS.md` continuity block (`LOGBOOK.md` is skipped when `.agents/session.log` records a `defer LOGBOOK.md` decision). Non-interactive: `--owner`, `--tag`, `--yes` |
 | `banana brief [feature] --tag <agent>` | compile a per-intent context brief — feature-scoped, deterministic, no LLM calls. No feature arg lists the active slugs |
-| `banana doctor` | audit wiring versions, canon staleness, and log liveness; each stale-canon / stale-fence finding names its fix — `banana sync` for the canon and home instruction files, `banana init --harnesses <id>` for a home file whose block has no identity line (sync skips it), `banana project` for a project's `AGENTS.md`. Also a best-effort remote-version check (silent offline). `--verify` prints per-harness recital commands |
+| `banana doctor` | audit wiring versions, canon staleness, and log liveness; each stale-canon / stale-fence finding names its fix — `banana sync` for the canon and home instruction files, `banana init --harnesses <id>` for a home file whose block has no owner/tag line (sync skips it), `banana project` for a project's `AGENTS.md`. Also a best-effort remote-version check (silent offline). `--verify` prints per-harness recital commands |
 | `banana sync` | run the kit's own update step (best-effort; warns and carries on offline), then refresh the kit-owned canon and re-apply any home wiring fence older than current (a block with no owner/tag line is skipped; `banana project` refreshes a project's `AGENTS.md`); a file it cannot read or write is skipped too, and sync exits 1 once the rest is done; a line-ending difference alone is never a change |
 | `banana log stub\|append\|close\|supersede` | stamp session-log entries — the envelope (heading, STATUS/NEXT composition, concurrency-guard continuation) is computed, never hand-typed. `banana log <verb> --help` for usage |
 | `banana state lint\|archive` | `lint [--global]`: check a `STATE.md` page against the canon's mechanical invariants — `./STATE.md`, or `~/.agents/STATE.md` with `--global`; verdicts FAIL / WARN / PASS, never reads the clock. `archive --global --match <text> --reason <reason> --tag <agent> [--dry-run]`: move one line off the global page into `~/.agents/STATE-archive.md` (see "Archiving a global STATE line" below). `banana state <verb> --help` for usage |
@@ -86,7 +86,7 @@ Every write into an agent's instruction file is a fenced, version-marked
 block (`<!-- banana:begin v4 -->` … `<!-- banana:end -->`): re-running is
 idempotent, and content outside the fence is never touched. Owner and tag
 are recovered from the existing block on re-fence, so `sync` needs no flags.
-A block with no identity line is skipped (`sync` never invents one);
+A block with no owner/tag line is skipped (`sync` never invents one);
 `banana doctor` then names `banana init --harnesses <id>`.
 
 ### Archiving a global STATE line

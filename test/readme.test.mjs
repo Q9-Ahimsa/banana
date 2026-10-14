@@ -233,11 +233,11 @@ test('README project row names the LOGBOOK.md deferral', () => {
   );
 });
 
-test('README fence paragraph says sync skips a block with no identity line and names the init remedy (#26)', () => {
+test('README fence paragraph says sync skips a block with no owner/tag line and names the init remedy (#26)', () => {
   const prose = readFileSync(readmePath, 'utf8').replace(/\s+/g, ' ');
   assert.ok(
     prose.includes(
-      'A block with no identity line is skipped (`sync` never invents one); `banana doctor` then names `banana init --harnesses <id>`.',
+      'A block with no owner/tag line is skipped (`sync` never invents one); `banana doctor` then names `banana init --harnesses <id>`.',
     ),
     'the fence paragraph names the skip and the init remedy',
   );
