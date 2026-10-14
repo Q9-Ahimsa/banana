@@ -778,3 +778,38 @@ canon's own test.
 Order: G21-G22 with mutation proofs first, then P7 tests-first, then gates, then one commit
 `fix(project): keep a recorded LOGBOOK.md deferral; pin the sync and DESIGN skip wording`
 with body sentences, `Refs #25`, and the Co-Authored-By line above.
+
+## Review round 8 fixes (lane R8, on top of ddd96ef)
+
+Round 8: 1 product finding (two reviewers, same line), 3 test gaps, 1 pre-existing nit. The product
+finding is a gap in round 7's own doc list: `banana --help` still says project always creates
+LOGBOOK.md. Main grepped every surface for the claim; only bin/banana.mjs:288 and the README row
+(already fixed) state it. Main also takes the README "Bootstrap model" nit, so a fence bump's
+`banana project` step is stated where the README explains how updates travel.
+
+- P8 bin/banana.mjs top-level help: `  project   initialize a workspace (git repo or topic dir) with LOGBOOK.md, STATE.md, and .agents/session.log`
+  -> `  project   initialize a workspace (git repo or topic dir) with LOGBOOK.md (unless the session log defers it), STATE.md, and .agents/session.log`.
+  Test first, test/bin.e2e.test.mjs next to the 'stale home wiring fences' help test: top-level
+  `--help` stdout includes 'LOGBOOK.md (unless the session log defers it)'.
+- N3 README.md "Bootstrap model": "so upstream updates propagate via `sync` instead of re-wiring."
+  -> "so rule changes propagate via `sync` instead of re-wiring; when a wiring block itself changes
+  (a fence version bump), `sync` refreshes the home blocks and each workspace runs `banana project`."
+  Re-wrap that paragraph only. Test first in test/readme.test.mjs: the flattened README includes
+  'when a wiring block itself changes (a fence version bump), `sync` refreshes the home blocks and each workspace runs `banana project`'.
+  The README human-section line limit test must stay green.
+- G23 test/project.e2e.test.mjs, after the NOTE-line test: 'e2e (#25 review): a DECISION line on
+  another topic plus a later mention of the deferral does not defer LOGBOOK.md' — session log
+  'DECISION: pick the shorter name\nNOTE: we may defer LOGBOOK.md later'; assert LOGBOOK.md is
+  created. Mutants: the regex gains the `s` flag; the test becomes
+  `text.includes('DECISION:') && text.includes('defer LOGBOOK.md')`.
+- G24 same file: 'e2e (#25 review): a recorded deferral with LOGBOOK.md already on disk prints no
+  "kept deferred" line' — deferral line recorded, LOGBOOK.md already exists ('# existing logbook\n');
+  assert code 0, LOGBOOK.md byte-identical, no output line contains 'kept LOGBOOK.md deferred'.
+  Mutant: the `&& !existsSync(logbookTarget)` guard dropped.
+- G25 test/readme.test.mjs: the README `project` row includes "(`LOGBOOK.md` is skipped when
+  `.agents/session.log` records a `defer LOGBOOK.md` decision)". Use the file's table-row helper.
+  Mutant: that parenthetical deleted.
+
+Order: G23-G25 with mutation proofs first, then P8 and N3 tests-first, then gates, then one commit
+`fix(help,readme): project help names the LOGBOOK.md deferral; README says a fence bump needs banana project`
+with body sentences, `Refs #25`, and the Co-Authored-By line above.
