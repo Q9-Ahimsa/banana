@@ -872,3 +872,97 @@ malformed markers) is pre-existing and goes to the follow-up list.
 Order: G26-G28 with mutation proofs first, then N4 and N5 tests-first, then gates, then one commit
 `test(sync): count every read/write failure; README and help wording for #26 and #25` with body
 sentences, `Refs #25 #26`, and the Co-Authored-By line above.
+
+## Review round 10 fixes (lane R10, on top of 8e3eb95)
+
+Round 10: 1 product defect (P10) and 3 test gaps; the clean-round count goes back to 0. Two
+pre-existing notes go to the follow-up list: a `$` in an owner or tag is mangled on every re-render
+(`replaceAll` with a string treats `$&`, `$'`, `$$` as patterns); doctor's auditProject and its
+rotation loop read `.agents/session.log` with no guard, so an unreadable log crashes doctor.
+
+- P10 lib/project.mjs: the round-7 deferral check (P7) reads `.agents/session.log` with no guard.
+  If the log exists but cannot be read (a directory at that path, or read denied), project exits 1
+  before it re-fences and AGENTS.md stays at the old version. Before this batch project never read
+  the log. Main's call (ASSUMED: the owner's sync rule — report a file it cannot read, finish the
+  rest, exit 1 — applied to project; confirm at the release ask):
+  - Read the log only while LOGBOOK.md is missing; the deferral matters only then. With LOGBOOK.md
+    on disk, project never reads the log (the pre-batch behavior).
+  - LOGBOOK.md missing and the log unreadable: do not create LOGBOOK.md (a deferral there cannot be
+    checked); still create STATE.md if missing and refresh the AGENTS.md block; then print on err
+    `skipped LOGBOOK.md: cannot read <seedTarget> to check for a deferral (<reason>)` and
+    `banana project: 1 file could not be read — see the skipped line above`; return
+    `{ code: 1, created, wired }`.
+  Code, replacing the `const logbookDeferred = …` statement and the `const logbookTarget` line:
+  ```js
+      // Canon CONTINUITY.md bootstrap step 2: a `DECISION:` line containing `defer LOGBOOK.md` in the
+      // session log is the owner's deferral. The kit runs the canon's own test and keeps it. The test
+      // matters only while LOGBOOK.md is missing. A log it cannot read answers neither way: LOGBOOK.md
+      // is left alone, the rest is done, and project exits 1 (the same rule as sync).
+      const logbookTarget = join(cwd, 'LOGBOOK.md');
+      let logbookDeferred = false;
+      /** @type {string | null} */
+      let unreadableLog = null;
+      if (!existsSync(logbookTarget) && existsSync(seedTarget)) {
+        try {
+          logbookDeferred = /DECISION:.*defer LOGBOOK.md/.test(readFileSync(seedTarget, 'utf8'));
+        } catch (error) {
+          unreadableLog = error instanceof Error ? error.message : String(error);
+        }
+      }
+  ```
+  The create line becomes
+  `if (!logbookDeferred && unreadableLog === null && createIfMissing(logbookTarget, logbook)) created.push(logbookTarget);`
+  and, after the `wired AGENTS.md -> …` out line:
+  ```js
+      if (unreadableLog !== null) {
+        err(`skipped LOGBOOK.md: cannot read ${seedTarget} to check for a deferral (${unreadableLog})`);
+        err('banana project: 1 file could not be read — see the skipped line above');
+        return { code: 1, created, wired };
+      }
+  ```
+  Header comment: after "decision, canon CONTINUITY step 2)" say that a session log it cannot read
+  leaves LOGBOOK.md alone and makes project exit 1 once the rest is done. Re-wrap only that comment.
+  Tests first in test/project.e2e.test.mjs, after 'a recorded deferral with LOGBOOK.md already on
+  disk prints no "kept deferred" line' (scriptedIo has no `err`, so err lines land in `lines`):
+  - T1 'e2e (#25 review): a session log project cannot read never stops the block refresh':
+    repoSandbox; `mkdirSync(join(repo, '.agents', 'session.log'), { recursive: true })` (exists,
+    reading throws EISDIR); STATE.md '# state\n'; AGENTS.md = V3_AGENTS_MD_BLOCK + '\n'; no
+    LOGBOOK.md. runProject({ owner: null, tag: null, yes: true }, { cwd: repo, io, gitUserName: () => null }).
+    Assert: code 1; AGENTS.md includes fenceBegin(CURRENT_FENCE); LOGBOOK.md does not exist; a line
+    starts with `skipped LOGBOOK.md: cannot read ${join(repo, '.agents', 'session.log')} to check for a deferral (`;
+    lines include 'banana project: 1 file could not be read — see the skipped line above'.
+  - T2 'e2e (#25 review): with LOGBOOK.md on disk project never reads the session log': same
+    fixture plus LOGBOOK.md '# logbook\n'. Assert: code 0; AGENTS.md includes
+    fenceBegin(CURRENT_FENCE); no line starts with 'skipped '; LOGBOOK.md unchanged.
+  Mutants to kill (record each): try/catch removed (the round-7 code); `!existsSync(logbookTarget) &&`
+  dropped from the read guard; `unreadableLog === null &&` dropped from the create line; the
+  unreadable branch returns code 0.
+- N6 README.md project row: "(`LOGBOOK.md` is skipped when `.agents/session.log` records a
+  `defer LOGBOOK.md` decision)" -> "(`LOGBOOK.md` is skipped when `.agents/session.log` records a
+  `defer LOGBOOK.md` decision, and left alone when that log cannot be read; project then exits 1
+  once the rest is done)". Update the pin in test/readme.test.mjs 'README project row names the
+  LOGBOOK.md deferral' first (red), then the README. If the README command table turns out to be
+  generated from a source file, edit that source and regenerate instead.
+- G29 test/sync.test.mjs, directly after the G28 test: 'sync (#26): a CURRENT home block with no
+  owner/tag line is no skip — sync agrees with doctor'. First runSync installs the canon (code 0);
+  write `${fenceBegin(wiringTemplateVersion('agents-md.md'))}\nno identity line here\n<!-- banana:end -->\n`
+  to the codex AGENTS.md path; run again: code 0; errLines deepEqual [] (message 'only a STALE
+  block with no owner/tag line is skipped'); lines include 'sync: no changes — canon and fences
+  current'; the file is byte-identical; `auditUpstream(home, sandbox(t)).filter((finding) => finding.type === 'stale-fence')`
+  deepEqual []. Mutant: move `if (fence.version >= current) continue;` from above the
+  extractIdentity line to just above the `try { adapter.wire(...) }` block.
+- G30 test/readme.test.mjs 'README doctor and sync rows name the right refresh commands (#19, #25,
+  #26)': after the loop over the three backticked commands, assert the doctor row includes
+  "`banana sync` for the canon and home instruction files, `banana init --harnesses <id>` for a home file whose block has no owner/tag line (sync skips it), `banana project` for a project's `AGENTS.md`"
+  ('the doctor row says which file each command fixes'). Mutant: README doctor row "owner/tag line"
+  -> "identity line".
+- G31 test/templates.test.mjs 'docs/DESIGN.md names the #26 init remedy where it describes doctor
+  and sync': the phrase "and a file it can't read or write" -> "and a file it can't read or write —
+  a wiring file or a canon file — is skipped the same way" (match the DESIGN text exactly,
+  whitespace-normalized as the test already does). Mutant: delete " — a wiring file or a canon
+  file —" from docs/DESIGN.md.
+
+Order: G29-G31 with mutation proofs first; then P10 (T1, T2 red, then the code, then the mutants);
+then N6 tests-first; then gates; then one commit
+`fix(project): an unreadable session log never stops the block refresh` with body sentences,
+`Refs #25 #26`, and the Co-Authored-By line above.
