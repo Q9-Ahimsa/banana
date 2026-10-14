@@ -413,6 +413,12 @@ test('e2e (#25 review): a session log project cannot read never stops the block 
     lines.join('\n'),
   );
   assert.ok(lines.includes('banana project: 1 file could not be read — see the skipped line above'), lines.join('\n'));
+  assert.ok(!lines.some((line) => line.includes('kept LOGBOOK.md deferred')), lines.join('\n'));
+  assert.ok(lines.includes(`wired AGENTS.md -> ${join(repo, 'AGENTS.md')}`), lines.join('\n'));
+  assert.ok(
+    lines.some((line) => line.startsWith(`skipped LOGBOOK.md: cannot read ${logPath} to check for a deferral (EISDIR`)),
+    lines.join('\n'),
+  );
 });
 
 test('e2e (#25 review): with LOGBOOK.md on disk project never reads the session log', async (t) => {

@@ -400,6 +400,10 @@ test('sync: an unwritable home target is skipped, later stale files are still re
   const result = await runSync(parseSyncArgs([]), { home, io });
   assert.equal(result.code, 1, 'a file sync could not read or write fails the run, after the rest is done');
   assert.ok(errLines.some((line) => line.startsWith(`skipped ${claudePath}: `)), errLines.join(', '));
+  assert.ok(
+    errLines.some((line) => line.startsWith(`skipped ${claudePath}: `) && /^E[A-Z]+\b/.test(line.slice(`skipped ${claudePath}: `.length))),
+    errLines.join('\n'),
+  );
   assert.ok(errLines.includes(FAILED_LINE), errLines.join('\n'));
   assert.ok(
     !lines.some((line) => line.startsWith(`re-fenced ${claudePath}`)),
@@ -435,6 +439,10 @@ test('sync: an unwritable canon file is skipped; the other canon files and the f
   const result = await runSync(parseSyncArgs([]), { home, io });
   assert.equal(result.code, 1, 'a file sync could not read or write fails the run, after the rest is done');
   assert.ok(errLines.some((line) => line.startsWith(`skipped ${lockedPath}: `)), errLines.join(', '));
+  assert.ok(
+    errLines.some((line) => line.startsWith(`skipped ${lockedPath}: `) && /^E[A-Z]+\b/.test(line.slice(`skipped ${lockedPath}: `.length))),
+    errLines.join('\n'),
+  );
   assert.ok(errLines.includes(FAILED_LINE), errLines.join('\n'));
   assert.ok(sameText(otherPath, join(KIT_ROOT, 'canon', CANON_FILES[1])), 'the later canon file is refreshed');
   assert.equal(
@@ -599,6 +607,10 @@ test('sync: a canon dir it cannot create never stops the fence refresh', async (
   assert.equal(result.code, 1);
   assert.ok(
     errLines.some((line) => line.startsWith(`skipped ${join(canonDir, CANON_FILES[0])}: `)),
+    errLines.join('\n'),
+  );
+  assert.ok(
+    errLines.some((line) => line.startsWith(`skipped ${join(canonDir, CANON_FILES[0])}: `) && /^E[A-Z]+\b/.test(line.slice(`skipped ${join(canonDir, CANON_FILES[0])}: `.length))),
     errLines.join('\n'),
   );
   assert.ok(
