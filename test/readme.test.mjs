@@ -200,6 +200,7 @@ test('README doctor and sync rows name the right refresh commands (#19, #25, #26
     'home wiring fence',
     '`banana project`',
     'a block with no owner/tag line is skipped',
+    'a file it cannot read or write is skipped too, and sync exits 1 once the rest is done',
   ]) {
     assert.ok(sync.includes(phrase), `the sync row names ${phrase}`);
   }
