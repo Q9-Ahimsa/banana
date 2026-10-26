@@ -1,5 +1,5 @@
-<!-- banana:canon rev 1.8 -->
-# CONTINUITY — cross-harness protocol (canonical) — v1.8
+<!-- banana:canon rev 1.9 -->
+# CONTINUITY — cross-harness protocol (canonical) — v1.9
 
 Any agent working on this machine or its repos follows this. The record is
 **file-based and harness-neutral**: no agent's private memory is the source of
@@ -118,8 +118,11 @@ report yet keep their single placeholder line rather than being omitted):
   thread's `(as of)` from its source. Make those re-stamps first, then run
   `banana state lint --global` on that fresh read — never reuse the lint from
   session start. Before adding a line, first archive every line lint flags to
-  leave (see "The archive move" below). When your thread's next step becomes
-  someone else's, write it in the waiting form. Never rewrite the whole page:
+  leave (see "The archive move" below). When your thread's work is delivered
+  and nothing further waits on anyone's answer, it is finished even if the
+  owner may still look at it: close it (see "closed" under "The archive
+  move"); only a next step that waits on someone else's answer takes the
+  waiting form. Never rewrite the whole page:
   several sessions write it concurrently, and a whole-page write from a stale
   read deletes their updates. Freshness is enforced by `banana state lint
   --global`, not by rebuilding. Chronology does not live here; it lives in
@@ -152,7 +155,7 @@ report yet keep their single placeholder line rather than being omitted):
   at all, however short — join it back onto one line. A thread in the
   waiting form caps at 160 (see "Waiting form" below).
 - **Waiting form** (v1.8) — a thread whose next step is someone else's (the
-  owner's review, ruling or action, or an outside party) is written in the
+  owner's ruling or action, or an outside party) is written in the
   waiting form, at most 160 chars: `**name** (as of YYYY-MM-DD) — waiting on
   {who}: {the ask} → pointer`. The marker is the exact lower-case text ` —
   waiting on ` directly after the `(as of …)` stamp, then `{who}` (1-40
@@ -225,7 +228,9 @@ report yet keep their single placeholder line rather than being omitted):
   dormancy), `trimmed` (the archive
   keeps a copy only — the live line is shortened in place by hand),
   `closed` (a finished Active thread: archive its line, add a
-  Recently-closed line), `removed` (anything else the owner drops).
+  Recently-closed line; for delivered work that line reads `**name** (closed
+  YYYY-MM-DD) — delivered, review optional: {artifact path} → pointer`, and a
+  delivery that never had an Active line just gets that line), `removed` (anything else the owner drops).
   `expired` only targets a Recently-closed line; `inactive` and `closed`
   only target an Active-threads line; `dormant` only targets a Backlog
   (owned) line; `trimmed`/`removed` have no such
@@ -734,3 +739,15 @@ Nothing else changes.
     heading date of its own newest session-log entry for that work.
     Counter-failure: the page refilled to its cap within a week of v1.7's
     cleanup, because only one section had an outflow.
+
+v1.9 amends the **global-grain close disposition** (owner ruling). Nothing
+else changes.
+
+19. **Delivered, review optional, is closed** — a thread whose work is
+    delivered and on whose answer nothing further waits is finished: it
+    leaves Active threads via `--reason closed` and gets a Recently-closed
+    line naming the artifact, which expires on the usual 8-day clock and is
+    then archived `expired` on sight by any session. The waiting form now
+    covers only a ruling, an action or an outside party. Counter-failure:
+    optional reviews kept as owner-owned waiting threads filled the page
+    with obligations nobody had asked to carry.

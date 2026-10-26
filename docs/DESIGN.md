@@ -800,8 +800,10 @@ bullet is the normative copy): `expired` (a closed line past its expiry),
 `inactive` (an idle thread leaving the page), `dormant` (a Backlog item past
 its dormancy), `trimmed`
 (copy only — the live line is shortened in place by hand), `closed` (a
-finished Active thread: archive its line, add a Recently-closed line), and
-`removed` (anything else the owner drops).
+finished Active thread: archive its line, add a Recently-closed line; for
+delivered work that line reads `**name** (closed YYYY-MM-DD) — delivered,
+review optional: {artifact path} → pointer`, and a delivery that never had an
+Active line just gets that line), and `removed` (anything else the owner drops).
 
 `--global` is required (project pages keep their history in LOGBOOK.md
 instead) — its absence, like any other usage problem (a missing

@@ -37,7 +37,7 @@ const VERSION_MARKER_RE = /<!-- banana:canon rev (\d+\.\d+) -->/;
 
 // Per-file revisions — a file's marker bumps when its protocol text changes.
 const EXPECTED_REVS = {
-  'CONTINUITY.md': '1.8',
+  'CONTINUITY.md': '1.9',
   'STANDARD.md': '1.3',
   'SESSION-LOG.md': '1.4',
 };
@@ -212,7 +212,6 @@ test('CONTINUITY.md carries the v1.7 limits/expiry/archive amendment (ADR 0006)'
 test('CONTINUITY.md carries the v1.8 global-page outflow amendment (ADR 0007)', () => {
   const text = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
   const flat = flatten(text);
-  assert.ok(text.includes('— v1.8'), 'CONTINUITY.md title not bumped to v1.8');
   assert.ok(
     flat.includes('v1.8 amends the **global-grain outflow** rules (ADR 0007 in the kit repo)'),
     'CONTINUITY.md missing the v1.8 changelog intro with the ADR 0007 pointer'
@@ -230,6 +229,36 @@ test('CONTINUITY.md carries the v1.8 global-page outflow amendment (ADR 0007)', 
       "Counter-failure: the page refilled to its cap within a week of v1.7's cleanup, because only one section had an outflow."
     ),
     'CONTINUITY.md item 18 missing its Counter-failure sentence'
+  );
+});
+
+test('CONTINUITY.md carries the v1.9 delivered close (owner ruling)', () => {
+  const text = readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8');
+  const flat = flatten(text);
+  assert.ok(text.includes('— v1.9'), 'CONTINUITY.md title not bumped to v1.9');
+  assert.ok(
+    flat.includes('v1.9 amends the **global-grain close disposition** (owner ruling).'),
+    'CONTINUITY.md missing the v1.9 changelog intro'
+  );
+  assert.ok(
+    flat.includes('19. **Delivered, review optional, is closed**'),
+    'CONTINUITY.md missing changelog item 19'
+  );
+  assert.ok(
+    flat.includes(
+      "When your thread's work is delivered and nothing further waits on anyone's answer, it is finished even if the owner may still look at it: close it (see \"closed\" under \"The archive move\"); only a next step that waits on someone else's answer takes the waiting form."
+    ),
+    'CONTINUITY.md Session close bullet missing the delivered-close sentence'
+  );
+  assert.ok(
+    flat.includes(
+      '`**name** (closed YYYY-MM-DD) — delivered, review optional: {artifact path} → pointer`, and a delivery that never had an Active line just gets that line)'
+    ),
+    'CONTINUITY.md `closed` reason missing the delivered-line form'
+  );
+  assert.ok(
+    !flat.includes("the owner's review, ruling or action"),
+    'CONTINUITY.md waiting form still lists the owner\'s review'
   );
 });
 
@@ -326,7 +355,7 @@ test('CONTINUITY.md Session close and CLOSE step carry the writer-pays duty (v1.
   const flat = flatten(readFileSync(join(canonDir, 'CONTINUITY.md'), 'utf8'));
   assert.ok(
     flat.includes(
-      'Before adding a line, first archive every line lint flags to leave (see "The archive move" below). When your thread\'s next step becomes someone else\'s, write it in the waiting form.'
+      'Before adding a line, first archive every line lint flags to leave (see "The archive move" below). When your thread\'s work is delivered and nothing further waits on anyone\'s answer, it is finished even if the owner may still look at it: close it (see "closed" under "The archive move"); only a next step that waits on someone else\'s answer takes the waiting form.'
     ),
     'CONTINUITY.md Session close bullet missing the archive-first and waiting-form duty'
   );
@@ -497,7 +526,7 @@ test('CONTINUITY.md Global-grain body defines all six archive reasons (#20c H64,
     '`inactive` (an idle thread leaving the page)',
     '`dormant` (a Backlog item past its dormancy)',
     '`trimmed` (the archive keeps a copy only — the live line is shortened in place by hand)',
-    '`closed` (a finished Active thread: archive its line, add a Recently-closed line)',
+    '`closed` (a finished Active thread: archive its line, add a Recently-closed line; for delivered work that line reads `**name** (closed YYYY-MM-DD) — delivered, review optional: {artifact path} → pointer`, and a delivery that never had an Active line just gets that line)',
     '`removed` (anything else the owner drops)',
   ];
   for (const def of REASON_DEFINITIONS) {
