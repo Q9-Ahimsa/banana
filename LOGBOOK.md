@@ -147,3 +147,9 @@ WHAT: at the 0.7.0 sync, Pi was detected but had no banana block, before and aft
 DONE: owner go "Delete all, keep branch (Recommended)": cli-26 worktree removed (branch cli-26-batch kept); 1,722 OS-temp test copies removed (~1.1 GB; 0 refused, 0 failed); re-checked after: none left, main HEAD and status unchanged, 1142 tests, 0 fail
 ref: .agents/session.log cli.27; GitHub #30
 NEXT: ahimsa — pick the next batch: #27 hermes delivery, #28 compact-prep design, #29 edge cases, #30 unwired harnesses (essential)
+
+## [2026-10-26] claude kit.21 | RELEASE — 0.7.1 pushed and synced: CONTINUITY v1.9, delivered + review optional = closed
+WHAT: owner ruling on a session audit — "Add a close disposition: delivered, review optional"; ship mode "Build and push". Canon-only: a delivered thread on whose answer nothing waits closes with a Recently-closed line naming the artifact; the waiting form drops "review" from its scope (net live rule count 0; no CLI change; existing `state archive --reason closed` does the move)
+DONE: 3ab8d3b docs(canon), 7915321 chore(release) on main via branch canon-1.9-delivered-close; tsc clean, 1143 tests (1141 pass, 0 fail, 2 skipped); pushed; `banana sync` refreshed only ~/.agents/canon/CONTINUITY.md (rev 1.9), every other hashed home file byte-identical; doctor: 0 stale-canon findings
+ref: .agents/specs/canon-1.9-delivered-close.md
+NEXT: ahimsa — pick the next batch: #27 hermes delivery, #28 compact-prep design, #29 edge cases, #30 unwired harnesses (essential)

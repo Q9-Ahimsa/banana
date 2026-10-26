@@ -1,9 +1,11 @@
 # STATE — banana
-> Projection of LOGBOOK.md as of 2026-10-15 (through kit.20). Logbook wins
+> Projection of LOGBOOK.md as of 2026-10-26 (through kit.21). Logbook wins
 > on conflict. One page, hard cap. Rebuilt at session close; mid-arc
 > section patches are legal and must carry the dirty-marker line.
 
 ## Now
+- 0.7.1 released and live (pushed, synced): CONTINUITY v1.9 — a delivered thread on whose answer nothing
+  waits closes with a Recently-closed line; the waiting form no longer covers optional reviews — kit.21.
 - 0.7.0 released and live (pushed, synced on the owner machine): session log rotated; wiring templates at
   fence v4 (#24, #25); doctor's init remedy for a home block with no owner/tag line (#26); sync's exit-1
   contract and project's LOGBOOK.md deferral (owner rulings) — kit.19. Frontier: the owner picks the next
